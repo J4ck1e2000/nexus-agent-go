@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Monitor</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 页面样式区：主要定义整体视觉、动画和组件外观 */
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;600;800&display=swap');
+
+        body { 
+            background-color: #f8fafc; 
+            color: #0f172a; 
+            font-family: 'Inter', sans-serif;
+        }
+
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        
+        .ran-jie-title {
+            background: linear-gradient(90deg, #ec4899, #ef4444, #eab308, #60a5fa, #ec4899);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-weight: 900;
+            letter-spacing: -0.025em;
+            background-size: 200% 200%;
+            animation: gradientShift 6s linear infinite;
+        }
+
+        .vip-card-border {
+            position: relative;
+            z-index: 0;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        
+        .vip-card-border::before {
+            content: '';
+            position: absolute;
+            z-index: -2;
+            top: -50%; left: -50%; right: -50%; bottom: -50%;
+            background: conic-gradient(from 0deg, transparent 0deg, #ff0080 90deg, #ffb300 180deg, #60a5fa 270deg, transparent 360deg);
+            animation: rotate 3s linear infinite;
+            opacity: 0.5;
+            filter: saturate(1.2);
+        }
+
+        .vip-glow {
+            box-shadow: 0 0 20px rgba(236, 72, 153, 0.25), 0 0 40px rgba(234, 179, 8, 0.2);
+            animation: glowPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes rotate { 100% { transform: rotate(1turn); } }
+        @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes glowPulse { 0%,100% { box-shadow: 0 0 18px rgba(236,72,153,0.25), 0 0 32px rgba(234,179,8,0.18); } 50% { box-shadow: 0 0 28px rgba(236,72,153,0.35), 0 0 52px rgba(234,179,8,0.28); } }
+        
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-4px); }
+        }
+        
+        .animate-float {
+          animation: float 2s ease-in-out infinite;
+        }
+
+        .vip-aurora { position: absolute; inset: 0; pointer-events: none; z-index: 5; background:
+            radial-gradient(140px 220px at 12% 18%, rgba(255,0,128,0.25), transparent 60%),
+            radial-gradient(140px 220px at 85% 8%, rgba(234,179,8,0.25), transparent 60%),
+            radial-gradient(180px 140px at 5% 85%, rgba(59,130,246,0.25), transparent 60%);
+            filter: blur(28px);
+            mix-blend-mode: screen;
+            opacity: 0.8;
+            animation: auroraMove 12s ease-in-out infinite;
+        }
+        @keyframes auroraMove { 0% { transform: translateX(-2%) translateY(0%); } 50% { transform: translateX(2%) translateY(-2%); } 100% { transform: translateX(-2%) translateY(0%); } }
+        .vip-streak { position: absolute; top: -40%; left: -20%; width: 35%; height: 180%; pointer-events: none; z-index: 6; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.5) 50%, rgba(255,255,255,0)); filter: blur(8px); transform: rotate(20deg); animation: streak 6s linear infinite; }
+        @keyframes streak { 0% { transform: translateX(0%) rotate(20deg); opacity: 0.2; } 50% { transform: translateX(170%) rotate(20deg); opacity: 0.5; } 100% { transform: translateX(340%) rotate(20deg); opacity: 0.2; } }
+        .vip-sparkles { position: absolute; inset: 0; pointer-events: none; z-index: 7; background:
+            radial-gradient(2px 2px at 12% 20%, rgba(255,255,255,0.9), transparent 60%),
+            radial-gradient(2px 2px at 42% 35%, rgba(255,255,255,0.7), transparent 60%),
+            radial-gradient(2px 2px at 72% 18%, rgba(255,255,255,0.8), transparent 60%),
+            radial-gradient(2px 2px at 18% 78%, rgba(255,255,255,0.75), transparent 60%),
+            radial-gradient(2px 2px at 86% 68%, rgba(255,255,255,0.85), transparent 60%);
+            animation: sparkle 8s linear infinite alternate;
+        }
+        @keyframes sparkle { 0% { opacity: 0.6; filter: saturate(0.9); } 50% { opacity: 1; filter: saturate(1.2); } 100% { opacity: 0.6; filter: saturate(0.9); } }
+        .vip-card-border:hover .vip-streak { animation-duration: 4s; }
+        .vip-card-border:hover .vip-aurora { opacity: 1; }
+        .vip-header-shine { position: absolute; inset: -20% 0; pointer-events: none; z-index: 0; background: linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 40%, rgba(255,255,255,0) 60%); animation: headerShine 5s linear infinite; mix-blend-mode: overlay; }
+        @keyframes headerShine { 0% { transform: translateX(-60%); } 100% { transform: translateX(60%); } }
+        .rainbow-avatar { background: linear-gradient(90deg, #ec4899, #ef4444, #eab308, #60a5fa, #ec4899); background-size: 200% 200%; animation: gradientShift 6s linear infinite; }
+        
+        
+        .hacker-bg { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: #f1f5f9; }
+        #matrix-bg { width: 100%; height: 100%; opacity: 0.07; mix-blend-mode: multiply; }
+        .bg-grid {
+            position: absolute; inset: 0;
+            background-image: linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(0,0,0,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+        }
+
+    </style>
+</head>
+<body>
+    <div class="hacker-bg">
+        <canvas id="matrix-bg"></canvas>
+        <div class="bg-grid"></div>
+    </div>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // 前端逻辑区：React 组件、状态管理与数据请求
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // 图标集合：统一维护页面内使用的 SVG 图标组件
+
+        const Icons = {
+            Github: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>,
+            Beaker: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 3h15"/><path d="M6 3v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3"/><path d="M6 14h12"/></svg>,
+            Server: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>,
+            Activity: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
+            Cpu: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>,
+            Zap: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
+            Trash2: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,
+            Thermometer: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>,
+            HardDrive: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/></svg>,
+            Network: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>,
+            Clock: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            AlertTriangle: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>,
+            Wifi: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.55a11 11 0 0 1 14 0"/><path d="M1.42 9.17a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>,
+            Users: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+            ChevronDown: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>,
+            Wind: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>,
+            Bolt: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>,
+            Database: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
+            LayoutDashboard: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></svg>
+        };
+
+        const formatSpeed = (mbPerSec) => {
+            if (!mbPerSec) return '0 KB/s';
+            if (mbPerSec < 0.1) return '0 KB/s';
+            if (mbPerSec < 1) return `${(mbPerSec * 1024).toFixed(0)} KB/s`;
+            return `${mbPerSec.toFixed(2)} MB/s`;
+        };
+        const formatTime = (d) => {
+            if (!d) return '';
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            const ss = String(d.getSeconds()).padStart(2, '0');
+            return `${hh}:${mm}:${ss}`;
+        };
+        const getLoadColor = (percent) => {
+            if (percent < 50) return "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]";
+            if (percent < 80) return "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]";
+            return "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.4)]";
+        };
+        const getTempColor = (temp) => {
+            if (temp < 60) return "text-emerald-600 bg-emerald-50 border-emerald-100";
+            if (temp < 80) return "text-amber-600 bg-amber-50 border-amber-100";
+            return "text-rose-600 bg-rose-50 border-rose-100";
+        };
+        const getTodayPin = () => {
+            const d = new Date();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return mm + dd;
+        };
+        const validatePin = (pin) => typeof pin === 'string' && /^\d{4}$/.test(pin) && pin === getTodayPin();
+        const stringToColor = (str) => {
+            const colors = ['from-red-400 to-orange-400','from-amber-400 to-yellow-400','from-lime-400 to-green-400','from-emerald-400 to-teal-400','from-cyan-400 to-sky-400','from-blue-400 to-indigo-400','from-violet-400 to-purple-400','from-fuchsia-400 to-pink-400'];
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            return colors[Math.abs(hash) % colors.length];
+        };
+
+
+        const ProgressBar = ({ percent, colorClass }) => (
+            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden ring-1 ring-slate-200/50">
+                <div className={`${colorClass || getLoadColor(percent)} h-full rounded-full transition-all duration-700 ease-out`} style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} />
+            </div>
+        );
+
+        const GpuCard = ({ gpu, index }) => {
+            const cleanName = gpu.name.replace("NVIDIA GeForce ", "").replace("NVIDIA ", "").replace("RTX ", "");
+            return (
+                <div className="bg-white/60 backdrop-blur-sm border border-slate-200/60 rounded-lg p-3 hover:border-blue-400/50 hover:bg-white transition-all group shadow-sm hover:shadow-md">
+                    <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 border border-slate-200 font-mono">{index}</div>
+                            <span className="text-xs font-bold text-slate-700 group-hover:text-blue-600 transition-colors truncate max-w-[120px]" title={gpu.name}>{cleanName}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {gpu.fan_speed > 0 && (
+                                <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400">
+                                    <Icons.Wind /> {gpu.fan_speed}%
+                                </div>
+                            )}
+                            <div className={`flex items-center gap-1 text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border ${getTempColor(gpu.temperature)}`}>
+                                <Icons.Thermometer /> {gpu.temperature}°C
+                            </div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mb-2">
+                        <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] font-medium text-slate-500">
+                                <span>Core</span>
+                                <span className={gpu.utilization > 90 ? 'text-rose-500' : 'text-slate-700'}>{gpu.utilization}%</span>
+                            </div>
+                            <ProgressBar percent={gpu.utilization} />
+                        </div>
+                        <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] font-medium text-slate-500">
+                                <span>VRAM</span>
+                                <span className="text-slate-700">{gpu.memory_used}G</span>
+                            </div>
+                            <ProgressBar percent={gpu.memory_utilization} colorClass="bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.4)]" />
+                        </div>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-100/50">
+                        <div className="flex items-center gap-1"><Icons.Bolt /> <span className="font-mono">{gpu.power_draw ? `${gpu.power_draw}W` : 'N/A'}</span></div>
+                        <div className="font-mono">{gpu.memory_used} / {gpu.memory_total} GB</div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ServerName = ({ name, isVip, isCloud }) => {
+            if (isVip) {
+                return (
+                    <div className="flex items-center">
+                        <h3 className="text-lg ran-jie-title drop-shadow-sm">{name}</h3>
+                        <span className="text-base ml-1.5 animate-float">💎💎👑👑</span>
+                    </div>
+                );
+            }
+            if (isCloud) {
+                return (
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-base animate-pulse">☁️</span>
+                        <h3 className="text-sm font-bold text-sky-700 tracking-tight truncate">{name}</h3>
+                    </div>
+                );
+            }
+            return <h3 className="text-sm font-bold text-slate-700 tracking-tight truncate">{name}</h3>;
+        };
+
+        const ActivityDrawer = ({ isOpen, onClose, processes }) => {
+            const users = useMemo(() => {
+                const userMap = {};
+                processes.forEach(proc => {
+                    const name = proc.user || proc.username || 'Unknown';
+                    if (!userMap[name]) userMap[name] = { name, processes: [], totalVram: 0, gpuCount: 0 };
+                    userMap[name].processes.push(proc);
+                    userMap[name].totalVram += (proc.vram_used_mb || 0);
+                    if (proc.gpu_index !== null && (proc.vram_used_mb || 0) > 0) userMap[name].gpuCount += 1;
+                });
+                const thresholdMb = 0.1 * 1024;
+                return Object.values(userMap)
+                    .filter(u => u.totalVram >= thresholdMb)
+                    .sort((a, b) => b.totalVram - a.totalVram);
+            }, [processes]);
+
+            const [expandedUser, setExpandedUser] = useState(null);
+            if (!isOpen) return null;
+
+            return (
+                <>
+                    <div className="fixed inset-0 z-50 bg-slate-900/10 backdrop-blur-[2px] transition-opacity" onClick={onClose} />
+                    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-white/90 backdrop-blur-xl shadow-2xl drawer-enter flex flex-col border-l border-white/50">
+                        <div className="p-4 border-b border-slate-100 bg-white/50 flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><span className="text-indigo-600"><Icons.Users /></span> GPU Users</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 rounded-full hover:bg-slate-100"><Icons.X /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+                            {users.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm opacity-60"><Icons.Wind /><p className="mt-2">Cluster Idle</p></div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <div className="text-[10px] text-slate-500 px-2">只统计显存占用 ≥ 0.1G 的用户</div>
+                                    {users.map((user, idx) => (
+                                        <div key={user.name} className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all">
+                                            <div onClick={() => setExpandedUser(expandedUser === user.name ? null : user.name)} className="p-3 cursor-pointer flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-full ${(user.name||'').toLowerCase().includes('raa') ? 'rainbow-avatar' : 'bg-gradient-to-br ' + stringToColor(user.name)} flex items-center justify-center text-white text-sm font-bold shadow-sm`}>{user.name[0].toUpperCase()}</div>
+                                                <div className="flex-1 min-w-0">
+                                                <div className="flex justify-between items-center">
+                                                    <div className={`font-bold ${(user.name||'').toLowerCase().includes('raa') ? 'ran-jie-title' : 'text-slate-700'}`}>{user.name}</div>
+                                                    <div className="text-[10px] font-mono bg-slate-100 px-1.5 rounded text-slate-500">#{idx+1}</div>
+                                                </div>
+                                                    <div className="flex gap-2 mt-0.5">
+                                                        <span className="text-[10px] font-medium bg-indigo-50 text-indigo-600 px-1.5 rounded">{(user.totalVram/1024).toFixed(1)}GB</span>
+                                                        <span className="text-[10px] font-medium bg-amber-50 text-amber-600 px-1.5 rounded">{user.gpuCount} GPU</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {expandedUser === user.name && (
+                                                <div className="bg-slate-50/50 border-t border-slate-100 p-2 space-y-2">
+                                                    {user.processes.map((p, i) => (
+                                                        <div key={i} className="flex justify-between items-center text-[10px] bg-white p-2.5 rounded-lg border border-slate-200/60 shadow-sm">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex items-center gap-1.5 font-bold text-slate-700"><Icons.Server /> {p.serverName}</div>
+                                                                <div className="pl-0.5 text-slate-400 font-mono">PID: <span className="text-slate-500">{p.pid}</span></div>
+                                                            </div>
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                <div className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[9px] font-bold border border-slate-200">GPU {p.gpu_index}</div>
+                                                                <div className="text-indigo-600 font-mono font-bold">{(p.vram_used_mb / 1024).toFixed(1)}GB</div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </>
+            );
+        };
+
+        const ServerCard = ({ server, onDelete }) => {
+            const isVip = server.name.includes('冉姐');
+            const isCloud = server.name.startsWith('浪潮');
+            const isOffline = server.status === 'offline';
+            const data = server.data || {};
+            const metrics = server.metrics || { upSpeed: 0, downSpeed: 0 };
+            
+            let containerClass = "relative flex flex-col bg-white rounded-2xl overflow-hidden transition-all duration-300 h-full group";
+            let headerClass = "p-4 flex justify-between items-start border-b backdrop-blur-md relative overflow-hidden";
+            
+            if (isVip) {
+                containerClass += " vip-card-border vip-glow scale-[1.02] hover:scale-[1.03]";
+                headerClass += " border-pink-200 bg-gradient-to-r from-pink-50/90 to-amber-50/90";
+            } else if (isCloud) {
+                containerClass += " border border-sky-200 shadow-sm hover:shadow-xl hover:shadow-sky-200/50 hover:-translate-y-1";
+                headerClass += " border-sky-100 bg-gradient-to-r from-sky-50/90 to-blue-50/90";
+            } else if (isOffline) {
+                containerClass += " border border-rose-200 bg-rose-50/30";
+                headerClass += " border-rose-100 bg-rose-50/50";
+            } else {
+                containerClass += " border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 hover:-translate-y-1";
+                headerClass += " border-slate-100 bg-white/80";
+            }
+
+            return (
+                <div className={containerClass}>
+                    {isVip && <>
+                        <div className="vip-aurora"></div>
+                        <div className="vip-streak"></div>
+                        <div className="vip-sparkles"></div>
+                    </>}
+                    
+                    <div className={headerClass}>
+                        {isVip && <div className="vip-header-shine"></div>}
+                        <div className="overflow-hidden pr-2 z-20">
+                            <div className="flex items-center gap-2 mb-1">
+                                <ServerName name={server.name} isVip={isVip} isCloud={isCloud} />
+                                {isOffline ? 
+                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-600 border border-rose-200 flex items-center gap-1"><Icons.AlertTriangle /> OFF</span> : 
+                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-600 border border-emerald-200 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/> ON</span>
+                                }
+                            </div>
+                            <div className="text-[10px] font-mono text-slate-400 flex flex-wrap items-center gap-3">
+                                <span className="flex items-center gap-1 bg-slate-100/50 px-1.5 rounded"><Icons.Network /> {data.ip_address || (server.url ? server.url.replace('http://', '').split(':')[0] : 'IP...')}</span>
+                            </div>
+                        </div>
+                        <button onClick={() => onDelete(server.id)} className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors z-20"><Icons.Trash2 /></button>
+                    </div>
+
+                    <div className="flex-1 flex flex-col relative z-20 bg-white/50">
+                        {isOffline ? (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-slate-300 min-h-[200px]">
+                                <div className="relative mb-2 scale-150"><Icons.Wifi /><div className="absolute -bottom-1 -right-1 text-rose-400"><Icons.X /></div></div>
+                                <p className="text-xs font-medium">Connection Lost</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-4 border-b border-slate-100 divide-x divide-slate-100/50 bg-slate-50/50 text-center py-2.5">
+                                    {[
+                                        { label: 'CPU', val: `${data.cpu_usage}%`, sub: `${data.cpu_cores}C`, icon: Icons.Cpu, col: 'text-blue-600' },
+                                        { label: 'RAM', val: `${data.ram_percent}%`, sub: `${Math.round(data.ram_used)}G`, icon: Icons.HardDrive, col: 'text-purple-600' },
+                                        { label: 'NET', val: 'I/O', sub: `↓${formatSpeed(metrics.downSpeed).split(' ')[0]}`, icon: Icons.Activity, col: 'text-indigo-600' },
+                                        { label: 'PWR', val: `${(data.gpus||[]).reduce((a,b)=>a+(b.power_draw||0),0)}W`, sub: 'Total', icon: Icons.Zap, col: 'text-amber-500' }
+                                    ].map((stat, i) => (
+                                        <div key={i} className="px-1 group/stat cursor-default">
+                                            <div className="text-[9px] uppercase text-slate-400 font-bold mb-0.5 flex justify-center items-center gap-1"><stat.icon /> {stat.label}</div>
+                                            <div className={`text-xs font-bold text-slate-700 group-hover/stat:${stat.col} transition-colors`}>{stat.val}</div>
+                                            <div className="text-[9px] text-slate-400 scale-90">{stat.sub}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                                
+                                <div className="p-3 flex-1 bg-slate-50/30">
+                                    <div className="space-y-2">
+                                        {(!data.gpus || data.gpus.length === 0) ? (
+                                            <div className="text-center py-6 text-slate-400 text-xs border-2 border-dashed border-slate-200 rounded-xl">No GPU Detect</div> 
+                                        ) : (
+                                            data.gpus.map((gpu, idx) => <GpuCard key={idx} index={idx} gpu={gpu} />)
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // 主应用组件：负责节点配置、轮询监控和页面交互
+        const App = () => {
+            const [servers, setServers] = useState([]);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [isActivityOpen, setIsActivityOpen] = useState(false);
+            const [modalData, setModalData] = useState({ name: "", url: "http://", pin: "" });
+            const historyRef = useRef({});
+            const [lastSyncedAt, setLastSyncedAt] = useState(null);
+            const versionRef = useRef(null);
+
+            useEffect(() => {
+                const checkVersion = async () => {
+                    try {
+                        const res = await fetch('/api/version');
+                        if (res.ok) {
+                            const data = await res.json();
+                            const lastVersion = versionRef.current;
+                            console.log(`[Version Check] Server: ${data.version} | Local: ${lastVersion}`);
+
+                            if (lastVersion !== null && lastVersion !== data.version) {
+                                console.log("New version detected!", lastVersion, "->", data.version);
+                                const vName = data.versionName ? ` ${data.versionName}` : "";
+                                const changelog = data.changelog ? `\n\n更新内容：\n${data.changelog}` : "";
+                                if (confirm(`✨ 系统检测到新版本更新${vName}！${changelog}\n\n是否立即刷新以获取最新功能？`)) {
+                                    window.location.reload();
+                                }
+                            }
+                            versionRef.current = data.version;
+                        }
+                    } catch (e) { console.error("Version check failed", e); }
+                };
+                checkVersion();
+                const interval = setInterval(checkVersion, 5000);
+                return () => clearInterval(interval);
+            }, []);
+
+            useEffect(() => {
+                const loadConfig = async () => {
+                    try {
+                        const res = await fetch('/api/config');
+                        if (res.ok) {
+                            const data = await res.json();
+                            setServers(data.map(s => ({...s, status: 'pending', data: null, metrics: null})));
+                        } else throw new Error();
+                    } catch {
+                        const saved = localStorage.getItem('nexus_servers_fallback');
+                        if (saved) setServers(JSON.parse(saved).map(s => ({...s, status: 'pending', data: null, metrics: null})));
+                    }
+                };
+                loadConfig();
+            }, []);
+
+            const saveConfig = async (newServersList, pin) => {
+                const configToSave = newServersList.map(s => ({ id: s.id, name: s.name, url: s.url }));
+                try {
+                    const res = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-PIN': pin || '' }, body: JSON.stringify(configToSave) });
+                    if (res.ok) return true;
+                    if (res.status === 403 || res.status === 401) return false;
+                    throw new Error();
+                } catch {
+                    if (!validatePin(pin)) return false;
+                    localStorage.setItem('nexus_servers_fallback', JSON.stringify(configToSave));
+                    return true;
+                }
+            };
+
+            useEffect(() => {
+                if (servers.length === 0) return;
+                const fetchAll = async () => {
+                    const promises = servers.map(async (server) => {
+                        try {
+                            const controller = new AbortController();
+                            setTimeout(() => controller.abort(), 3000);
+                            const targetUrl = `${server.url}/metrics`;
+                            const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+                            let res;
+                            try { res = await fetch(proxyUrl, { signal: controller.signal }); if (res.status !== 200) throw new Error(); } 
+                            catch { res = await fetch(targetUrl, { signal: controller.signal }); }
+                            if (!res.ok) throw new Error();
+                            const jsonData = await res.json();
+                            const currentTime = Date.now();
+                            const history = historyRef.current[server.url];
+                            let upSpeed = 0, downSpeed = 0;
+                            if (history) {
+                                const timeDiffSec = (currentTime - history.timestamp) / 1000;
+                                if (timeDiffSec > 0) {
+                                    upSpeed = Math.max(0, jsonData.net_sent_mb - history.sent) / timeDiffSec;
+                                    downSpeed = Math.max(0, jsonData.net_recv_mb - history.recv) / timeDiffSec;
+                                }
+                            }
+                            historyRef.current[server.url] = { timestamp: currentTime, sent: jsonData.net_sent_mb, recv: jsonData.net_recv_mb };
+                            return { ...server, status: 'online', data: jsonData, metrics: { upSpeed, downSpeed } };
+                        } catch { return { ...server, status: 'offline' }; }
+                    });
+                    const results = await Promise.all(promises);
+                    setServers(results);
+                    setLastSyncedAt(new Date());
+                };
+                fetchAll();
+                const interval = setInterval(fetchAll, 2000);
+                return () => clearInterval(interval);
+            }, [servers.length]);
+
+            const addServer = async () => {
+                const newServer = { id: Date.now(), name: modalData.name, url: modalData.url, status: 'pending' };
+                const newList = [...servers, newServer];
+                if (!(await saveConfig(newList, modalData.pin))) { alert('Error/PIN Incorrect (MMDD)'); return; }
+                setServers(newList); setIsModalOpen(false); setModalData({name: "", url: "http://", pin: ""});
+            };
+
+            const deleteServer = async (id) => {
+                if(!confirm("Delete node?")) return;
+                const pin = prompt("Admin PIN (MMDD)");
+                if (!pin) return;
+                const newList = servers.filter(x => x.id !== id);
+                if (!(await saveConfig(newList, pin))) { alert('Error/PIN Incorrect'); return; }
+                setServers(newList);
+            };
+
+            const activeCount = servers.filter(s => s.status === 'online').length;
+            const totalGpus = servers.reduce((acc, s) => acc + (s.data?.gpus?.length || 0), 0);
+            const allProcesses = servers
+                .filter(s => s.status === 'online' && s.data?.processes)
+                .flatMap(s => s.data.processes.map(p => ({ ...p, serverName: s.name })))
+                .filter(p => !['root','gdm'].includes((p.user||'').toLowerCase()));
+            const activeUsersCount = useMemo(() => {
+                const totals = {};
+                allProcesses.forEach(p => {
+                    const name = p.user || p.username || 'Unknown';
+                    if (!totals[name]) totals[name] = 0;
+                    totals[name] += (p.vram_used_mb || 0);
+                });
+                const thresholdMb = 0.1 * 1024;
+                return Object.values(totals).filter(total => total >= thresholdMb).length;
+            }, [allProcesses]);
+
+            return (
+                <div className="min-h-screen pb-20 font-sans">
+                    <nav className="sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-sm">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between h-16">
+                                <div className="flex items-center gap-4 group">
+                                    <div className="relative w-10 h-10 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-all duration-300">
+                                        <Icons.LayoutDashboard className="w-5 h-5 text-slate-700" />
+                                        
+                                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-white"></span>
+                                        </span>
+                                    </div>
+
+                                    <div className="flex flex-col">
+                                        <h1 className="text-lg font-bold text-slate-800 leading-none tracking-tight flex items-center gap-2">
+                                            0523 Laboratory 🚀💻
+                                            <span className="w-px h-3 bg-slate-300 mx-1"></span>
+                                            <span className="text-slate-500 font-medium text-base">服务器看板</span>
+                                        </h1>
+                                        <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest mt-1">
+                                            System Monitor v2.0
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="hidden md:flex items-center gap-6 text-xs font-semibold text-slate-500 mr-2 bg-slate-50/50 px-4 py-1.5 rounded-full border border-slate-100">
+                                        <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> {activeCount} Online</div>
+                                        <div className="flex items-center gap-1"><span className="text-amber-500"><Icons.Zap /></span> {totalGpus} GPUs</div>
+                                        
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2">
+                                        <a href="http://food.cuizl.cn" target="_blank" className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><img src="public/food.svg" className="w-5 h-5" alt="Food" /></a>
+                                        <a href="http://meeting.cuizl.cn/" target="_blank" className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Icons.Beaker /></a>
+                                        <a href="https://github.com/CQUPT-CZL/nexus-agent-go" target="_blank" className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Icons.Github /></a>
+                                        <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                                        <button onClick={() => setIsActivityOpen(true)} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm" title="只统计显存占用 ≥ 0.1G 的用户">
+                                            <Icons.Users /> <span className="hidden sm:inline">GPU Users</span>
+                                            {activeUsersCount > 0 && <span className="bg-indigo-600 text-white text-[10px] px-1.5 rounded-full">{activeUsersCount}</span>}
+                                        </button>
+                                        <button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white p-2 rounded-lg shadow-lg shadow-slate-900/20 transition-all active:scale-95"><Icons.Plus /></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {servers.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-32 border-2 border-dashed border-slate-300 rounded-3xl bg-slate-50/50">
+                                <div className="p-6 bg-white rounded-2xl shadow-xl mb-6 text-indigo-500 scale-125"><Icons.Server /></div>
+                                <h2 className="text-2xl font-bold text-slate-800 mb-2">No Active Nodes</h2>
+                                <p className="text-slate-500 mb-8 text-center max-w-md">Connect your first Agent to start monitoring.</p>
+                                <button onClick={() => setIsModalOpen(true)} className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold hover:scale-105 transition-all shadow-xl">Connect Node</button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                                {servers.map(s => <ServerCard key={s.id} server={s} onDelete={deleteServer} />)}
+                            </div>
+                        )}
+                    </main>
+
+                    <ActivityDrawer isOpen={isActivityOpen} onClose={() => setIsActivityOpen(false)} processes={allProcesses} />
+
+                    {isModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fade-in">
+                            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-6 transform transition-all scale-100">
+                                <div className="flex justify-between items-center"><h3 className="text-xl font-bold text-slate-800">Add Node</h3><button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700"><Icons.X /></button></div>
+                                <div className="space-y-4">
+                                    <div className="group">
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Node Name</label>
+                                        <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-bold" placeholder="e.g. Ran Jie 4090" value={modalData.name} onChange={e => setModalData({...modalData, name: e.target.value})} />
+                                    </div>
+                                    <div className="group">
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Agent URL</label>
+                                        <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-mono text-sm" placeholder="http://192.168.1.x:8005" value={modalData.url} onChange={e => setModalData({...modalData, url: e.target.value})} />
+                                    </div>
+                                    <div className="group">
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Security PIN</label>
+                                        <input type="text" inputMode="numeric" maxLength={4} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-mono text-center tracking-[0.5em] font-bold" placeholder="••••" value={modalData.pin} onChange={e => setModalData({...modalData, pin: e.target.value.replace(/\D/g,'')})} />
+                                    </div>
+                                </div>
+                                <div className="flex gap-3 pt-2">
+                                    <button onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Cancel</button>
+                                    <button onClick={addServer} className="flex-1 px-4 py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-200 transition-all hover:scale-[1.02]">Connect Agent</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    <script>
+        // 背景动效脚本：绘制 Matrix 风格的动态背景
+        (function(){
+            var c = document.getElementById('matrix-bg');
+            if(!c) return;
+            var ctx = c.getContext('2d');
+            var fontSize = 14;
+            var w, h, columns, drops;
+            var chars = '01 NEXUS GPU CUDA'; 
+            function setSize(){
+                w = c.width = window.innerWidth;
+                h = c.height = window.innerHeight;
+                columns = Math.floor(w / fontSize);
+                drops = new Array(columns).fill(0);
+            }
+            function draw(){
+                ctx.fillStyle = 'rgba(241, 245, 249, 0.2)';
+                ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#cbd5e1';
+                ctx.font = 'bold ' + fontSize + 'px monospace';
+                for(var i = 0; i < drops.length; i++){
+                    var text = chars[Math.floor(Math.random() * chars.length)];
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                    if(drops[i] * fontSize > h && Math.random() > 0.985){ drops[i] = 0; }
+                    drops[i] += 1;
+                }
+                requestAnimationFrame(draw);
+            }
+            setSize();
+            window.addEventListener('resize', setSize);
+            draw();
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# Gateway 服务单元：用于 systemd 托管网关进程。
+[Unit]
+Description=Nexus Agent Go (Gateway)
+After=network.target
+
+[Service]
+Type=simple
+# 工作目录，对应项目部署目录。
+WorkingDirectory=/opt/nexus-agent-go
+# Gateway 监听端口。
+Environment="PORT=3000"
+# 前端静态资源目录。
+Environment="WEB_DIR=/opt/nexus-agent-go/web"
+# 配置文件路径。
+Environment="CONFIG_FILE=/opt/nexus-agent-go/web/config.json"
+# 启动命令。
+ExecStart=/opt/nexus-agent-go/bin/nexus-agent-go-gateway
+# 异常退出自动重启。
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

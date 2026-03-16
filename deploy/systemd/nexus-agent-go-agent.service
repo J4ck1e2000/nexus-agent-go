@@ -1,0 +1,21 @@
+# Agent 服务单元：用于 systemd 托管 Agent 进程。
+[Unit]
+Description=Nexus Agent Go (Agent)
+After=network.target
+
+[Service]
+Type=simple
+# 工作目录，对应项目部署目录。
+WorkingDirectory=/opt/nexus-agent-go
+# Agent 监听端口。
+Environment="PORT=8005"
+# 采集间隔。
+Environment="METRICS_INTERVAL=2s"
+# 启动命令。
+ExecStart=/opt/nexus-agent-go/bin/nexus-agent-go-agent
+# 异常退出自动重启。
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
