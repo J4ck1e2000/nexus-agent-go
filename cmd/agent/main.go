@@ -14,7 +14,13 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"nexus-agent-go/internal/agent"
+	"nexus-agent-go/internal/model"
 )
+
+type currentMetricsResponse struct {
+	CollectedAtUnix int64 `json:"collected_at_unix"`
+	model.SystemMetrics
+}
 
 // main 启动 Agent 服务：后台采集指标并暴露 HTTP API。
 func main() {
@@ -40,11 +46,48 @@ func main() {
 	r.GET("/metrics", func(c *gin.Context) {
 		metrics, err := service.Snapshot()
 		if err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "metrics_unavailable"})
+			writeMetricsUnavailable(c)
 			return
 		}
 		c.JSON(http.StatusOK, metrics)
 	})
+
+	r.GET("/metrics/current", func(c *gin.Context) {
+		metrics, collectedAtUnix, ok := snapshotWithMetaOrUnavailable(c, service)
+		if !ok {
+			return
+		}
+		c.JSON(http.StatusOK, currentMetricsResponse{
+			CollectedAtUnix: collectedAtUnix,
+			SystemMetrics:   metrics,
+		})
+	})
+
+	r.GET("/metrics/summary", func(c *gin.Context) {
+		metrics, collectedAtUnix, ok := snapshotWithMetaOrUnavailable(c, service)
+		if !ok {
+			return
+		}
+		c.JSON(http.StatusOK, agent.BuildMetricsSummary(metrics, collectedAtUnix))
+	})
+
+	r.GET("/metrics/processes", func(c *gin.Context) {
+		metrics, collectedAtUnix, ok := snapshotWithMetaOrUnavailable(c, service)
+		if !ok {
+			return
+		}
+		c.JSON(http.StatusOK, agent.BuildProcessesResponse(metrics, collectedAtUnix))
+	})
+
+	r.GET("/metrics/gpus", func(c *gin.Context) {
+		metrics, collectedAtUnix, ok := snapshotWithMetaOrUnavailable(c, service)
+		if !ok {
+			return
+		}
+		c.JSON(http.StatusOK, agent.BuildGPUsResponse(metrics, collectedAtUnix))
+	})
+
+	logMetricsRoutes(r)
 
 	srv := &http.Server{
 		Addr:              ":" + port,
@@ -105,4 +148,25 @@ func durationEnv(key string, fallback time.Duration) time.Duration {
 		return time.Duration(sec) * time.Second
 	}
 	return fallback
+}
+
+func writeMetricsUnavailable(c *gin.Context) {
+	c.JSON(http.StatusServiceUnavailable, gin.H{"error": "metrics_unavailable"})
+}
+
+func snapshotWithMetaOrUnavailable(c *gin.Context, service *agent.Service) (model.SystemMetrics, int64, bool) {
+	metrics, collectedAtUnix, err := service.SnapshotWithMeta()
+	if err != nil {
+		writeMetricsUnavailable(c)
+		return model.SystemMetrics{}, 0, false
+	}
+	return metrics, collectedAtUnix, true
+}
+
+func logMetricsRoutes(r *gin.Engine) {
+	for _, route := range r.Routes() {
+		if strings.HasPrefix(route.Path, "/metrics") {
+			log.Printf("registered route: %s %s", route.Method, route.Path)
+		}
+	}
 }

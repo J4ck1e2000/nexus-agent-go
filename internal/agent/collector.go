@@ -205,11 +205,20 @@ func (s *Service) Start(ctx context.Context) {
 
 // Snapshot 返回最近一次缓存数据。
 func (s *Service) Snapshot() (model.SystemMetrics, error) {
-	metrics, ok := s.cache.Get()
-	if ok {
-		return metrics, nil
+	metrics, _, err := s.SnapshotWithMeta()
+	if err != nil {
+		return model.SystemMetrics{}, err
 	}
-	return model.SystemMetrics{}, errNoMetrics
+	return metrics, nil
+}
+
+// SnapshotWithMeta returns snapshot data with collection timestamp metadata.
+func (s *Service) SnapshotWithMeta() (model.SystemMetrics, int64, error) {
+	metrics, collectedAtUnix, ok := s.cache.GetWithMeta()
+	if ok {
+		return metrics, collectedAtUnix, nil
+	}
+	return model.SystemMetrics{}, 0, errNoMetrics
 }
 
 // collectOnce 单次采集并写入缓存。
