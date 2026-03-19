@@ -15,6 +15,7 @@ import (
 
 	"nexus-agent-go/internal/agent"
 	"nexus-agent-go/internal/model"
+	toolsvc "nexus-agent-go/internal/tools"
 )
 
 type currentMetricsResponse struct {
@@ -28,6 +29,7 @@ func main() {
 	pollInterval := durationEnv("METRICS_INTERVAL", 2*time.Second)
 
 	service := agent.NewService(pollInterval)
+	metricsTools := toolsvc.NewMetricsTools(service)
 	runnerCtx, stopCollector := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stopCollector()
 	go service.Start(runnerCtx)
@@ -44,7 +46,7 @@ func main() {
 	})
 
 	r.GET("/metrics", func(c *gin.Context) {
-		metrics, err := service.Snapshot()
+		metrics, err := metricsTools.GetCurrentMetrics(c.Request.Context())
 		if err != nil {
 			writeMetricsUnavailable(c)
 			return
@@ -53,8 +55,9 @@ func main() {
 	})
 
 	r.GET("/metrics/current", func(c *gin.Context) {
-		metrics, collectedAtUnix, ok := snapshotWithMetaOrUnavailable(c, service)
-		if !ok {
+		metrics, collectedAtUnix, err := metricsTools.GetCurrentMetricsWithMeta(c.Request.Context())
+		if err != nil {
+			writeMetricsUnavailable(c)
 			return
 		}
 		c.JSON(http.StatusOK, currentMetricsResponse{
@@ -64,27 +67,30 @@ func main() {
 	})
 
 	r.GET("/metrics/summary", func(c *gin.Context) {
-		metrics, collectedAtUnix, ok := snapshotWithMetaOrUnavailable(c, service)
-		if !ok {
+		summary, err := metricsTools.GetMetricsSummary(c.Request.Context())
+		if err != nil {
+			writeMetricsUnavailable(c)
 			return
 		}
-		c.JSON(http.StatusOK, agent.BuildMetricsSummary(metrics, collectedAtUnix))
+		c.JSON(http.StatusOK, summary)
 	})
 
 	r.GET("/metrics/processes", func(c *gin.Context) {
-		metrics, collectedAtUnix, ok := snapshotWithMetaOrUnavailable(c, service)
-		if !ok {
+		processes, err := metricsTools.GetProcesses(c.Request.Context())
+		if err != nil {
+			writeMetricsUnavailable(c)
 			return
 		}
-		c.JSON(http.StatusOK, agent.BuildProcessesResponse(metrics, collectedAtUnix))
+		c.JSON(http.StatusOK, processes)
 	})
 
 	r.GET("/metrics/gpus", func(c *gin.Context) {
-		metrics, collectedAtUnix, ok := snapshotWithMetaOrUnavailable(c, service)
-		if !ok {
+		gpus, err := metricsTools.GetGPUs(c.Request.Context())
+		if err != nil {
+			writeMetricsUnavailable(c)
 			return
 		}
-		c.JSON(http.StatusOK, agent.BuildGPUsResponse(metrics, collectedAtUnix))
+		c.JSON(http.StatusOK, gpus)
 	})
 
 	logMetricsRoutes(r)
@@ -152,15 +158,6 @@ func durationEnv(key string, fallback time.Duration) time.Duration {
 
 func writeMetricsUnavailable(c *gin.Context) {
 	c.JSON(http.StatusServiceUnavailable, gin.H{"error": "metrics_unavailable"})
-}
-
-func snapshotWithMetaOrUnavailable(c *gin.Context, service *agent.Service) (model.SystemMetrics, int64, bool) {
-	metrics, collectedAtUnix, err := service.SnapshotWithMeta()
-	if err != nil {
-		writeMetricsUnavailable(c)
-		return model.SystemMetrics{}, 0, false
-	}
-	return metrics, collectedAtUnix, true
 }
 
 func logMetricsRoutes(r *gin.Engine) {

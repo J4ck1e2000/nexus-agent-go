@@ -39,7 +39,11 @@ type ProcessesResponse struct {
 
 // GPUsResponse is the structured GPU view for /metrics/gpus.
 type GPUsResponse struct {
-	CollectedAtUnix int64     `json:"collected_at_unix"`
-	GPUCount        int       `json:"gpu_count"`
-	GPUs            []GpuInfo `json:"gpus"`
+	CollectedAtUnix      int64     `json:"collected_at_unix"`
+	GPUCount             int       `json:"gpu_count"`
+	GPUUtilizationAvg    float64   `json:"gpu_utilization_avg"`
+	GPUMemoryUsedMBTotal float64   `json:"gpu_memory_used_mb_total"`
+	GPUMemoryTotalMB     float64   `json:"gpu_memory_total_mb"`
+	GPUMemoryPercentAvg  float64   `json:"gpu_memory_percent_avg"`
+	GPUs                 []GpuInfo `json:"gpus"`
 }
