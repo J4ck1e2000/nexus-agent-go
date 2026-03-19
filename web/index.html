@@ -430,33 +430,6 @@
             const [modalData, setModalData] = useState({ name: "", url: "http://", pin: "" });
             const historyRef = useRef({});
             const [lastSyncedAt, setLastSyncedAt] = useState(null);
-            const versionRef = useRef(null);
-
-            useEffect(() => {
-                const checkVersion = async () => {
-                    try {
-                        const res = await fetch('/api/version');
-                        if (res.ok) {
-                            const data = await res.json();
-                            const lastVersion = versionRef.current;
-                            console.log(`[Version Check] Server: ${data.version} | Local: ${lastVersion}`);
-
-                            if (lastVersion !== null && lastVersion !== data.version) {
-                                console.log("New version detected!", lastVersion, "->", data.version);
-                                const vName = data.versionName ? ` ${data.versionName}` : "";
-                                const changelog = data.changelog ? `\n\n更新内容：\n${data.changelog}` : "";
-                                if (confirm(`✨ 系统检测到新版本更新${vName}！${changelog}\n\n是否立即刷新以获取最新功能？`)) {
-                                    window.location.reload();
-                                }
-                            }
-                            versionRef.current = data.version;
-                        }
-                    } catch (e) { console.error("Version check failed", e); }
-                };
-                checkVersion();
-                const interval = setInterval(checkVersion, 5000);
-                return () => clearInterval(interval);
-            }, []);
 
             useEffect(() => {
                 const loadConfig = async () => {
