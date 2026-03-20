@@ -408,6 +408,8 @@
             const [isActivityOpen, setIsActivityOpen] = useState(false);
             const [modalData, setModalData] = useState({ name: "", url: "http://", pin: "", token: "" });
             const historyRef = useRef({});
+            const latestServersRef = useRef([]);
+            const activeFetchIdRef = useRef(0);
             const [lastSyncedAt, setLastSyncedAt] = useState(null);
             const [gatewayToken, setGatewayToken] = useState(() => localStorage.getItem(GATEWAY_TOKEN_STORAGE_KEY) || '');
 
@@ -458,6 +460,10 @@
                 loadConfig();
             }, []);
 
+            useEffect(() => {
+                latestServersRef.current = servers;
+            }, [servers]);
+
             const saveConfig = async (newServersList, pin) => {
                 const configToSave = newServersList.map(s => ({ id: s.id, name: s.name, url: s.url, token: normalizeToken(s.token) }));
                 try {
@@ -466,23 +472,48 @@
                         headers: { 'Content-Type': 'application/json', 'X-PIN': pin || '' },
                         body: JSON.stringify(configToSave),
                     });
-                    if (res.ok) return true;
-                    if (res.status === 403 || res.status === 401) return false;
-                    throw new Error();
+                    if (res.ok) return { ok: true };
+                    if (res.status === 401) return { ok: false, reason: 'unauthorized' };
+                    if (res.status === 403) return { ok: false, reason: 'invalid_pin' };
+                    return { ok: false, reason: 'server_error' };
                 } catch {
-                    if (!validatePin(pin)) return false;
-                    localStorage.setItem('nexus_servers_fallback', JSON.stringify(configToSave));
-                    return true;
+                    if (validatePin(pin)) {
+                        localStorage.setItem('nexus_servers_fallback', JSON.stringify(configToSave));
+                        return { ok: true };
+                    }
+                    return { ok: false, reason: 'network_error' };
                 }
             };
 
+            const showSaveConfigError = (reason) => {
+                if (reason === 'unauthorized') {
+                    alert('Gateway authentication failed. Please check your Bearer token.');
+                    return;
+                }
+                if (reason === 'invalid_pin') {
+                    alert('Security PIN is incorrect.');
+                    return;
+                }
+                alert('Failed to save node configuration. Please try again.');
+            };
+
             useEffect(() => {
-                if (servers.length === 0) return;
+                let disposed = false;
+                const inFlightControllers = new Set();
+                const inFlightTimeouts = new Set();
+                const effectGeneration = ++activeFetchIdRef.current;
+                let nextRequestId = 0;
+                let latestAppliedRequestId = 0;
                 const fetchAll = async () => {
-                    const promises = servers.map(async (server) => {
+                    const requestId = ++nextRequestId;
+                    const snapshot = latestServersRef.current;
+                    if (snapshot.length === 0) return;
+                    const promises = snapshot.map(async (server) => {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 3000);
+                        inFlightControllers.add(controller);
+                        inFlightTimeouts.add(timeoutId);
                         try {
-                            const controller = new AbortController();
-                            setTimeout(() => controller.abort(), 3000);
                             const targetUrl = `${server.url}/metrics`;
                             const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
                             const targetToken = normalizeToken(server.token || '');
@@ -513,22 +544,48 @@
                                 }
                             }
                             historyRef.current[server.url] = { timestamp: currentTime, sent: jsonData.net_sent_mb, recv: jsonData.net_recv_mb };
-                            return { ...server, status: 'online', data: jsonData, metrics: { upSpeed, downSpeed } };
-                        } catch { return { ...server, status: 'offline' }; }
+                            return { id: server.id, status: 'online', data: jsonData, metrics: { upSpeed, downSpeed } };
+                        } catch { return { id: server.id, status: 'offline' }; }
+                        finally {
+                            clearTimeout(timeoutId);
+                            inFlightTimeouts.delete(timeoutId);
+                            inFlightControllers.delete(controller);
+                        }
                     });
                     const results = await Promise.all(promises);
-                    setServers(results);
+                    if (disposed || effectGeneration !== activeFetchIdRef.current) return;
+                    if (requestId < latestAppliedRequestId) return;
+                    latestAppliedRequestId = requestId;
+                    // Use functional merge so stale polling responses cannot resurrect deleted nodes.
+                    setServers(prevServers => {
+                        const resultMap = new Map(results.map(item => [item.id, item]));
+                        return prevServers.map(server => {
+                            const next = resultMap.get(server.id);
+                            if (!next) return server;
+                            if (next.status === 'offline') return { ...server, status: 'offline' };
+                            return { ...server, status: 'online', data: next.data, metrics: next.metrics };
+                        });
+                    });
                     setLastSyncedAt(new Date());
                 };
                 fetchAll();
                 const interval = setInterval(fetchAll, 2000);
-                return () => clearInterval(interval);
-            }, [servers.length, gatewayToken]);
+                return () => {
+                    disposed = true;
+                    if (activeFetchIdRef.current === effectGeneration) {
+                        activeFetchIdRef.current += 1;
+                    }
+                    clearInterval(interval);
+                    inFlightTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+                    inFlightControllers.forEach(controller => controller.abort());
+                };
+            }, [gatewayToken]);
 
             const addServer = async () => {
                 const newServer = { id: Date.now(), name: modalData.name, url: modalData.url, token: normalizeToken(modalData.token), status: 'pending' };
                 const newList = [...servers, newServer];
-                if (!(await saveConfig(newList, modalData.pin))) { alert('Error/PIN Incorrect (MMDD)'); return; }
+                const saveResult = await saveConfig(newList, modalData.pin);
+                if (!saveResult.ok) { showSaveConfigError(saveResult.reason); return; }
                 setServers(newList); setIsModalOpen(false); setModalData({name: "", url: "http://", pin: "", token: ""});
             };
 
@@ -537,7 +594,10 @@
                 const pin = prompt("Admin PIN (MMDD)");
                 if (!pin) return;
                 const newList = servers.filter(x => x.id !== id);
-                if (!(await saveConfig(newList, pin))) { alert('Error/PIN Incorrect'); return; }
+                const saveResult = await saveConfig(newList, pin);
+                if (!saveResult.ok) { showSaveConfigError(saveResult.reason); return; }
+                const removedServer = servers.find(x => x.id === id);
+                if (removedServer) delete historyRef.current[removedServer.url];
                 setServers(newList);
             };
 
