@@ -182,6 +182,16 @@
             return mm + dd;
         };
         const validatePin = (pin) => typeof pin === 'string' && /^\d{4}$/.test(pin) && pin === getTodayPin();
+        const GATEWAY_TOKEN_STORAGE_KEY = 'nexus_gateway_token';
+        const normalizeToken = (token) => (typeof token === 'string' ? token.trim() : '');
+        const buildBearerHeader = (token) => {
+            const normalized = normalizeToken(token);
+            return normalized ? { Authorization: `Bearer ${normalized}` } : {};
+        };
+        const buildTargetAuthorizationHeader = (token) => {
+            const normalized = normalizeToken(token);
+            return normalized ? { 'X-Target-Authorization': `Bearer ${normalized}` } : {};
+        };
         const stringToColor = (str) => {
             const colors = ['from-red-400 to-orange-400','from-amber-400 to-yellow-400','from-lime-400 to-green-400','from-emerald-400 to-teal-400','from-cyan-400 to-sky-400','from-blue-400 to-indigo-400','from-violet-400 to-purple-400','from-fuchsia-400 to-pink-400'];
             let hash = 0;
@@ -396,30 +406,66 @@
             const [servers, setServers] = useState([]);
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [isActivityOpen, setIsActivityOpen] = useState(false);
-            const [modalData, setModalData] = useState({ name: "", url: "http://", pin: "" });
+            const [modalData, setModalData] = useState({ name: "", url: "http://", pin: "", token: "" });
             const historyRef = useRef({});
             const [lastSyncedAt, setLastSyncedAt] = useState(null);
+            const [gatewayToken, setGatewayToken] = useState(() => localStorage.getItem(GATEWAY_TOKEN_STORAGE_KEY) || '');
+
+            const saveGatewayToken = (rawToken) => {
+                const token = normalizeToken(rawToken);
+                setGatewayToken(token);
+                if (token) localStorage.setItem(GATEWAY_TOKEN_STORAGE_KEY, token);
+                else localStorage.removeItem(GATEWAY_TOKEN_STORAGE_KEY);
+                return token;
+            };
+
+            const promptGatewayToken = (message = 'Gateway Bearer Token') => {
+                const input = prompt(message, gatewayToken || '');
+                if (input === null) return null;
+                return saveGatewayToken(input);
+            };
+
+            const fetchWithGatewayAuth = async (url, options = {}, allowPrompt = true) => {
+                const runRequest = (token) => {
+                    const baseHeaders = options.headers || {};
+                    const headers = { ...baseHeaders, ...buildBearerHeader(token) };
+                    return fetch(url, { ...options, headers });
+                };
+
+                let res = await runRequest(gatewayToken);
+                if (allowPrompt && res.status === 401) {
+                    const refreshedToken = promptGatewayToken('Gateway token required. Please enter Bearer token:');
+                    if (refreshedToken !== null) {
+                        res = await runRequest(refreshedToken);
+                    }
+                }
+                return res;
+            };
 
             useEffect(() => {
                 const loadConfig = async () => {
                     try {
-                        const res = await fetch('/api/config');
+                        const res = await fetchWithGatewayAuth('/api/config');
                         if (res.ok) {
                             const data = await res.json();
-                            setServers(data.map(s => ({...s, status: 'pending', data: null, metrics: null})));
+                            setServers(data.map(s => ({...s, token: normalizeToken(s.token || ''), status: 'pending', data: null, metrics: null})));
                         } else throw new Error();
                     } catch {
                         const saved = localStorage.getItem('nexus_servers_fallback');
-                        if (saved) setServers(JSON.parse(saved).map(s => ({...s, status: 'pending', data: null, metrics: null})));
+                        if (saved) setServers(JSON.parse(saved).map(s => ({...s, token: normalizeToken(s.token || ''), status: 'pending', data: null, metrics: null})));
                     }
                 };
                 loadConfig();
             }, []);
 
             const saveConfig = async (newServersList, pin) => {
-                const configToSave = newServersList.map(s => ({ id: s.id, name: s.name, url: s.url }));
+                const configToSave = newServersList.map(s => ({ id: s.id, name: s.name, url: s.url, token: normalizeToken(s.token) }));
                 try {
-                    const res = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-PIN': pin || '' }, body: JSON.stringify(configToSave) });
+                    const res = await fetchWithGatewayAuth('/api/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-PIN': pin || '' },
+                        body: JSON.stringify(configToSave),
+                    });
                     if (res.ok) return true;
                     if (res.status === 403 || res.status === 401) return false;
                     throw new Error();
@@ -439,9 +485,21 @@
                             setTimeout(() => controller.abort(), 3000);
                             const targetUrl = `${server.url}/metrics`;
                             const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+                            const targetToken = normalizeToken(server.token || '');
                             let res;
-                            try { res = await fetch(proxyUrl, { signal: controller.signal }); if (res.status !== 200) throw new Error(); } 
-                            catch { res = await fetch(targetUrl, { signal: controller.signal }); }
+                            try {
+                                res = await fetchWithGatewayAuth(proxyUrl, {
+                                    signal: controller.signal,
+                                    headers: { ...buildTargetAuthorizationHeader(targetToken) },
+                                }, false);
+                                if (res.status !== 200) throw new Error();
+                            }
+                            catch {
+                                res = await fetch(targetUrl, {
+                                    signal: controller.signal,
+                                    headers: { ...buildBearerHeader(targetToken) },
+                                });
+                            }
                             if (!res.ok) throw new Error();
                             const jsonData = await res.json();
                             const currentTime = Date.now();
@@ -465,13 +523,13 @@
                 fetchAll();
                 const interval = setInterval(fetchAll, 2000);
                 return () => clearInterval(interval);
-            }, [servers.length]);
+            }, [servers.length, gatewayToken]);
 
             const addServer = async () => {
-                const newServer = { id: Date.now(), name: modalData.name, url: modalData.url, status: 'pending' };
+                const newServer = { id: Date.now(), name: modalData.name, url: modalData.url, token: normalizeToken(modalData.token), status: 'pending' };
                 const newList = [...servers, newServer];
                 if (!(await saveConfig(newList, modalData.pin))) { alert('Error/PIN Incorrect (MMDD)'); return; }
-                setServers(newList); setIsModalOpen(false); setModalData({name: "", url: "http://", pin: ""});
+                setServers(newList); setIsModalOpen(false); setModalData({name: "", url: "http://", pin: "", token: ""});
             };
 
             const deleteServer = async (id) => {
@@ -542,6 +600,13 @@
                                             <Icons.Users /> <span className="hidden sm:inline">GPU Users</span>
                                             {activeUsersCount > 0 && <span className="bg-indigo-600 text-white text-[10px] px-1.5 rounded-full">{activeUsersCount}</span>}
                                         </button>
+                                        <button
+                                            onClick={() => promptGatewayToken('Set Gateway Bearer Token (leave empty to clear):')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all shadow-sm ${gatewayToken ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                                            title="配置 Gateway 的 Authorization: Bearer token"
+                                        >
+                                            {gatewayToken ? 'Gateway Token: ON' : 'Gateway Token'}
+                                        </button>
                                         <button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white p-2 rounded-lg shadow-lg shadow-slate-900/20 transition-all active:scale-95"><Icons.Plus /></button>
                                     </div>
                                 </div>
@@ -578,6 +643,10 @@
                                     <div className="group">
                                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Agent URL</label>
                                         <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-mono text-sm" placeholder="http://192.168.1.x:8005" value={modalData.url} onChange={e => setModalData({...modalData, url: e.target.value})} />
+                                    </div>
+                                    <div className="group">
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Agent Token (Optional)</label>
+                                        <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-mono text-sm" placeholder="Bearer token for this agent" value={modalData.token} onChange={e => setModalData({...modalData, token: e.target.value})} />
                                     </div>
                                     <div className="group">
                                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Security PIN</label>

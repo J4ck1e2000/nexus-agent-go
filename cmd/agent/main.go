@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"nexus-agent-go/internal/agent"
+	"nexus-agent-go/internal/auth"
 	"nexus-agent-go/internal/model"
 	toolsvc "nexus-agent-go/internal/tools"
 )
@@ -30,6 +31,7 @@ func main() {
 
 	service := agent.NewService(pollInterval)
 	metricsTools := toolsvc.NewMetricsTools(service)
+	agentToken := strings.TrimSpace(os.Getenv("NEXUS_AGENT_TOKEN"))
 	runnerCtx, stopCollector := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stopCollector()
 	go service.Start(runnerCtx)
@@ -45,7 +47,10 @@ func main() {
 		})
 	})
 
-	r.GET("/metrics", func(c *gin.Context) {
+	metricsRoutes := r.Group("/metrics")
+	metricsRoutes.Use(auth.BearerTokenMiddleware(agentToken))
+
+	metricsRoutes.GET("", func(c *gin.Context) {
 		metrics, err := metricsTools.GetCurrentMetrics(c.Request.Context())
 		if err != nil {
 			writeMetricsUnavailable(c)
@@ -54,7 +59,7 @@ func main() {
 		c.JSON(http.StatusOK, metrics)
 	})
 
-	r.GET("/metrics/current", func(c *gin.Context) {
+	metricsRoutes.GET("/current", func(c *gin.Context) {
 		metrics, collectedAtUnix, err := metricsTools.GetCurrentMetricsWithMeta(c.Request.Context())
 		if err != nil {
 			writeMetricsUnavailable(c)
@@ -66,7 +71,7 @@ func main() {
 		})
 	})
 
-	r.GET("/metrics/summary", func(c *gin.Context) {
+	metricsRoutes.GET("/summary", func(c *gin.Context) {
 		summary, err := metricsTools.GetMetricsSummary(c.Request.Context())
 		if err != nil {
 			writeMetricsUnavailable(c)
@@ -75,7 +80,7 @@ func main() {
 		c.JSON(http.StatusOK, summary)
 	})
 
-	r.GET("/metrics/processes", func(c *gin.Context) {
+	metricsRoutes.GET("/processes", func(c *gin.Context) {
 		processes, err := metricsTools.GetProcesses(c.Request.Context())
 		if err != nil {
 			writeMetricsUnavailable(c)
@@ -84,7 +89,7 @@ func main() {
 		c.JSON(http.StatusOK, processes)
 	})
 
-	r.GET("/metrics/gpus", func(c *gin.Context) {
+	metricsRoutes.GET("/gpus", func(c *gin.Context) {
 		gpus, err := metricsTools.GetGPUs(c.Request.Context())
 		if err != nil {
 			writeMetricsUnavailable(c)
@@ -124,7 +129,7 @@ func corsAll() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-PIN")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-PIN")
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return

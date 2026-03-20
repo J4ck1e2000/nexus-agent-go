@@ -41,7 +41,7 @@ nexus-agent-go/
 ### 2.2 配置流
 
 1. 在页面新增/删除节点时，前端调用 `POST /api/config`。
-2. Gateway 校验 `X-PIN=MMDD` 后写入 `web/config.json`。
+2. Gateway（若设置了 `NEXUS_GATEWAY_TOKEN`）校验 `Authorization: Bearer <token>` 后写入 `web/config.json`。
 3. 后续刷新页面自动读取最新配置。
 
 ## 3. API 说明
@@ -49,14 +49,19 @@ nexus-agent-go/
 ### 3.1 Gateway API
 
 1. `GET /api/version`
-2. `GET /api/config`
-3. `POST /api/config`（需 `X-PIN`，格式为当天 `MMDD`）
-4. `GET /api/proxy?url=http://...`
+2. `GET /api/config`（敏感接口，可使用 Bearer Token 保护）
+3. `POST /api/config`（敏感接口，可使用 Bearer Token 保护）
+4. `GET /api/proxy?url=http://...`（敏感接口，可使用 Bearer Token 保护）
+   - 可选请求头：`X-Target-Authorization: Bearer <agent-token>`（Gateway 会透传给目标 Agent）
 
 ### 3.2 Agent API
 
 1. `GET /`：运行状态
-2. `GET /metrics`：完整监控数据
+2. `GET /metrics`：完整监控数据（可使用 Bearer Token 保护）
+3. `GET /metrics/current`
+4. `GET /metrics/summary`
+5. `GET /metrics/processes`
+6. `GET /metrics/gpus`
 
 ## 4. 本地开发运行
 
@@ -80,7 +85,7 @@ go run ./cmd/agent
 可选环境变量：
 
 ```bash
-PORT=8005 METRICS_INTERVAL=2s go run ./cmd/agent
+PORT=8005 METRICS_INTERVAL=2s NEXUS_AGENT_TOKEN=your-agent-token go run ./cmd/agent
 ```
 
 ### 4.4 启动 Gateway
@@ -92,7 +97,7 @@ go run ./cmd/gateway
 可选环境变量：
 
 ```bash
-PORT=3000 WEB_DIR=web CONFIG_FILE=web/config.json go run ./cmd/gateway
+PORT=3000 WEB_DIR=web CONFIG_FILE=web/config.json NEXUS_GATEWAY_TOKEN=your-gateway-token go run ./cmd/gateway
 ```
 
 ### 4.5 访问看板
@@ -108,8 +113,10 @@ http://127.0.0.1:3000
 1. 点击右上角 `+` 新增节点。
 2. `Node Name` 填显示名（例如 `Server-A100`）。
 3. `Agent URL` 填节点地址（例如 `http://10.16.87.183:8005`）。
-4. `Security PIN` 填当天日期 `MMDD`（例如 3 月 5 日是 `0305`）。
-5. 保存后等待轮询刷新即可看到指标。
+4. 如 Agent 开启了 `NEXUS_AGENT_TOKEN`，在 `Agent Token (Optional)` 填该节点 token。
+5. 如 Gateway 开启了 `NEXUS_GATEWAY_TOKEN`，点击顶部 `Gateway Token` 按钮填入 token。
+6. `Security PIN` 为旧兼容字段（可选），如果填写需为当天日期 `MMDD`（例如 3 月 5 日是 `0305`）。
+7. 保存后等待轮询刷新即可看到指标。
 
 ## 6. 二进制构建与部署
 
@@ -210,7 +217,7 @@ Agent 通过对外路由探测 IP，可能命中虚拟网卡（如 Docker/VPN）
 
 ### 10.3 保存节点提示 PIN 错误
 
-`X-PIN` 必须是当天 `MMDD`，例如 12 月 3 日为 `1203`。
+若请求带了 `X-PIN`，其值必须是当天 `MMDD`，例如 12 月 3 日为 `1203`。
 
 ### 10.4 无 GPU 数据
 
@@ -220,9 +227,23 @@ Agent 通过对外路由探测 IP，可能命中虚拟网卡（如 Docker/VPN）
 
 ## 11. 安全建议
 
-1. `POST /api/config` 当前为简化 PIN 机制，仅适合内网使用。
-2. 生产环境建议配合 Nginx + HTTPS + 访问控制。
-3. `/api/proxy` 建议后续增加目标地址白名单，降低代理滥用风险。
+1. 可通过环境变量启用基础 Bearer Token 鉴权：
+   - Agent：`NEXUS_AGENT_TOKEN`
+   - Gateway：`NEXUS_GATEWAY_TOKEN`
+2. 请求示例：
+
+```bash
+curl -H "Authorization: Bearer your-token" http://127.0.0.1:8005/metrics
+curl -H "Authorization: Bearer your-token" http://127.0.0.1:3000/api/config
+curl -H "Authorization: Bearer gateway-token" \
+  -H "X-Target-Authorization: Bearer agent-token" \
+  "http://127.0.0.1:3000/api/proxy?url=http%3A%2F%2F127.0.0.1%3A8005%2Fmetrics"
+```
+
+3. 若未设置以上环境变量，对应服务默认关闭鉴权，便于本地开发。
+4. `POST /api/config` 的旧 `X-PIN=MMDD` 仅保留兼容校验（可选），不再作为主鉴权方式。
+5. 生产环境建议配合 Nginx + HTTPS + 访问控制。
+6. `/api/proxy` 建议后续增加目标地址白名单，降低代理滥用风险。
 
 ## 12. 快速验证清单
 
