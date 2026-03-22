@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nexus Monitor</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>馃洶锔?/text></svg>">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🛰️%3C/text%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -286,6 +286,9 @@
                     connectNode: 'Connect Node',
                     connectAgent: 'Connect Agent',
                     deleteNode: 'Delete Node',
+                    confirm: 'Confirm',
+                    submit: 'Submit',
+                    submitting: 'Submitting...',
                     cancel: 'Cancel',
                     close: 'Close',
                     langSwitchTitleToZh: 'Switch to Chinese',
@@ -371,6 +374,8 @@
                         eyebrow: 'GPU Details',
                         closeTitle: 'Close GPU details',
                         summary: 'Summary',
+                        server: 'Server',
+                        status: 'Status',
                         index: 'Index',
                         util: 'Util',
                         temp: 'Temp',
@@ -382,6 +387,10 @@
                         powerDraw: 'Power Draw',
                         fanSpeed: 'Fan Speed',
                         deviceId: 'Device ID',
+                        serverOffline: 'Server offline',
+                        noData: 'No GPU data',
+                        gpuNotFound: 'GPU not found',
+                        serverNotFound: 'Server not found',
                     },
                 },
                 modal: {
@@ -420,10 +429,26 @@
                     adminPin: 'Admin PIN (MMDD)',
                     confirmDeleteNode: 'Delete node?',
                 },
+                dialog: {
+                    deleteNodeTitle: 'Delete Node',
+                    deleteNodeDescription: 'Remove "{name}" from this dashboard?',
+                    adminPinTitle: 'Enter Admin PIN',
+                    adminPinDescription: 'Please enter today\'s 4-digit Admin PIN to confirm deletion.',
+                    pinFormatHint: 'PIN must be 4 digits.',
+                    gatewayTokenTitle: 'Set Gateway Bearer Token',
+                    gatewayTokenDescription: 'Update token below. Leave empty to clear token.',
+                    gatewayTokenRequiredTitle: 'Gateway Token Required',
+                    gatewayTokenRequiredDescription: 'Gateway authentication returned 401. Please enter a valid Bearer token.',
+                    gatewayTokenPlaceholder: 'Bearer token',
+                    requiredField: 'This field is required.',
+                },
                 notify: {
                     gatewayAuthFailed: 'Gateway authentication failed. Please check your Bearer token.',
                     invalidPin: 'Security PIN is incorrect.',
                     saveConfigFailed: 'Failed to save node configuration. Please try again.',
+                    nodeDeleted: 'Node "{name}" deleted.',
+                    tokenUpdated: 'Gateway token updated.',
+                    tokenCleared: 'Gateway token cleared.',
                 },
                 misc: {
                     projectRepository: 'Project Repository',
@@ -467,6 +492,9 @@
                     connectNode: '连接节点',
                     connectAgent: '连接 Agent',
                     deleteNode: '删除节点',
+                    confirm: '确认',
+                    submit: '提交',
+                    submitting: '提交中...',
                     cancel: '取消',
                     close: '关闭',
                     langSwitchTitleToZh: '切换为中文',
@@ -552,6 +580,8 @@
                         eyebrow: 'GPU 详情',
                         closeTitle: '关闭 GPU 详情',
                         summary: '摘要',
+                        server: '服务器',
+                        status: '状态',
                         index: '索引',
                         util: '利用率',
                         temp: '温度',
@@ -563,6 +593,10 @@
                         powerDraw: '功耗',
                         fanSpeed: '风扇转速',
                         deviceId: '设备 ID',
+                        serverOffline: '服务器离线',
+                        noData: '暂无 GPU 数据',
+                        gpuNotFound: '未找到 GPU',
+                        serverNotFound: '未找到服务器',
                     },
                 },
                 modal: {
@@ -601,10 +635,26 @@
                     adminPin: '管理员 PIN（MMDD）',
                     confirmDeleteNode: '确认删除该节点？',
                 },
+                dialog: {
+                    deleteNodeTitle: '删除节点',
+                    deleteNodeDescription: '确认从监控面板移除节点「{name}」吗？',
+                    adminPinTitle: '输入管理员 PIN',
+                    adminPinDescription: '请输入今日 4 位管理员 PIN 以确认删除。',
+                    pinFormatHint: 'PIN 必须是 4 位数字。',
+                    gatewayTokenTitle: '设置网关 Bearer 令牌',
+                    gatewayTokenDescription: '在下方更新令牌，留空可清除令牌。',
+                    gatewayTokenRequiredTitle: '需要网关令牌',
+                    gatewayTokenRequiredDescription: '网关认证返回 401，请输入有效的 Bearer 令牌。',
+                    gatewayTokenPlaceholder: 'Bearer 令牌',
+                    requiredField: '该字段不能为空。',
+                },
                 notify: {
                     gatewayAuthFailed: '网关认证失败，请检查 Bearer 令牌。',
                     invalidPin: '安全 PIN 不正确。',
                     saveConfigFailed: '保存节点配置失败，请重试。',
+                    nodeDeleted: '已删除节点「{name}」。',
+                    tokenUpdated: '网关令牌已更新。',
+                    tokenCleared: '网关令牌已清除。',
                 },
                 misc: {
                     projectRepository: '项目仓库',
@@ -712,6 +762,56 @@
             }
             return avatarTones[Math.abs(hash) % avatarTones.length];
         };
+
+        const normalizeGpuName = (name) => (typeof name === 'string' ? name.trim().toLowerCase() : '');
+
+        const useResolvedSelectedGpu = (selectedGpuRef, servers) => useMemo(() => {
+            if (!selectedGpuRef) return null;
+
+            const server = servers.find((item) => String(item.id) === String(selectedGpuRef.serverId));
+            if (!server) {
+                return {
+                    state: 'server_not_found',
+                    server: null,
+                    gpu: null,
+                    gpuIndex: safeNumber(selectedGpuRef.gpuIndex)
+                };
+            }
+
+            const gpus = Array.isArray(server.data?.gpus) ? server.data.gpus : [];
+            const parsedIndex = Number(selectedGpuRef.gpuIndex);
+            let gpuIndex = Number.isInteger(parsedIndex) ? parsedIndex : null;
+            let gpu = gpuIndex !== null && gpuIndex >= 0 && gpuIndex < gpus.length ? gpus[gpuIndex] : null;
+
+            const fallbackGpuId = safeNumber(selectedGpuRef.gpuId);
+            if (!gpu && fallbackGpuId !== null) {
+                const matchedIndex = gpus.findIndex((item) => safeNumber(item.id) === fallbackGpuId);
+                if (matchedIndex >= 0) {
+                    gpuIndex = matchedIndex;
+                    gpu = gpus[matchedIndex];
+                }
+            }
+
+            const fallbackGpuName = normalizeGpuName(selectedGpuRef.gpuName);
+            if (!gpu && fallbackGpuName) {
+                const matchedIndex = gpus.findIndex((item) => normalizeGpuName(item.name) === fallbackGpuName);
+                if (matchedIndex >= 0) {
+                    gpuIndex = matchedIndex;
+                    gpu = gpus[matchedIndex];
+                }
+            }
+
+            let state = 'ready';
+            if (server.status === 'offline') {
+                state = 'server_offline';
+            } else if (!Array.isArray(server.data?.gpus) || gpus.length === 0) {
+                state = 'no_data';
+            } else if (!gpu) {
+                state = 'gpu_not_found';
+            }
+
+            return { state, server, gpu, gpuIndex };
+        }, [selectedGpuRef, servers]);
 
         const SummaryPill = ({ label, value, tone = 'default' }) => {
             const toneMap = {
@@ -860,17 +960,44 @@
             );
         };
 
-        const GpuDetailModal = ({ payload, onClose, t }) => {
+        const AppModal = ({
+            isOpen,
+            onClose,
+            title,
+            eyebrow,
+            closeTitle,
+            children,
+            footer = null,
+            widthClass = 'max-w-lg',
+            closeOnEsc = true,
+            closeOnBackdrop = true,
+            disableClose = false,
+            initialFocusRef = null,
+        }) => {
             const [isVisible, setIsVisible] = useState(false);
             const [isClosing, setIsClosing] = useState(false);
             const closeTimerRef = useRef(null);
+            const dialogRef = useRef(null);
+            const previousFocusRef = useRef(null);
 
             useEffect(() => {
-                if (!payload) return undefined;
-
+                if (!isOpen) return undefined;
+                previousFocusRef.current = document.activeElement;
                 setIsClosing(false);
                 setIsVisible(false);
-                const frame = requestAnimationFrame(() => setIsVisible(true));
+                const frame = requestAnimationFrame(() => {
+                    setIsVisible(true);
+                    const explicitTarget = initialFocusRef && initialFocusRef.current ? initialFocusRef.current : null;
+                    if (explicitTarget && typeof explicitTarget.focus === 'function') {
+                        explicitTarget.focus();
+                        return;
+                    }
+                    const fallback = dialogRef.current
+                        ? dialogRef.current.querySelector('input:not([disabled]), textarea:not([disabled]), button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')
+                        : null;
+                    if (fallback && typeof fallback.focus === 'function') fallback.focus();
+                    else if (dialogRef.current && typeof dialogRef.current.focus === 'function') dialogRef.current.focus();
+                });
                 const previousOverflow = document.body.style.overflow;
                 document.body.style.overflow = 'hidden';
 
@@ -881,22 +1008,25 @@
                         clearTimeout(closeTimerRef.current);
                         closeTimerRef.current = null;
                     }
+                    if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
+                        previousFocusRef.current.focus();
+                    }
                 };
-            }, [payload]);
+            }, [isOpen, initialFocusRef]);
 
             const requestClose = () => {
-                if (!payload || isClosing) return;
+                if (!isOpen || isClosing || disableClose) return;
                 setIsClosing(true);
                 setIsVisible(false);
                 if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
                 closeTimerRef.current = setTimeout(() => {
                     closeTimerRef.current = null;
-                    onClose();
+                    if (typeof onClose === 'function') onClose();
                 }, 180);
             };
 
             useEffect(() => {
-                if (!payload) return undefined;
+                if (!isOpen || !closeOnEsc) return undefined;
                 const handleKeyDown = (event) => {
                     if (event.key === 'Escape') {
                         event.preventDefault();
@@ -905,13 +1035,291 @@
                 };
                 window.addEventListener('keydown', handleKeyDown);
                 return () => window.removeEventListener('keydown', handleKeyDown);
-            }, [payload, isClosing]);
+            }, [isOpen, closeOnEsc, disableClose, isClosing]);
 
-            if (!payload) return null;
+            if (!isOpen) return null;
 
-            const gpu = payload.gpu || {};
-            const gpuIndex = payload.index;
-            const rawName = (typeof gpu.name === 'string' && gpu.name.trim()) ? gpu.name.trim() : `GPU ${gpuIndex}`;
+            return (
+                <div className="fixed inset-0 z-[70] p-4 flex items-center justify-center">
+                    <div
+                        className={cx(
+                            'absolute inset-0 bg-[#2f2922]/22 backdrop-blur-[2px] transition-opacity duration-200',
+                            isVisible ? 'opacity-100' : 'opacity-0'
+                        )}
+                        onClick={closeOnBackdrop ? requestClose : undefined}
+                    />
+
+                    <section
+                        ref={dialogRef}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={title || ''}
+                        tabIndex={-1}
+                        className={cx(
+                            'relative w-full max-h-[calc(100vh-2rem)] soft-panel overflow-hidden transition-all duration-200',
+                            widthClass,
+                            isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-[0.98]'
+                        )}
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="px-5 py-4 border-b border-[rgba(60,47,35,0.08)] flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                {eyebrow ? <div className="section-eyebrow mb-1">{eyebrow}</div> : null}
+                                <h3 className="text-lg font-semibold text-[#1f1d1b] break-words">{title || '-'}</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={requestClose}
+                                disabled={disableClose}
+                                className={cx('muted-button p-2 text-[#6f685f]', disableClose ? 'opacity-60 cursor-not-allowed' : '')}
+                                title={closeTitle}
+                                aria-label={closeTitle}
+                            >
+                                <Icons.X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 max-h-[calc(100vh-10rem)] overflow-y-auto custom-scrollbar">{children}</div>
+
+                        {footer ? <div className="px-5 pb-5 pt-3 border-t border-[rgba(60,47,35,0.08)]">{footer}</div> : null}
+                    </section>
+                </div>
+            );
+        };
+
+        const ConfirmDialog = ({ config, onResolve, t }) => {
+            const [isSubmitting, setIsSubmitting] = useState(false);
+
+            useEffect(() => {
+                setIsSubmitting(false);
+            }, [config]);
+
+            if (!config || config.type !== 'confirm') return null;
+
+            const handleConfirm = async () => {
+                if (isSubmitting) return;
+                if (typeof config.beforeResolve === 'function') {
+                    setIsSubmitting(true);
+                    try {
+                        const shouldClose = await config.beforeResolve(true);
+                        if (shouldClose === false) return;
+                    } catch (error) {
+                        return;
+                    } finally {
+                        setIsSubmitting(false);
+                    }
+                }
+                onResolve(true);
+            };
+
+            const footer = (
+                <div className="flex gap-2.5">
+                    <button
+                        type="button"
+                        onClick={() => onResolve(false)}
+                        disabled={isSubmitting}
+                        className={cx('muted-button flex-1 px-4 py-2.5 text-sm font-medium', isSubmitting ? 'opacity-60 cursor-not-allowed' : '')}
+                    >
+                        {config.cancelText || t('action.cancel')}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleConfirm}
+                        disabled={isSubmitting}
+                        className={cx(
+                            'flex-1 px-4 py-2.5 text-sm font-medium rounded-full border transition-colors',
+                            config.confirmTone === 'danger'
+                                ? 'bg-[#392320] text-[#f8f4ed] border-[#392320] hover:bg-[#281714] hover:border-[#281714]'
+                                : 'primary-button',
+                            isSubmitting ? 'opacity-60 cursor-not-allowed' : ''
+                        )}
+                    >
+                        {isSubmitting ? t('action.submitting') : (config.confirmText || t('action.confirm'))}
+                    </button>
+                </div>
+            );
+
+            return (
+                <AppModal
+                    isOpen={true}
+                    onClose={() => onResolve(false)}
+                    title={config.title || ''}
+                    eyebrow={config.eyebrow || null}
+                    closeTitle={t('action.close')}
+                    widthClass={config.widthClass || 'max-w-md'}
+                    closeOnEsc={config.closeOnEsc !== false}
+                    closeOnBackdrop={config.closeOnBackdrop !== false}
+                    disableClose={isSubmitting || config.disableClose}
+                    footer={footer}
+                >
+                    {config.description ? <p className="text-sm text-[#6b665e] leading-relaxed">{config.description}</p> : null}
+                </AppModal>
+            );
+        };
+
+        const PromptDialog = ({ config, onResolve, t }) => {
+            const inputRef = useRef(null);
+            const [value, setValue] = useState('');
+            const [error, setError] = useState('');
+            const [isSubmitting, setIsSubmitting] = useState(false);
+
+            useEffect(() => {
+                if (!config || config.type !== 'prompt') return;
+                setValue(config.initialValue ?? '');
+                setError('');
+                setIsSubmitting(false);
+            }, [config]);
+
+            if (!config || config.type !== 'prompt') return null;
+
+            const normalizeValue = (raw) => (config.trim === false ? raw : raw.trim());
+
+            const validateInput = (candidate) => {
+                if (config.required && !candidate) return config.requiredMessage || t('dialog.requiredField');
+                if (typeof config.validate === 'function') {
+                    const message = config.validate(candidate);
+                    if (typeof message === 'string' && message) return message;
+                }
+                return '';
+            };
+
+            const handleSubmit = async () => {
+                if (isSubmitting) return;
+                const candidate = normalizeValue(value);
+                const validationMessage = validateInput(candidate);
+                if (validationMessage) {
+                    setError(validationMessage);
+                    return;
+                }
+
+                setError('');
+                if (typeof config.beforeResolve === 'function') {
+                    setIsSubmitting(true);
+                    try {
+                        const shouldClose = await config.beforeResolve(candidate);
+                        if (shouldClose === false) return;
+                    } catch (submitError) {
+                        return;
+                    } finally {
+                        setIsSubmitting(false);
+                    }
+                }
+                onResolve(candidate);
+            };
+
+            const footer = (
+                <div className="flex gap-2.5">
+                    <button
+                        type="button"
+                        onClick={() => onResolve(null)}
+                        disabled={isSubmitting}
+                        className={cx('muted-button flex-1 px-4 py-2.5 text-sm font-medium', isSubmitting ? 'opacity-60 cursor-not-allowed' : '')}
+                    >
+                        {config.cancelText || t('action.cancel')}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={isSubmitting}
+                        className={cx('primary-button flex-1 px-4 py-2.5 text-sm font-medium', isSubmitting ? 'opacity-60 cursor-not-allowed' : '')}
+                    >
+                        {isSubmitting ? t('action.submitting') : (config.confirmText || t('action.submit'))}
+                    </button>
+                </div>
+            );
+
+            return (
+                <AppModal
+                    isOpen={true}
+                    onClose={() => onResolve(null)}
+                    title={config.title || ''}
+                    eyebrow={config.eyebrow || null}
+                    closeTitle={t('action.close')}
+                    widthClass={config.widthClass || 'max-w-md'}
+                    closeOnEsc={config.closeOnEsc !== false}
+                    closeOnBackdrop={config.closeOnBackdrop !== false}
+                    disableClose={isSubmitting || config.disableClose}
+                    initialFocusRef={inputRef}
+                    footer={footer}
+                >
+                    <div className="space-y-3.5">
+                        {config.description ? <p className="text-sm text-[#6b665e] leading-relaxed">{config.description}</p> : null}
+                        <input
+                            ref={inputRef}
+                            type={config.inputType || 'text'}
+                            inputMode={config.inputMode || undefined}
+                            maxLength={config.maxLength || undefined}
+                            className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors font-mono"
+                            placeholder={config.placeholder || ''}
+                            value={value}
+                            disabled={isSubmitting}
+                            onChange={(event) => {
+                                setValue(event.target.value);
+                                if (error) setError('');
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                    event.preventDefault();
+                                    handleSubmit();
+                                }
+                            }}
+                        />
+                        {error ? <div className="text-sm text-[#8b4a42]">{error}</div> : null}
+                    </div>
+                </AppModal>
+            );
+        };
+
+        const ToastStack = ({ toasts, onDismiss, t }) => {
+            if (!Array.isArray(toasts) || toasts.length === 0) return null;
+
+            const toneMap = {
+                info: 'bg-[#f3eee6] border-[#d8cfc4] text-[#3c3833]',
+                success: 'bg-[#e4efe9] border-[#c8ddd5] text-[#255049]',
+                warning: 'bg-[#f1e7df] border-[#dfd0c5] text-[#5f4a42]',
+                error: 'bg-[#f2e3df] border-[#dfc8c3] text-[#683833]',
+            };
+
+            return (
+                <div className="fixed top-4 right-4 z-[80] w-[min(92vw,360px)] space-y-2 pointer-events-none">
+                    {toasts.map((toast) => (
+                        <div
+                            key={toast.id}
+                            className={cx(
+                                'pointer-events-auto soft-panel-subtle border px-3.5 py-3 fade-enter shadow-[0_12px_24px_rgba(30,26,22,0.12)]',
+                                toneMap[toast.tone] || toneMap.info
+                            )}
+                        >
+                            <div className="flex items-start gap-2">
+                                <div className="text-sm leading-relaxed flex-1">{toast.message}</div>
+                                <button
+                                    type="button"
+                                    onClick={() => onDismiss(toast.id)}
+                                    className="muted-button p-1.5 text-[#726b63]"
+                                    aria-label={t('action.close')}
+                                >
+                                    <Icons.X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        const GpuDetailModal = ({ selectedGpuRef, resolvedGpu, onClose, t }) => {
+            if (!selectedGpuRef) return null;
+
+            const state = resolvedGpu?.state || 'gpu_not_found';
+            const serverName = resolvedGpu?.server?.name || '-';
+            const gpu = state === 'ready' ? (resolvedGpu?.gpu || {}) : {};
+            const gpuIndex = resolvedGpu?.gpuIndex !== null && resolvedGpu?.gpuIndex !== undefined
+                ? resolvedGpu.gpuIndex
+                : selectedGpuRef.gpuIndex;
+            const fallbackName = typeof selectedGpuRef.gpuName === 'string' ? selectedGpuRef.gpuName.trim() : '';
+            const rawName = (typeof gpu.name === 'string' && gpu.name.trim())
+                ? gpu.name.trim()
+                : (fallbackName || `GPU ${gpuIndex !== null && gpuIndex !== undefined ? gpuIndex : '-'}`);
             const temp = safeNumber(gpu.temperature);
             const utilizationRaw = safeNumber(gpu.utilization);
             const utilization = utilizationRaw !== null ? clampPercent(utilizationRaw) : null;
@@ -925,7 +1333,25 @@
             const fanSpeed = safeNumber(gpu.fan_speed);
             const gpuID = safeNumber(gpu.id);
 
+            const statusTextMap = {
+                ready: t('common.online'),
+                server_offline: t('gpu.modal.serverOffline'),
+                no_data: t('gpu.modal.noData'),
+                gpu_not_found: t('gpu.modal.gpuNotFound'),
+                server_not_found: t('gpu.modal.serverNotFound'),
+            };
+            const statusToneMap = {
+                ready: 'bg-[#e4efe9] border-[#c8ddd5] text-[#28544e]',
+                server_offline: 'bg-[#f1e6df] border-[#ddcec4] text-[#664f46]',
+                no_data: 'bg-[#efe9df] border-[#ddcfc3] text-[#63564c]',
+                gpu_not_found: 'bg-[#efe9df] border-[#ddcfc3] text-[#63564c]',
+                server_not_found: 'bg-[#f1e6df] border-[#ddcec4] text-[#664f46]',
+            };
+            const statusText = statusTextMap[state] || t('gpu.modal.gpuNotFound');
+
             const detailItems = [
+                { label: t('gpu.modal.server'), value: serverName || '-' },
+                { label: t('gpu.modal.status'), value: statusText },
                 { label: t('gpu.modal.gpuIndex'), value: gpuIndex !== null && gpuIndex !== undefined ? gpuIndex : '-' },
                 { label: t('gpu.modal.temperature'), value: temp !== null ? `${temp.toFixed(0)}C` : '-' },
                 { label: t('gpu.modal.utilization'), value: utilization !== null ? `${utilization.toFixed(0)}%` : '-' },
@@ -937,84 +1363,59 @@
             ];
 
             return (
-                <div className="fixed inset-0 z-50 p-4 flex items-center justify-center">
-                    <div
-                        className={cx(
-                            'absolute inset-0 bg-[#2f2922]/22 backdrop-blur-[2px] transition-opacity duration-200',
-                            isVisible ? 'opacity-100' : 'opacity-0'
-                        )}
-                        onClick={requestClose}
-                    />
-
-                    <section
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="gpu-detail-title"
-                        className={cx(
-                            'relative w-full max-w-xl max-h-[calc(100vh-2rem)] soft-panel overflow-hidden transition-all duration-200',
-                            isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-[0.98]'
-                        )}
-                        onClick={(event) => event.stopPropagation()}
-                    >
-                        <div className="px-5 py-4 border-b border-[rgba(60,47,35,0.08)] flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="section-eyebrow mb-1">{t('gpu.modal.eyebrow')}</div>
-                                <h3 id="gpu-detail-title" className="text-lg font-semibold text-[#1f1d1b] break-words">{rawName || '-'}</h3>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={requestClose}
-                                className="muted-button p-2 text-[#6f685f]"
-                                title={t('gpu.modal.closeTitle')}
-                                aria-label={t('gpu.modal.closeTitle')}
-                            >
-                                <Icons.X className="w-4 h-4" />
-                            </button>
+                <AppModal
+                    isOpen={true}
+                    onClose={onClose}
+                    title={rawName || '-'}
+                    eyebrow={t('gpu.modal.eyebrow')}
+                    closeTitle={t('gpu.modal.closeTitle')}
+                    widthClass="max-w-xl"
+                >
+                    <div className="space-y-4">
+                        <div className={cx('soft-panel-subtle p-3.5 border text-sm font-medium', statusToneMap[state] || statusToneMap.no_data)}>
+                            {statusText}
                         </div>
 
-                        <div className="p-5 max-h-[calc(100vh-10rem)] overflow-y-auto custom-scrollbar space-y-4">
-                            <div className="soft-panel-subtle p-4">
-                                <div className="text-[10px] uppercase tracking-[0.12em] text-[#837b72] font-semibold mb-2">{t('gpu.modal.summary')}</div>
-                                <div className="flex flex-wrap gap-2">
-                                    <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#efe7dc] text-[11px] font-mono text-[#615b54]">
-                                        {t('gpu.modal.index')} {gpuIndex !== null && gpuIndex !== undefined ? gpuIndex : '-'}
-                                    </span>
-                                    <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#ece7df] text-[11px] font-mono text-[#615b54]">
-                                        {t('gpu.modal.util')} {utilization !== null ? `${utilization.toFixed(0)}%` : '-'}
-                                    </span>
-                                    <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#ece7df] text-[11px] font-mono text-[#615b54]">
-                                        {t('gpu.modal.temp')} {temp !== null ? `${temp.toFixed(0)}C` : '-'}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="soft-panel-subtle p-4">
-                                <div className="flex items-center justify-between text-[11px] text-[#6f685f] mb-1.5">
-                                    <span className="uppercase tracking-[0.08em]">{t('gpu.modal.vramUsage')}</span>
-                                    <span className="font-mono text-[#3e3934]">{memoryPercent !== null ? `${memoryPercent.toFixed(1)}%` : '-'}</span>
-                                </div>
-                                <MiniProgress value={memoryPercent !== null ? memoryPercent : 0} tone="muted" />
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {detailItems.map((item) => (
-                                    <div key={item.label} className="soft-panel-subtle p-3">
-                                        <div className="text-[10px] uppercase tracking-[0.12em] text-[#877f76] font-semibold mb-1.5">{item.label}</div>
-                                        <div className="text-sm font-mono text-[#2f2b28] break-words">{item.value}</div>
-                                    </div>
-                                ))}
+                        <div className="soft-panel-subtle p-4">
+                            <div className="text-[10px] uppercase tracking-[0.12em] text-[#837b72] font-semibold mb-2">{t('gpu.modal.summary')}</div>
+                            <div className="flex flex-wrap gap-2">
+                                <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#efe7dc] text-[11px] font-mono text-[#615b54]">
+                                    {t('gpu.modal.index')} {gpuIndex !== null && gpuIndex !== undefined ? gpuIndex : '-'}
+                                </span>
+                                <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#ece7df] text-[11px] font-mono text-[#615b54]">
+                                    {t('gpu.modal.util')} {utilization !== null ? `${utilization.toFixed(0)}%` : '-'}
+                                </span>
+                                <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#ece7df] text-[11px] font-mono text-[#615b54]">
+                                    {t('gpu.modal.temp')} {temp !== null ? `${temp.toFixed(0)}C` : '-'}
+                                </span>
                             </div>
                         </div>
-                    </section>
-                </div>
+
+                        <div className="soft-panel-subtle p-4">
+                            <div className="flex items-center justify-between text-[11px] text-[#6f685f] mb-1.5">
+                                <span className="uppercase tracking-[0.08em]">{t('gpu.modal.vramUsage')}</span>
+                                <span className="font-mono text-[#3e3934]">{memoryPercent !== null ? `${memoryPercent.toFixed(1)}%` : '-'}</span>
+                            </div>
+                            <MiniProgress value={memoryPercent !== null ? memoryPercent : 0} tone="muted" />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {detailItems.map((item) => (
+                                <div key={item.label} className="soft-panel-subtle p-3">
+                                    <div className="text-[10px] uppercase tracking-[0.12em] text-[#877f76] font-semibold mb-1.5">{item.label}</div>
+                                    <div className="text-sm font-mono text-[#2f2b28] break-words">{item.value}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </AppModal>
             );
         };
 
-        const ServerCard = ({ server, onDelete, t }) => {
+        const ServerCard = ({ server, onDelete, onSelectGpu, t }) => {
             const isOffline = server.status === 'offline';
             const data = server.data || {};
             const gpus = Array.isArray(data.gpus) ? data.gpus : [];
-            const [selectedGpu, setSelectedGpu] = useState(null);
             const metrics = server.metrics || { upSpeed: 0, downSpeed: 0 };
             const totalPower = gpus.reduce((sum, gpu) => sum + (safeNumber(gpu.power_draw) || 0), 0);
             const ipOrHost = data.ip_address || (server.url ? server.url.replace('http://', '').replace('https://', '').split('/')[0] : '-');
@@ -1028,80 +1429,76 @@
                 : 'bg-[#dcebe8] text-[#2f6058] border-[#c8ddd8]';
 
             return (
-                <>
-                    <article className="soft-panel p-4 md:p-5 h-full card-hover">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="flex items-center gap-2 mb-1.5">
-                                    <h3 className="text-base font-semibold text-[#1e1c1a] truncate">{server.name}</h3>
-                                    <span className={cx('px-2 py-1 rounded-full border text-[10px] uppercase tracking-[0.08em] font-semibold', statusTone)}>
-                                        {isOffline ? t('common.offline') : t('common.online')}
-                                    </span>
-                                </div>
-                                <div className="text-[11px] font-mono text-[#746e66] break-all">{ipOrHost}</div>
+                <article className="soft-panel p-4 md:p-5 h-full card-hover">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <h3 className="text-base font-semibold text-[#1e1c1a] truncate">{server.name}</h3>
+                                <span className={cx('px-2 py-1 rounded-full border text-[10px] uppercase tracking-[0.08em] font-semibold', statusTone)}>
+                                    {isOffline ? t('common.offline') : t('common.online')}
+                                </span>
                             </div>
-                            <button
-                                onClick={() => onDelete(server.id)}
-                                className="muted-button p-2 text-[#746d64] hover:text-[#3d3732]"
-                                title={t('action.deleteNode')}
-                            >
-                                <Icons.Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="text-[11px] font-mono text-[#746e66] break-all">{ipOrHost}</div>
                         </div>
+                        <button
+                            onClick={() => onDelete(server)}
+                            className="muted-button p-2 text-[#746d64] hover:text-[#3d3732]"
+                            title={t('action.deleteNode')}
+                        >
+                            <Icons.Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
 
-                        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 mt-4">
-                            <ServerMetricTile
-                                label={t('metric.cpu')}
-                                value={safeNumber(data.cpu_usage) !== null ? `${Number(data.cpu_usage).toFixed(1)}%` : '-'}
-                                sub={safeNumber(data.cpu_cores) !== null ? `${Number(data.cpu_cores).toFixed(0)} ${t('metric.cores')}` : '-'}
-                                icon={Icons.Cpu}
-                            />
-                            <ServerMetricTile
-                                label={t('metric.ram')}
-                                value={safeNumber(data.ram_percent) !== null ? `${Number(data.ram_percent).toFixed(1)}%` : '-'}
-                                sub={safeNumber(data.ram_used) !== null ? `${Number(data.ram_used).toFixed(1)} ${t('metric.gbUsed')}` : '-'}
-                                icon={Icons.HardDrive}
-                            />
-                            <ServerMetricTile
-                                label={t('metric.net')}
-                                value={`${formatSpeed(metrics.downSpeed)}`}
-                                sub={`${t('metric.up')} ${formatSpeed(metrics.upSpeed)}`}
-                                icon={Icons.Activity}
-                            />
-                            <ServerMetricTile
-                                label={t('metric.pwr')}
-                                value={isOffline ? '-' : `${totalPower.toFixed(0)}W`}
-                                sub={`${gpus.length} ${t('metric.gpuUnit')}`}
-                                icon={Icons.Zap}
-                            />
-                        </div>
+                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 mt-4">
+                        <ServerMetricTile
+                            label={t('metric.cpu')}
+                            value={safeNumber(data.cpu_usage) !== null ? `${Number(data.cpu_usage).toFixed(1)}%` : '-'}
+                            sub={safeNumber(data.cpu_cores) !== null ? `${Number(data.cpu_cores).toFixed(0)} ${t('metric.cores')}` : '-'}
+                            icon={Icons.Cpu}
+                        />
+                        <ServerMetricTile
+                            label={t('metric.ram')}
+                            value={safeNumber(data.ram_percent) !== null ? `${Number(data.ram_percent).toFixed(1)}%` : '-'}
+                            sub={safeNumber(data.ram_used) !== null ? `${Number(data.ram_used).toFixed(1)} ${t('metric.gbUsed')}` : '-'}
+                            icon={Icons.HardDrive}
+                        />
+                        <ServerMetricTile
+                            label={t('metric.net')}
+                            value={`${formatSpeed(metrics.downSpeed)}`}
+                            sub={`${t('metric.up')} ${formatSpeed(metrics.upSpeed)}`}
+                            icon={Icons.Activity}
+                        />
+                        <ServerMetricTile
+                            label={t('metric.pwr')}
+                            value={isOffline ? '-' : `${totalPower.toFixed(0)}W`}
+                            sub={`${gpus.length} ${t('metric.gpuUnit')}`}
+                            icon={Icons.Zap}
+                        />
+                    </div>
 
-                        <div className="mt-4">
-                            {isOffline ? (
-                                <div className="soft-panel-subtle p-4 text-sm text-[#736c63]">
-                                    {t('empty.nodeUnreachable')}
-                                </div>
-                            ) : gpus.length === 0 ? (
-                                <div className="soft-panel-subtle p-4 text-sm text-[#736c63]">{t('empty.noGpuData')}</div>
-                            ) : (
-                                <div className="grid gap-3" style={gpuGridStyle}>
-                                    {gpus.map((gpu, idx) => (
-                                        <GpuMiniCard
-                                            key={idx}
-                                            gpu={gpu}
-                                            index={idx}
-                                            layoutMode={isSingleGpu ? 'single' : 'compact'}
-                                            t={t}
-                                            onSelect={(gpuData, gpuIndex) => setSelectedGpu({ gpu: gpuData, index: gpuIndex })}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </article>
-
-                    <GpuDetailModal payload={selectedGpu} onClose={() => setSelectedGpu(null)} t={t} />
-                </>
+                    <div className="mt-4">
+                        {isOffline ? (
+                            <div className="soft-panel-subtle p-4 text-sm text-[#736c63]">
+                                {t('empty.nodeUnreachable')}
+                            </div>
+                        ) : gpus.length === 0 ? (
+                            <div className="soft-panel-subtle p-4 text-sm text-[#736c63]">{t('empty.noGpuData')}</div>
+                        ) : (
+                            <div className="grid gap-3" style={gpuGridStyle}>
+                                {gpus.map((gpu, idx) => (
+                                    <GpuMiniCard
+                                        key={idx}
+                                        gpu={gpu}
+                                        index={idx}
+                                        layoutMode={isSingleGpu ? 'single' : 'compact'}
+                                        t={t}
+                                        onSelect={(gpuData, gpuIndex) => onSelectGpu(server.id, gpuIndex, gpuData)}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </article>
             );
         };
 
@@ -1216,7 +1613,14 @@
             const activeFetchIdRef = useRef(0);
             const [lastSyncedAt, setLastSyncedAt] = useState(null);
             const [gatewayToken, setGatewayToken] = useState(() => localStorage.getItem(GATEWAY_TOKEN_STORAGE_KEY) || '');
+            const [selectedGpuRef, setSelectedGpuRef] = useState(null);
+            const [dialogState, setDialogState] = useState(null);
+            const dialogResolverRef = useRef(null);
+            const [toasts, setToasts] = useState([]);
+            const toastTimersRef = useRef(new Map());
+            const [isSavingServer, setIsSavingServer] = useState(false);
             const t = useMemo(() => createTranslator(language), [language]);
+            const resolvedSelectedGpu = useResolvedSelectedGpu(selectedGpuRef, servers);
 
             useEffect(() => {
                 try {
@@ -1226,6 +1630,68 @@
                 document.title = t('app.title');
             }, [language, t]);
 
+            useEffect(() => () => {
+                const activeResolver = dialogResolverRef.current;
+                dialogResolverRef.current = null;
+                if (typeof activeResolver === 'function') activeResolver(null);
+            }, []);
+
+            useEffect(() => () => {
+                toastTimersRef.current.forEach((timer) => clearTimeout(timer));
+                toastTimersRef.current.clear();
+            }, []);
+
+            const dismissToast = (id) => {
+                const timer = toastTimersRef.current.get(id);
+                if (timer) {
+                    clearTimeout(timer);
+                    toastTimersRef.current.delete(id);
+                }
+                setToasts((prev) => prev.filter((item) => item.id !== id));
+            };
+
+            const pushToast = (message, tone = 'info', duration = 3200) => {
+                if (!message) return null;
+                const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+                setToasts((prev) => [...prev, { id, message, tone }]);
+                const timer = setTimeout(() => dismissToast(id), duration);
+                toastTimersRef.current.set(id, timer);
+                return id;
+            };
+
+            const openDialog = (config) => new Promise((resolve) => {
+                const previousResolver = dialogResolverRef.current;
+                if (typeof previousResolver === 'function') previousResolver(null);
+                dialogResolverRef.current = resolve;
+                setDialogState(config);
+            });
+
+            const resolveDialog = (value) => {
+                const resolver = dialogResolverRef.current;
+                dialogResolverRef.current = null;
+                setDialogState(null);
+                if (typeof resolver === 'function') resolver(value);
+            };
+
+            const openConfirmDialog = (options = {}) => openDialog({
+                type: 'confirm',
+                confirmText: t('action.confirm'),
+                cancelText: t('action.cancel'),
+                closeOnEsc: true,
+                closeOnBackdrop: true,
+                ...options,
+            });
+
+            const openPromptDialog = (options = {}) => openDialog({
+                type: 'prompt',
+                confirmText: t('action.submit'),
+                cancelText: t('action.cancel'),
+                closeOnEsc: true,
+                closeOnBackdrop: true,
+                trim: true,
+                ...options,
+            });
+
             const saveGatewayToken = (rawToken) => {
                 const token = normalizeToken(rawToken);
                 setGatewayToken(token);
@@ -1234,10 +1700,20 @@
                 return token;
             };
 
-            const promptGatewayToken = (message = t('prompt.gatewayTokenTitle')) => {
-                const input = prompt(message, gatewayToken || '');
+            const openGatewayTokenDialog = async ({ required = false } = {}) => {
+                const input = await openPromptDialog({
+                    title: required ? t('dialog.gatewayTokenRequiredTitle') : t('dialog.gatewayTokenTitle'),
+                    description: required ? t('dialog.gatewayTokenRequiredDescription') : t('dialog.gatewayTokenDescription'),
+                    placeholder: t('dialog.gatewayTokenPlaceholder'),
+                    initialValue: gatewayToken || '',
+                    required,
+                    closeOnBackdrop: !required,
+                    closeOnEsc: !required,
+                });
                 if (input === null) return null;
-                return saveGatewayToken(input);
+                const savedToken = saveGatewayToken(input);
+                pushToast(savedToken ? t('notify.tokenUpdated') : t('notify.tokenCleared'), 'success');
+                return savedToken;
             };
 
             const fetchWithGatewayAuth = async (url, options = {}, allowPrompt = true) => {
@@ -1249,7 +1725,7 @@
 
                 let res = await runRequest(gatewayToken);
                 if (allowPrompt && res.status === 401) {
-                    const refreshedToken = promptGatewayToken(t('prompt.gatewayTokenRequired'));
+                    const refreshedToken = await openGatewayTokenDialog({ required: true });
                     if (refreshedToken !== null) {
                         res = await runRequest(refreshedToken);
                     }
@@ -1304,14 +1780,14 @@
 
             const showSaveConfigError = (reason) => {
                 if (reason === 'unauthorized') {
-                    alert(t('notify.gatewayAuthFailed'));
+                    pushToast(t('notify.gatewayAuthFailed'), 'error');
                     return;
                 }
                 if (reason === 'invalid_pin') {
-                    alert(t('notify.invalidPin'));
+                    pushToast(t('notify.invalidPin'), 'error');
                     return;
                 }
-                alert(t('notify.saveConfigFailed'));
+                pushToast(t('notify.saveConfigFailed'), 'error');
             };
 
             useEffect(() => {
@@ -1407,37 +1883,81 @@
             }, [gatewayToken]);
 
             const addServer = async () => {
-                const newServer = {
-                    id: Date.now(),
-                    name: modalData.name,
-                    url: modalData.url,
-                    token: normalizeToken(modalData.token),
-                    status: 'pending'
-                };
-                const newList = [...servers, newServer];
-                const saveResult = await saveConfig(newList, modalData.pin);
-                if (!saveResult.ok) {
-                    showSaveConfigError(saveResult.reason);
-                    return;
+                if (isSavingServer) return;
+                setIsSavingServer(true);
+                try {
+                    const newServer = {
+                        id: Date.now(),
+                        name: modalData.name,
+                        url: modalData.url,
+                        token: normalizeToken(modalData.token),
+                        status: 'pending'
+                    };
+                    const newList = [...latestServersRef.current, newServer];
+                    const saveResult = await saveConfig(newList, modalData.pin);
+                    if (!saveResult.ok) {
+                        showSaveConfigError(saveResult.reason);
+                        return;
+                    }
+                    setServers(newList);
+                    setIsModalOpen(false);
+                    setModalData({ name: "", url: "http://", pin: "", token: "" });
+                } finally {
+                    setIsSavingServer(false);
                 }
-                setServers(newList);
-                setIsModalOpen(false);
-                setModalData({ name: "", url: "http://", pin: "", token: "" });
             };
 
-            const deleteServer = async (id) => {
-                if (!confirm(t('prompt.confirmDeleteNode'))) return;
-                const pin = prompt(t('prompt.adminPin'));
-                if (!pin) return;
-                const newList = servers.filter((x) => x.id !== id);
-                const saveResult = await saveConfig(newList, pin);
-                if (!saveResult.ok) {
-                    showSaveConfigError(saveResult.reason);
-                    return;
-                }
-                const removedServer = servers.find((x) => x.id === id);
-                if (removedServer) delete historyRef.current[removedServer.url];
-                setServers(newList);
+            const deleteServer = async (server) => {
+                if (!server) return;
+
+                const confirmed = await openConfirmDialog({
+                    title: t('dialog.deleteNodeTitle'),
+                    description: t('dialog.deleteNodeDescription', { name: server.name || '-' }),
+                    confirmText: t('action.deleteNode'),
+                    confirmTone: 'danger',
+                });
+                if (!confirmed) return;
+
+                await openPromptDialog({
+                    title: t('dialog.adminPinTitle'),
+                    description: t('dialog.adminPinDescription'),
+                    placeholder: t('modal.pinPlaceholder'),
+                    inputType: 'password',
+                    inputMode: 'numeric',
+                    maxLength: 4,
+                    required: true,
+                    closeOnBackdrop: false,
+                    closeOnEsc: false,
+                    confirmText: t('action.deleteNode'),
+                    validate: (value) => (/^\d{4}$/.test(value) ? '' : t('dialog.pinFormatHint')),
+                    beforeResolve: async (pin) => {
+                        const currentServers = latestServersRef.current;
+                        const newList = currentServers.filter((item) => item.id !== server.id);
+                        const saveResult = await saveConfig(newList, pin);
+                        if (!saveResult.ok) {
+                            showSaveConfigError(saveResult.reason);
+                            return false;
+                        }
+
+                        const removedServer = currentServers.find((item) => item.id === server.id);
+                        if (removedServer) delete historyRef.current[removedServer.url];
+                        setServers(newList);
+                        if (selectedGpuRef && String(selectedGpuRef.serverId) === String(server.id)) {
+                            setSelectedGpuRef(null);
+                        }
+                        pushToast(t('notify.nodeDeleted', { name: server.name || '-' }), 'success');
+                        return true;
+                    }
+                });
+            };
+
+            const handleSelectGpu = (serverId, gpuIndex, gpu) => {
+                setSelectedGpuRef({
+                    serverId,
+                    gpuIndex,
+                    gpuId: safeNumber(gpu?.id),
+                    gpuName: typeof gpu?.name === 'string' ? gpu.name.trim() : '',
+                });
             };
 
             const onlineServers = servers.filter((s) => s.status === 'online');
@@ -1579,9 +2099,9 @@
                                     </button>
 
                                     <button
-                                        onClick={() => promptGatewayToken(t('prompt.gatewayTokenConfig'))}
+                                        onClick={() => openGatewayTokenDialog()}
                                         className={cx('muted-button px-4 py-2 text-sm font-medium', gatewayToken ? 'bg-[#deebe7] text-[#2d5a54] border-[#c8ddd8]' : '')}
-                                        title={t('prompt.gatewayTokenTitle')}
+                                        title={t('dialog.gatewayTokenTitle')}
                                     >
                                         {gatewayToken ? t('action.gatewayTokenActive') : t('action.gatewayToken')}
                                     </button>
@@ -1655,7 +2175,7 @@
                                     ) : (
                                         <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
                                             {servers.map((s) => (
-                                                <ServerCard key={s.id} server={s} onDelete={deleteServer} t={t} />
+                                                <ServerCard key={s.id} server={s} onDelete={deleteServer} onSelectGpu={handleSelectGpu} t={t} />
                                             ))}
                                         </div>
                                     )}
@@ -1760,6 +2280,10 @@
                     </div>
 
                     <ActivityDrawer isOpen={isActivityOpen} onClose={() => setIsActivityOpen(false)} processes={allProcesses} t={t} />
+                    <GpuDetailModal selectedGpuRef={selectedGpuRef} resolvedGpu={resolvedSelectedGpu} onClose={() => setSelectedGpuRef(null)} t={t} />
+                    <ConfirmDialog config={dialogState && dialogState.type === 'confirm' ? dialogState : null} onResolve={resolveDialog} t={t} />
+                    <PromptDialog config={dialogState && dialogState.type === 'prompt' ? dialogState : null} onResolve={resolveDialog} t={t} />
+                    <ToastStack toasts={toasts} onDismiss={dismissToast} t={t} />
 
                     {isModalOpen ? (
                         <div className="fixed inset-0 z-50 bg-[#2f2922]/22 backdrop-blur-[2px] p-4 flex items-center justify-center fade-enter">
@@ -1769,7 +2293,12 @@
                                         <div className="section-eyebrow mb-1">{t('modal.configuration')}</div>
                                         <h3 className="text-xl font-semibold text-[#1f1d1b]">{t('modal.addNode')}</h3>
                                     </div>
-                                    <button onClick={() => setIsModalOpen(false)} className="muted-button p-2 text-[#6f685f]" title={t('action.close')}>
+                                    <button
+                                        onClick={() => setIsModalOpen(false)}
+                                        disabled={isSavingServer}
+                                        className={cx('muted-button p-2 text-[#6f685f]', isSavingServer ? 'opacity-60 cursor-not-allowed' : '')}
+                                        title={t('action.close')}
+                                    >
                                         <Icons.X className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -1782,6 +2311,7 @@
                                             className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors"
                                             placeholder={t('modal.nodeNamePlaceholder')}
                                             value={modalData.name}
+                                            disabled={isSavingServer}
                                             onChange={(e) => setModalData({ ...modalData, name: e.target.value })}
                                         />
                                     </div>
@@ -1793,6 +2323,7 @@
                                             className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors font-mono"
                                             placeholder={t('modal.agentUrlPlaceholder')}
                                             value={modalData.url}
+                                            disabled={isSavingServer}
                                             onChange={(e) => setModalData({ ...modalData, url: e.target.value })}
                                         />
                                     </div>
@@ -1804,6 +2335,7 @@
                                             className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors font-mono"
                                             placeholder={t('modal.agentTokenPlaceholder')}
                                             value={modalData.token}
+                                            disabled={isSavingServer}
                                             onChange={(e) => setModalData({ ...modalData, token: e.target.value })}
                                         />
                                     </div>
@@ -1817,14 +2349,27 @@
                                             className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors font-mono tracking-[0.5em] text-center"
                                             placeholder={t('modal.pinPlaceholder')}
                                             value={modalData.pin}
+                                            disabled={isSavingServer}
                                             onChange={(e) => setModalData({ ...modalData, pin: e.target.value.replace(/\D/g, '') })}
                                         />
                                     </div>
                                 </div>
 
                                 <div className="mt-6 flex gap-2.5">
-                                    <button onClick={() => setIsModalOpen(false)} className="muted-button flex-1 px-4 py-2.5 text-sm font-medium">{t('action.cancel')}</button>
-                                    <button onClick={addServer} className="primary-button flex-1 px-4 py-2.5 text-sm font-medium">{t('action.connectAgent')}</button>
+                                    <button
+                                        onClick={() => setIsModalOpen(false)}
+                                        disabled={isSavingServer}
+                                        className={cx('muted-button flex-1 px-4 py-2.5 text-sm font-medium', isSavingServer ? 'opacity-60 cursor-not-allowed' : '')}
+                                    >
+                                        {t('action.cancel')}
+                                    </button>
+                                    <button
+                                        onClick={addServer}
+                                        disabled={isSavingServer}
+                                        className={cx('primary-button flex-1 px-4 py-2.5 text-sm font-medium', isSavingServer ? 'opacity-60 cursor-not-allowed' : '')}
+                                    >
+                                        {isSavingServer ? t('action.submitting') : t('action.connectAgent')}
+                                    </button>
                                 </div>
                             </div>
                         </div>
