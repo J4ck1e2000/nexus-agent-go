@@ -42,12 +42,20 @@ func (h *Handler) RegisterAPIRoutes(r *gin.Engine) {
 
 // RegisterStaticRoutes 注册静态资源与前端入口路由。
 func (h *Handler) RegisterStaticRoutes(r *gin.Engine, webDir string) {
-	indexPath := filepath.Join(webDir, "index.html")
+	dashboardPath := filepath.Join(webDir, "dashboard", "index.html")
+	loginPath := filepath.Join(webDir, "login", "index.html")
 	publicDir := filepath.Join(webDir, "public")
 
 	r.Static("/public", publicDir)
 	r.GET("/", func(c *gin.Context) {
-		c.File(indexPath)
+		if info, err := os.Stat(loginPath); err == nil && !info.IsDir() {
+			c.File(loginPath)
+			return
+		}
+		c.File(dashboardPath)
+	})
+	r.GET("/dashboard", func(c *gin.Context) {
+		c.File(dashboardPath)
 	})
 
 	r.NoRoute(func(c *gin.Context) {
@@ -67,7 +75,7 @@ func (h *Handler) RegisterStaticRoutes(r *gin.Engine, webDir string) {
 			return
 		}
 
-		c.File(indexPath)
+		c.File(dashboardPath)
 	})
 }
 

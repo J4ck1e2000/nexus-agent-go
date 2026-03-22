@@ -257,6 +257,7 @@
                 app: {
                     title: 'Nexus Monitor',
                     eyebrow: 'Nexus Monitor',
+                    fleetOverviewHeading: 'Fleet Overview',
                     dashboardTitle: 'Cluster Operations Dashboard',
                     dashboardSubtitle: 'Quiet, real-time infrastructure visibility for distributed GPU nodes.',
                     fleetOverviewEyebrow: 'Fleet Overview',
@@ -280,6 +281,7 @@
                 action: {
                     gpuUsers: 'GPU Users',
                     addNode: 'Add Node',
+                    clearFilter: 'Clear',
                     connectNode: 'Connect Node',
                     connectAgent: 'Connect Agent',
                     deleteNode: 'Delete Node',
@@ -305,6 +307,53 @@
                     refreshValue: '2s polling',
                     totalSuffix: '{count} total',
                     onlineRatio: '{online} / {total} online',
+                },
+                panel: {
+                    sortedByAvailability: 'Sorted by availability',
+                    bestNodesFirst: 'Best nodes first',
+                    searchPlaceholder: 'Search nodes by name or host',
+                    sortLabel: 'Sort mode',
+                    sortAvailability: 'Availability',
+                    sortName: 'Name',
+                    sortCpu: 'CPU usage',
+                    sortUsers: 'Active users',
+                    emptyFilter: 'No nodes matched your filter.',
+                    emptySelect: 'Select a node to inspect details.',
+                },
+                availability: {
+                    highlyAvailable: 'Highly Available',
+                    available: 'Available',
+                    busy: 'Busy',
+                    saturated: 'Saturated',
+                    offline: 'Offline',
+                    unavailable: 'Unavailable',
+                    score: 'Availability Score',
+                },
+                node: {
+                    host: 'Host / IP',
+                    users: 'Users',
+                    gpuCount: 'GPU',
+                    idleGpu: 'Idle GPU',
+                    busyGpu: 'Busy GPU',
+                    avgGpu: 'Avg GPU',
+                    vram: 'VRAM',
+                    network: 'Network',
+                    lastSync: 'Last Sync',
+                    dataAge: 'Data Age',
+                    na: 'N/A',
+                },
+                detail: {
+                    nodeHeroEyebrow: 'Selected Node',
+                    resourceOverview: 'Resource Overview',
+                    gpuMatrix: 'GPU Matrix',
+                    snapshotEvents: 'Recent Events',
+                    userSummary: 'User Summary',
+                    gpuDetail: 'GPU Detail Panel',
+                    noGpu: 'No GPU telemetry from this node.',
+                    clickGpuHint: 'Click any GPU card to inspect details below.',
+                    noNodeSelected: 'Select a node to inspect details.',
+                    onlineHint: 'Live node metrics from current polling cycle.',
+                    offlineHint: 'Node is offline. Last known metrics are kept for context.',
                 },
                 metric: {
                     status: 'Status',
@@ -386,6 +435,14 @@
                         gpuNotFound: 'GPU not found',
                         serverNotFound: 'Server not found',
                     },
+                    status: {
+                        idle: 'Idle',
+                        light: 'Light',
+                        busy: 'Busy',
+                        full: 'Full',
+                        occupied: 'Occupied',
+                        free: 'Free',
+                    },
                 },
                 modal: {
                     configuration: 'Configuration',
@@ -435,6 +492,7 @@
                 app: {
                     title: 'Nexus 监控台',
                     eyebrow: 'Nexus 监控台',
+                    fleetOverviewHeading: '集群总览',
                     dashboardTitle: '集群运维仪表盘',
                     dashboardSubtitle: '面向分布式 GPU 节点的安静、实时基础设施可视化。',
                     fleetOverviewEyebrow: '集群总览',
@@ -458,6 +516,7 @@
                 action: {
                     gpuUsers: 'GPU 用户',
                     addNode: '添加节点',
+                    clearFilter: '清空',
                     connectNode: '连接节点',
                     connectAgent: '连接 Agent',
                     deleteNode: '删除节点',
@@ -483,6 +542,53 @@
                     refreshValue: '2秒轮询',
                     totalSuffix: '共 {count} 台',
                     onlineRatio: '在线 {online} / {total}',
+                },
+                panel: {
+                    sortedByAvailability: '按可利用性排序',
+                    bestNodesFirst: '优先展示最佳节点',
+                    searchPlaceholder: '按节点名或地址搜索',
+                    sortLabel: '排序方式',
+                    sortAvailability: '可利用性',
+                    sortName: '名称',
+                    sortCpu: 'CPU 使用率',
+                    sortUsers: '活跃用户数',
+                    emptyFilter: '没有匹配筛选条件的节点。',
+                    emptySelect: '请选择一个节点查看详情。',
+                },
+                availability: {
+                    highlyAvailable: '高度可用',
+                    available: '可用',
+                    busy: '繁忙',
+                    saturated: '饱和',
+                    offline: '离线',
+                    unavailable: '不可用',
+                    score: '可利用评分',
+                },
+                node: {
+                    host: '主机 / IP',
+                    users: '用户',
+                    gpuCount: 'GPU',
+                    idleGpu: '空闲 GPU',
+                    busyGpu: '繁忙 GPU',
+                    avgGpu: '平均 GPU',
+                    vram: '显存',
+                    network: '网络',
+                    lastSync: '最近同步',
+                    dataAge: '数据时效',
+                    na: 'N/A',
+                },
+                detail: {
+                    nodeHeroEyebrow: '当前节点',
+                    resourceOverview: '资源总览',
+                    gpuMatrix: 'GPU 矩阵',
+                    snapshotEvents: '近期事件',
+                    userSummary: '用户摘要',
+                    gpuDetail: 'GPU 详情面板',
+                    noGpu: '该节点暂无 GPU 遥测数据。',
+                    clickGpuHint: '点击任意 GPU 卡片可在下方查看详情。',
+                    noNodeSelected: '请选择一个节点查看详情。',
+                    onlineHint: '当前轮询周期内的实时节点指标。',
+                    offlineHint: '节点离线，界面保留最近一次可用指标供参考。',
                 },
                 metric: {
                     status: '状态',
@@ -563,6 +669,14 @@
                         noData: '暂无 GPU 数据',
                         gpuNotFound: '未找到 GPU',
                         serverNotFound: '未找到服务器',
+                    },
+                    status: {
+                        idle: '空闲',
+                        light: '轻载',
+                        busy: '繁忙',
+                        full: '满载',
+                        occupied: '占用中',
+                        free: '空闲',
                     },
                 },
                 modal: {
@@ -1527,12 +1641,856 @@
             );
         };
 
+        const ACTIVE_USER_VRAM_THRESHOLD_MB = 0.1 * 1024;
+        const SYSTEM_USER_BLACKLIST = new Set(['root', 'gdm']);
+        const GPU_BUSY_UTIL_THRESHOLD = 55;
+        const GPU_BUSY_VRAM_THRESHOLD = 60;
+        const GPU_LIGHT_UTIL_THRESHOLD = 20;
+        const GPU_LIGHT_VRAM_THRESHOLD = 25;
+        const DATA_STALE_WARNING_SEC = 8;
+        const DATA_STALE_CRITICAL_SEC = 18;
+
+        const getServerGpus = (server) => (Array.isArray(server?.data?.gpus) ? server.data.gpus : []);
+        const getServerProcesses = (server) => (Array.isArray(server?.data?.processes) ? server.data.processes : []);
+
+        const getServerHostDisplay = (server) => {
+            const ip = server?.data?.ip_address;
+            if (typeof ip === 'string' && ip.trim()) return ip.trim();
+            const rawUrl = String(server?.url || '').trim();
+            if (!rawUrl) return '-';
+            return rawUrl.replace(/^https?:\/\//, '').split('/')[0] || rawUrl;
+        };
+
+        const resolveProcessUser = (proc) => {
+            const raw = (proc?.user ?? proc?.username ?? '').toString().trim();
+            return raw || '';
+        };
+
+        const isActiveGpuProcess = (proc) => {
+            const user = resolveProcessUser(proc).toLowerCase();
+            if (SYSTEM_USER_BLACKLIST.has(user)) return false;
+            const gpuIndex = safeNumber(proc?.gpu_index);
+            const vramUsedMb = safeNumber(proc?.vram_used_mb) || 0;
+            return gpuIndex !== null && vramUsedMb >= ACTIVE_USER_VRAM_THRESHOLD_MB;
+        };
+
+        const getServerGpuProcessIndexes = (server) => {
+            const indexes = new Set();
+            getServerProcesses(server).forEach((proc) => {
+                if (!isActiveGpuProcess(proc)) return;
+                const idx = safeNumber(proc?.gpu_index);
+                if (idx !== null) indexes.add(Math.round(idx));
+            });
+            return indexes;
+        };
+
+        const getServerActiveUsers = (server) => {
+            const users = new Set();
+            getServerProcesses(server).forEach((proc) => {
+                if (!isActiveGpuProcess(proc)) return;
+                const user = resolveProcessUser(proc);
+                if (!user) return;
+                users.add(user);
+            });
+            return Array.from(users);
+        };
+
+        const getServerGpuSummary = (server) => {
+            const gpus = getServerGpus(server);
+            const activeGpuIndexes = getServerGpuProcessIndexes(server);
+            if (gpus.length === 0) {
+                return {
+                    gpuCount: 0,
+                    busyGpuCount: 0,
+                    idleGpuCount: 0,
+                    avgUtilization: null,
+                    avgMemoryPercent: null,
+                    totalMemoryUsed: 0,
+                    totalMemory: 0,
+                    totalPower: 0,
+                    gpuPressure: 0,
+                    busyRatio: 0,
+                };
+            }
+
+            let utilTotal = 0;
+            let utilCount = 0;
+            let vramPercentTotal = 0;
+            let vramPercentCount = 0;
+            let totalMemoryUsed = 0;
+            let totalMemory = 0;
+            let totalPower = 0;
+            let busyGpuCount = 0;
+
+            gpus.forEach((gpu, idx) => {
+                const utilization = safeNumber(gpu.utilization);
+                const memoryUsed = safeNumber(gpu.memory_used);
+                const memoryTotal = safeNumber(gpu.memory_total);
+                const memoryPercent = memoryTotal !== null && memoryTotal > 0 && memoryUsed !== null
+                    ? clampPercent((memoryUsed / memoryTotal) * 100)
+                    : safeNumber(gpu.memory_utilization);
+                const hasActiveProcess = activeGpuIndexes.has(idx);
+                const power = safeNumber(gpu.power_draw);
+
+                if (utilization !== null) {
+                    utilTotal += utilization;
+                    utilCount += 1;
+                }
+                if (memoryPercent !== null) {
+                    vramPercentTotal += memoryPercent;
+                    vramPercentCount += 1;
+                }
+                if (memoryUsed !== null) totalMemoryUsed += memoryUsed;
+                if (memoryTotal !== null) totalMemory += memoryTotal;
+                if (power !== null) totalPower += power;
+
+                const utilValue = utilization !== null ? utilization : 0;
+                const vramValue = memoryPercent !== null ? memoryPercent : 0;
+                const isBusy = utilValue >= GPU_BUSY_UTIL_THRESHOLD
+                    || vramValue >= GPU_BUSY_VRAM_THRESHOLD
+                    || hasActiveProcess;
+                if (isBusy) busyGpuCount += 1;
+            });
+
+            const idleGpuCount = Math.max(0, gpus.length - busyGpuCount);
+            const avgUtilization = utilCount > 0 ? utilTotal / utilCount : null;
+            const avgMemoryPercent = vramPercentCount > 0 ? vramPercentTotal / vramPercentCount : null;
+            const gpuPressure = clampPercent(((avgUtilization ?? 0) * 0.6) + ((avgMemoryPercent ?? 0) * 0.4));
+            const busyRatio = gpus.length > 0 ? busyGpuCount / gpus.length : 0;
+
+            return {
+                gpuCount: gpus.length,
+                busyGpuCount,
+                idleGpuCount,
+                avgUtilization,
+                avgMemoryPercent,
+                totalMemoryUsed,
+                totalMemory,
+                totalPower,
+                gpuPressure,
+                busyRatio,
+            };
+        };
+
+        const getIdleGpuCount = (server) => getServerGpuSummary(server).idleGpuCount;
+        const getBusyGpuCount = (server) => getServerGpuSummary(server).busyGpuCount;
+
+        const computeDataAgeSeconds = (server, nowMs = Date.now()) => {
+            const ts = safeNumber(server?.lastSeenAt);
+            if (ts === null || ts <= 0) return Number.POSITIVE_INFINITY;
+            return Math.max(0, (nowMs - ts) / 1000);
+        };
+
+        const computeAvailabilityScore = (server, nowMs = Date.now()) => {
+            if (!server || server.status !== 'online') return 0;
+
+            const activeUsers = getServerActiveUsers(server).length;
+            const cpu = safeNumber(server?.data?.cpu_usage);
+            const ram = safeNumber(server?.data?.ram_percent);
+            const gpuSummary = getServerGpuSummary(server);
+            const ageSec = computeDataAgeSeconds(server, nowMs);
+            const avgPowerPerGpu = gpuSummary.gpuCount > 0 ? (gpuSummary.totalPower / gpuSummary.gpuCount) : 0;
+
+            let score = 100;
+            score -= Math.min(30, activeUsers * 8);
+            score -= cpu !== null ? Math.min(24, cpu * 0.24) : 6;
+            score -= ram !== null ? Math.min(20, ram * 0.2) : 6;
+            score -= Math.min(22, gpuSummary.gpuPressure * 0.22);
+            score -= Math.min(16, gpuSummary.busyRatio * 16);
+            score -= Math.min(10, avgPowerPerGpu * 0.08);
+            score += Math.min(12, gpuSummary.idleGpuCount * 3);
+            if (gpuSummary.gpuCount === 0) score -= 8;
+            if (ageSec > DATA_STALE_CRITICAL_SEC) score -= 18;
+            else if (ageSec > DATA_STALE_WARNING_SEC) score -= 8;
+
+            return Math.max(0, Math.min(100, Math.round(score)));
+        };
+
+        const getAvailabilityTier = (score, server) => {
+            if (!server || server.status !== 'online') return 'offline';
+            if (score >= 80) return 'highlyAvailable';
+            if (score >= 60) return 'available';
+            if (score >= 35) return 'busy';
+            return 'saturated';
+        };
+
+        const sortServersByAvailability = (servers, nowMs = Date.now()) => [...servers].sort((a, b) => {
+            const aOnline = a.status === 'online' ? 1 : 0;
+            const bOnline = b.status === 'online' ? 1 : 0;
+            if (aOnline !== bOnline) return bOnline - aOnline;
+            const aScore = Number.isFinite(a.availabilityScore) ? a.availabilityScore : computeAvailabilityScore(a, nowMs);
+            const bScore = Number.isFinite(b.availabilityScore) ? b.availabilityScore : computeAvailabilityScore(b, nowMs);
+            if (aScore !== bScore) return bScore - aScore;
+            return String(a.name || '').localeCompare(String(b.name || ''));
+        });
+
+        const sortServersForMode = (servers, mode) => {
+            const onlineRank = (item) => (item.status === 'online' ? 0 : 1);
+            if (mode === 'availability') return sortServersByAvailability(servers);
+
+            const list = [...servers];
+            if (mode === 'name') {
+                return list.sort((a, b) => {
+                    const rankDiff = onlineRank(a) - onlineRank(b);
+                    if (rankDiff !== 0) return rankDiff;
+                    return String(a.name || '').localeCompare(String(b.name || ''));
+                });
+            }
+
+            if (mode === 'cpu') {
+                return list.sort((a, b) => {
+                    const rankDiff = onlineRank(a) - onlineRank(b);
+                    if (rankDiff !== 0) return rankDiff;
+                    const aCpu = safeNumber(a?.data?.cpu_usage);
+                    const bCpu = safeNumber(b?.data?.cpu_usage);
+                    if (aCpu === null && bCpu === null) return String(a.name || '').localeCompare(String(b.name || ''));
+                    if (aCpu === null) return 1;
+                    if (bCpu === null) return -1;
+                    return aCpu - bCpu;
+                });
+            }
+
+            if (mode === 'users') {
+                return list.sort((a, b) => {
+                    const rankDiff = onlineRank(a) - onlineRank(b);
+                    if (rankDiff !== 0) return rankDiff;
+                    const aUsers = Number(a.activeUserCount || 0);
+                    const bUsers = Number(b.activeUserCount || 0);
+                    if (aUsers !== bUsers) return aUsers - bUsers;
+                    return String(a.name || '').localeCompare(String(b.name || ''));
+                });
+            }
+
+            return list;
+        };
+
+        const formatAgeShort = (seconds, t) => {
+            if (!Number.isFinite(seconds)) return t('node.na');
+            if (seconds < 1) return '<1s';
+            if (seconds < 60) return `${Math.round(seconds)}s`;
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.round(seconds % 60);
+            if (mins < 60) return `${mins}m ${secs}s`;
+            const hours = Math.floor(mins / 60);
+            return `${hours}h ${mins % 60}m`;
+        };
+
+        const buildServerTopUsers = (server, t) => {
+            const map = {};
+            getServerProcesses(server).forEach((proc) => {
+                if (!isActiveGpuProcess(proc)) return;
+                const name = resolveProcessUser(proc) || t('misc.unknown');
+                if (!map[name]) map[name] = { name, vramMb: 0, procCount: 0 };
+                map[name].vramMb += (safeNumber(proc?.vram_used_mb) || 0);
+                map[name].procCount += 1;
+            });
+            return Object.values(map)
+                .sort((a, b) => b.vramMb - a.vramMb)
+                .slice(0, 8);
+        };
+
+        const resolveGpuLoadTier = (gpu, index, activeGpuIndexes) => {
+            const utilization = safeNumber(gpu?.utilization) ?? 0;
+            const memoryUsed = safeNumber(gpu?.memory_used);
+            const memoryTotal = safeNumber(gpu?.memory_total);
+            const memoryPercent = memoryTotal !== null && memoryTotal > 0 && memoryUsed !== null
+                ? clampPercent((memoryUsed / memoryTotal) * 100)
+                : (safeNumber(gpu?.memory_utilization) ?? 0);
+            const hasActiveProcess = activeGpuIndexes.has(index);
+
+            if (utilization >= 90 || memoryPercent >= 92) return 'full';
+            if (utilization >= GPU_BUSY_UTIL_THRESHOLD || memoryPercent >= GPU_BUSY_VRAM_THRESHOLD || hasActiveProcess) return 'busy';
+            if (utilization >= GPU_LIGHT_UTIL_THRESHOLD || memoryPercent >= GPU_LIGHT_VRAM_THRESHOLD) return 'light';
+            return 'idle';
+        };
+
+        const SORT_MODE_OPTIONS = [
+            { value: 'availability', labelKey: 'panel.sortAvailability' },
+            { value: 'name', labelKey: 'panel.sortName' },
+            { value: 'cpu', labelKey: 'panel.sortCpu' },
+            { value: 'users', labelKey: 'panel.sortUsers' },
+        ];
+
+        const NodeKpiTile = ({ label, value, sub, icon: Icon }) => (
+            <div className="soft-panel-subtle p-3.5">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="text-[10px] uppercase tracking-[0.13em] text-[#847d73] font-semibold">{label}</div>
+                    {Icon ? <Icon className="w-3.5 h-3.5 text-[#8f877d]" /> : null}
+                </div>
+                <div className="text-lg font-semibold text-[#201d1a]">{value}</div>
+                <div className="text-[11px] text-[#6d665d] mt-1">{sub}</div>
+            </div>
+        );
+
+        const SortSelect = ({ value, onChange, options, t }) => {
+            const rootRef = useRef(null);
+            const buttonRef = useRef(null);
+            const listRef = useRef(null);
+            const listIdRef = useRef(`sort-listbox-${Math.random().toString(16).slice(2)}`);
+            const [isOpen, setIsOpen] = useState(false);
+            const [highlightedIndex, setHighlightedIndex] = useState(0);
+
+            const selectedIndex = Math.max(0, options.findIndex((item) => item.value === value));
+            const selectedOption = options[selectedIndex] || options[0];
+
+            const openMenu = (nextIndex = selectedIndex) => {
+                const safeIndex = Math.max(0, Math.min(options.length - 1, nextIndex));
+                setHighlightedIndex(safeIndex);
+                setIsOpen(true);
+            };
+
+            const closeMenu = () => {
+                setIsOpen(false);
+            };
+
+            const selectIndex = (index) => {
+                const option = options[index];
+                if (!option) return;
+                onChange(option.value);
+                closeMenu();
+                requestAnimationFrame(() => {
+                    if (buttonRef.current) buttonRef.current.focus();
+                });
+            };
+
+            useEffect(() => {
+                if (!isOpen) return;
+                setHighlightedIndex(selectedIndex);
+            }, [isOpen, selectedIndex]);
+
+            useEffect(() => {
+                if (!isOpen) return;
+                const handlePointerDown = (event) => {
+                    if (!rootRef.current) return;
+                    if (!rootRef.current.contains(event.target)) closeMenu();
+                };
+                document.addEventListener('mousedown', handlePointerDown);
+                document.addEventListener('touchstart', handlePointerDown);
+                return () => {
+                    document.removeEventListener('mousedown', handlePointerDown);
+                    document.removeEventListener('touchstart', handlePointerDown);
+                };
+            }, [isOpen]);
+
+            useEffect(() => {
+                if (!isOpen) return;
+                const rafId = requestAnimationFrame(() => {
+                    if (listRef.current) listRef.current.focus();
+                });
+                return () => cancelAnimationFrame(rafId);
+            }, [isOpen]);
+
+            const handleButtonKeyDown = (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    if (isOpen) selectIndex(highlightedIndex);
+                    else openMenu(selectedIndex);
+                    return;
+                }
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    openMenu(isOpen ? highlightedIndex + 1 : selectedIndex);
+                    return;
+                }
+                if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    openMenu(isOpen ? highlightedIndex - 1 : selectedIndex);
+                    return;
+                }
+                if (event.key === 'Escape' && isOpen) {
+                    event.preventDefault();
+                    closeMenu();
+                }
+            };
+
+            const handleListKeyDown = (event) => {
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setHighlightedIndex((prev) => (prev + 1) % options.length);
+                    return;
+                }
+                if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setHighlightedIndex((prev) => (prev - 1 + options.length) % options.length);
+                    return;
+                }
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    selectIndex(highlightedIndex);
+                    return;
+                }
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeMenu();
+                    if (buttonRef.current) buttonRef.current.focus();
+                    return;
+                }
+                if (event.key === 'Tab') closeMenu();
+            };
+
+            return (
+                <div ref={rootRef} className="relative flex-1 min-w-0">
+                    <button
+                        type="button"
+                        ref={buttonRef}
+                        aria-label={t('panel.sortLabel')}
+                        aria-haspopup="listbox"
+                        aria-expanded={isOpen}
+                        aria-controls={listIdRef.current}
+                        onClick={() => (isOpen ? closeMenu() : openMenu(selectedIndex))}
+                        onKeyDown={handleButtonKeyDown}
+                        className={cx(
+                            'w-full bg-[#fbf8f3] border rounded-2xl px-3.5 py-2.5 text-sm text-[#2b2723] transition-all duration-150',
+                            'outline-none flex items-center justify-between gap-2 shadow-[0_1px_1px_rgba(0,0,0,0.02)]',
+                            'hover:border-[rgba(60,47,35,0.18)] hover:bg-[#fcfaf6] hover:shadow-[0_2px_6px_rgba(40,35,30,0.06)]',
+                            isOpen
+                                ? 'border-[rgba(95,145,137,0.32)] ring-2 ring-[rgba(95,145,137,0.14)] bg-[#fcfaf6]'
+                                : 'border-[rgba(60,47,35,0.1)]',
+                            'focus-visible:border-[rgba(95,145,137,0.38)] focus-visible:ring-2 focus-visible:ring-[rgba(95,145,137,0.16)]'
+                        )}
+                    >
+                        <span className="truncate">{t(selectedOption.labelKey)}</span>
+                        <Icons.ChevronDown className={cx('w-4 h-4 text-[#857d73] transition-transform', isOpen ? 'rotate-180' : '')} />
+                    </button>
+
+                    {isOpen ? (
+                        <div
+                            id={listIdRef.current}
+                            ref={listRef}
+                            role="listbox"
+                            tabIndex={-1}
+                            onKeyDown={handleListKeyDown}
+                            className="absolute left-0 right-0 top-[calc(100%+6px)] z-40 p-1.5 soft-panel-subtle border-[rgba(60,47,35,0.12)] rounded-2xl shadow-[0_14px_26px_rgba(34,29,24,0.12)]"
+                        >
+                            {options.map((option, idx) => {
+                                const isSelected = option.value === value;
+                                const isHighlighted = idx === highlightedIndex;
+                                return (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={isSelected}
+                                        onMouseEnter={() => setHighlightedIndex(idx)}
+                                        onClick={() => selectIndex(idx)}
+                                        className={cx(
+                                            'w-full text-left px-3 py-2.5 rounded-xl text-sm transition-colors duration-120 border',
+                                            isSelected
+                                                ? 'bg-[#e5efe9] border-[rgba(95,145,137,0.24)] text-[#2f5d56]'
+                                                : isHighlighted
+                                                    ? 'bg-[#f1ece4] border-transparent text-[#2f2b27]'
+                                                    : 'bg-transparent border-transparent text-[#3a3530] hover:bg-[#f1ece4]'
+                                        )}
+                                    >
+                                        {t(option.labelKey)}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ) : null}
+                </div>
+            );
+        };
+
+        const NodeListToolbar = ({ query, onQueryChange, sortMode, onSortModeChange, t }) => (
+            <div className="space-y-2.5">
+                <input
+                    type="text"
+                    value={query}
+                    onChange={(event) => onQueryChange(event.target.value)}
+                    className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-3.5 py-2.5 text-sm text-[#1f1d1b] outline-none transition-all duration-150 hover:border-[rgba(60,47,35,0.16)] focus:border-[rgba(95,145,137,0.36)] focus:ring-2 focus:ring-[rgba(95,145,137,0.14)]"
+                    placeholder={t('panel.searchPlaceholder')}
+                />
+                <div className="flex items-center gap-2">
+                    <SortSelect
+                        value={sortMode}
+                        onChange={onSortModeChange}
+                        options={SORT_MODE_OPTIONS}
+                        t={t}
+                    />
+                    {query ? (
+                        <button type="button" className="muted-button px-3 py-2 text-xs font-medium" onClick={() => onQueryChange('')}>
+                            {t('action.clearFilter')}
+                        </button>
+                    ) : null}
+                </div>
+                <div className="text-[11px] text-[#746d64]">
+                    <span className="font-semibold">{sortMode === 'availability' ? t('panel.sortedByAvailability') : `${t('panel.sortLabel')}: ${t(`panel.sort${sortMode.charAt(0).toUpperCase()}${sortMode.slice(1)}`)}`}</span>
+                    {sortMode === 'availability' ? <span className="ml-1">{t('panel.bestNodesFirst')}</span> : null}
+                </div>
+            </div>
+        );
+
+        const NodeListItem = ({ server, isSelected, onSelect, onDelete, t }) => {
+            const tierToneMap = {
+                highlyAvailable: 'bg-[#dcefe5] text-[#2f655a] border-[#c8dfd4]',
+                available: 'bg-[#deece8] text-[#345f59] border-[#cadfd9]',
+                busy: 'bg-[#f0e9dd] text-[#6c5a3f] border-[#e0d2bc]',
+                saturated: 'bg-[#f2e1de] text-[#7a4740] border-[#e3c9c4]',
+                offline: 'bg-[#ebe5dc] text-[#6e665d] border-[#dad0c4]',
+            };
+            const barToneMap = {
+                highlyAvailable: 'bg-[#4f8f82]',
+                available: 'bg-[#5f9189]',
+                busy: 'bg-[#b38b54]',
+                saturated: 'bg-[#ad6158]',
+                offline: 'bg-[#9a948b]',
+            };
+
+            const tier = server.availabilityTier || 'offline';
+            const tierLabel = t(`availability.${tier}`);
+            const cpuText = server.cpuPercent !== null ? `${server.cpuPercent.toFixed(1)}%` : t('node.na');
+            const ramText = server.ramPercent !== null ? `${server.ramPercent.toFixed(1)}%` : t('node.na');
+            const avgGpuText = server.gpuSummary.avgUtilization !== null ? `${server.gpuSummary.avgUtilization.toFixed(1)}%` : t('node.na');
+            const vramText = `${server.gpuSummary.totalMemoryUsed.toFixed(1)} / ${server.gpuSummary.totalMemory.toFixed(1)} GB`;
+
+            return (
+                <article
+                    className={cx(
+                        'soft-panel-subtle p-3 border card-hover cursor-pointer',
+                        server.status !== 'online' ? 'opacity-80' : '',
+                        isSelected ? 'border-[#5f9189] shadow-[0_8px_24px_rgba(95,145,137,0.18)]' : 'border-[rgba(60,47,35,0.1)]'
+                    )}
+                    onClick={() => onSelect(server)}
+                >
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                                <span className={cx('w-2 h-2 rounded-full', server.status === 'online' ? 'bg-[#5f9189]' : 'bg-[#a39a8f]')} />
+                                <h3 className="text-sm font-semibold text-[#221f1b] truncate">{server.name || '-'}</h3>
+                            </div>
+                            <div className="text-[11px] text-[#7a7269] mt-1 truncate">{getServerHostDisplay(server)}</div>
+                        </div>
+                        <div className="flex items-start gap-1.5">
+                            <span className={cx('px-2 py-1 rounded-full border text-[10px] font-semibold whitespace-nowrap', tierToneMap[tier] || tierToneMap.offline)}>
+                                {tierLabel}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    onDelete(server);
+                                }}
+                                className="muted-button p-1.5 text-[#746d64]"
+                                title={t('action.deleteNode')}
+                            >
+                                <Icons.Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-1.5 mt-2.5 text-[10px] text-[#6e675e]">
+                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-lg px-2 py-1.5">
+                            <div className="uppercase tracking-[0.08em]">{t('node.users')}</div>
+                            <div className="font-semibold text-[#2d2a26] mt-0.5">{server.activeUserCount}</div>
+                        </div>
+                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-lg px-2 py-1.5">
+                            <div className="uppercase tracking-[0.08em]">{t('node.gpuCount')}</div>
+                            <div className="font-semibold text-[#2d2a26] mt-0.5">{server.gpuSummary.gpuCount}</div>
+                        </div>
+                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-lg px-2 py-1.5">
+                            <div className="uppercase tracking-[0.08em]">{t('node.idleGpu')}</div>
+                            <div className="font-semibold text-[#2d2a26] mt-0.5">{server.gpuSummary.idleGpuCount}</div>
+                        </div>
+                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-lg px-2 py-1.5">
+                            <div className="uppercase tracking-[0.08em]">{t('node.busyGpu')}</div>
+                            <div className="font-semibold text-[#2d2a26] mt-0.5">{server.gpuSummary.busyGpuCount}</div>
+                        </div>
+                    </div>
+
+                    <div className="mt-2.5 text-[11px] text-[#6f685f] space-y-1">
+                        <div className="flex items-center justify-between">
+                            <span>CPU {cpuText}</span>
+                            <span>RAM {ramText}</span>
+                            <span>{t('node.avgGpu')} {avgGpuText}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span>{t('node.vram')} {vramText}</span>
+                            <span className="font-mono">↓ {formatSpeed(server.networkDown)} / ↑ {formatSpeed(server.networkUp)}</span>
+                        </div>
+                    </div>
+
+                    <div className="mt-2.5">
+                        <div className="flex items-center justify-between text-[10px] text-[#746d64] mb-1">
+                            <span>{t('availability.score')}</span>
+                            <span className="font-mono">{server.availabilityScore}</span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-[#e4ded3] overflow-hidden">
+                            <div
+                                className={cx('h-full rounded-full transition-all duration-400', barToneMap[tier] || barToneMap.offline)}
+                                style={{ width: `${clampPercent(server.availabilityScore)}%` }}
+                            />
+                        </div>
+                        <div className="text-[10px] text-[#7c756c] mt-1 flex items-center justify-between">
+                            <span>{t('node.lastSync')}</span>
+                            <span>{server.lastSeenAt ? formatTime(new Date(server.lastSeenAt)) : t('node.na')}</span>
+                        </div>
+                    </div>
+                </article>
+            );
+        };
+
+        const NodeHeroCard = ({ server, t }) => {
+            if (!server) return null;
+            const statusTone = server.status === 'online'
+                ? 'bg-[#dcefe5] text-[#2f655a] border-[#c8dfd4]'
+                : 'bg-[#ebe5dc] text-[#6e665d] border-[#dad0c4]';
+            const tier = server.availabilityTier || 'offline';
+            const tierLabel = t(`availability.${tier}`);
+
+            return (
+                <section className="soft-panel p-5">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                            <div className="section-eyebrow mb-1">{t('detail.nodeHeroEyebrow')}</div>
+                            <h2 className="text-2xl font-semibold tracking-tight text-[#1f1c19]">{server.name || '-'}</h2>
+                            <div className="text-sm text-[#6d665d] mt-1 font-mono">{getServerHostDisplay(server)}</div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <span className={cx('px-3 py-1.5 rounded-full border text-xs font-semibold', statusTone)}>
+                                {server.status === 'online' ? t('common.online') : t('common.offline')}
+                            </span>
+                            <span className="px-3 py-1.5 rounded-full border border-[#d7cec2] bg-[#f0eade] text-xs font-semibold text-[#5f5750]">
+                                {tierLabel} · {server.availabilityScore}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
+                        <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#efe7dc] text-[#645e56]">
+                            CPU {server.cpuPercent !== null ? `${server.cpuPercent.toFixed(1)}%` : t('node.na')}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#efe7dc] text-[#645e56]">
+                            RAM {server.ramPercent !== null ? `${server.ramPercent.toFixed(1)}%` : t('node.na')}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#efe7dc] text-[#645e56]">
+                            {t('node.gpuCount')} {server.gpuSummary.gpuCount}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#efe7dc] text-[#645e56]">
+                            ↓ {formatSpeed(server.networkDown)} / ↑ {formatSpeed(server.networkUp)}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#efe7dc] text-[#645e56]">
+                            {t('node.users')} {server.activeUserCount}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#efe7dc] text-[#645e56]">
+                            {t('node.lastSync')} {server.lastSeenAt ? formatTime(new Date(server.lastSeenAt)) : t('node.na')}
+                        </span>
+                    </div>
+                </section>
+            );
+        };
+
+        const GpuMatrixPanel = ({ server, onSelectGpu, t }) => {
+            const gpus = getServerGpus(server);
+            const activeGpuIndexes = getServerGpuProcessIndexes(server);
+
+            if (gpus.length === 0) {
+                return <div className="soft-panel-subtle p-4 text-sm text-[#6f685f]">{t('detail.noGpu')}</div>;
+            }
+
+            const statusToneMap = {
+                idle: 'bg-[#dcefe5] text-[#2f655a] border-[#c8dfd4]',
+                light: 'bg-[#e5efe9] text-[#335f56] border-[#cfdfd7]',
+                busy: 'bg-[#efe7da] text-[#6a583e] border-[#dfd0ba]',
+                full: 'bg-[#f2e1de] text-[#7a4740] border-[#e3c9c4]',
+            };
+
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {gpus.map((gpu, idx) => {
+                        const utilization = safeNumber(gpu.utilization);
+                        const memoryUsed = safeNumber(gpu.memory_used);
+                        const memoryTotal = safeNumber(gpu.memory_total);
+                        const memoryPercent = memoryTotal !== null && memoryTotal > 0 && memoryUsed !== null
+                            ? clampPercent((memoryUsed / memoryTotal) * 100)
+                            : safeNumber(gpu.memory_utilization);
+                        const temperature = safeNumber(gpu.temperature);
+                        const power = safeNumber(gpu.power_draw);
+                        const fanSpeed = safeNumber(gpu.fan_speed);
+                        const tier = resolveGpuLoadTier(gpu, idx, activeGpuIndexes);
+                        const occupied = activeGpuIndexes.has(idx);
+
+                        return (
+                            <button
+                                type="button"
+                                key={`${server.id}-${idx}`}
+                                className="soft-panel-subtle p-3 text-left border border-[rgba(60,47,35,0.08)] hover:border-[rgba(60,47,35,0.22)] transition-colors"
+                                onClick={() => onSelectGpu(server.id, idx, gpu)}
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <div className="text-xs font-semibold text-[#2a2724]">GPU {idx}</div>
+                                        <div className="text-[11px] text-[#776f66] truncate">{gpu.name || `GPU ${idx}`}</div>
+                                    </div>
+                                    <span className={cx('px-2 py-1 rounded-full border text-[10px] font-semibold', statusToneMap[tier] || statusToneMap.idle)}>
+                                        {t(`gpu.status.${tier}`)}
+                                    </span>
+                                </div>
+
+                                <div className="mt-3 space-y-2">
+                                    <div>
+                                        <div className="flex items-center justify-between text-[10px] text-[#6f685f] mb-1">
+                                            <span>{t('gpu.card.utilization')}</span>
+                                            <span className="font-mono">{utilization !== null ? `${utilization.toFixed(0)}%` : t('node.na')}</span>
+                                        </div>
+                                        <div className="w-full h-1.5 rounded-full bg-[#e4ded3] overflow-hidden">
+                                            <div className="h-full rounded-full bg-[#5f9189]" style={{ width: `${clampPercent(utilization ?? 0)}%` }} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center justify-between text-[10px] text-[#6f685f] mb-1">
+                                            <span>{t('gpu.card.vram')}</span>
+                                            <span className="font-mono">{memoryUsed !== null ? memoryUsed.toFixed(1) : t('node.na')} / {memoryTotal !== null ? memoryTotal.toFixed(1) : t('node.na')} GB</span>
+                                        </div>
+                                        <div className="w-full h-1.5 rounded-full bg-[#e4ded3] overflow-hidden">
+                                            <div className="h-full rounded-full bg-[#8b9f98]" style={{ width: `${clampPercent(memoryPercent ?? 0)}%` }} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 grid grid-cols-2 gap-1.5 text-[10px] text-[#6f685f]">
+                                    <div>{t('gpu.modal.temperature')}: {temperature !== null ? `${temperature.toFixed(0)}C` : t('node.na')}</div>
+                                    <div>{t('gpu.modal.powerDraw')}: {power !== null ? `${power.toFixed(0)}W` : t('node.na')}</div>
+                                    <div>{t('gpu.modal.fanSpeed')}: {fanSpeed !== null ? `${fanSpeed.toFixed(0)}%` : t('node.na')}</div>
+                                    <div>{occupied ? t('gpu.status.occupied') : t('gpu.status.free')}</div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            );
+        };
+
+        const EventFeed = ({ events }) => (
+            <div className="space-y-2.5">
+                {events.map((event, idx) => (
+                    <div key={`${event.label}-${idx}`} className="soft-panel-subtle p-3">
+                        <div className="text-[10px] uppercase tracking-[0.11em] text-[#857d73] font-semibold">{event.label}</div>
+                        <div className="text-sm font-semibold text-[#2b2926] mt-1">{event.value}</div>
+                        <div className="text-[11px] text-[#6f685f] mt-1.5">{event.detail}</div>
+                    </div>
+                ))}
+            </div>
+        );
+
+        const UserSummaryList = ({ users, t }) => {
+            if (!users.length) {
+                return <div className="soft-panel-subtle p-3 text-sm text-[#6f685f]">{t('empty.noActiveGpuUsersSnapshot')}</div>;
+            }
+            return (
+                <div className="space-y-2.5">
+                    {users.map((user, idx) => (
+                        <div key={user.name} className="soft-panel-subtle p-3 flex items-center gap-3">
+                            <div className={cx('w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold', toneFromName(user.name))}>
+                                {String(user.name || 'U').slice(0, 1).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="truncate text-sm font-semibold text-[#2b2926]">{user.name}</div>
+                                    <div className="text-[10px] font-mono text-[#7a7269]">#{idx + 1}</div>
+                                </div>
+                                <div className="text-xs text-[#6f685f] mt-0.5">
+                                    {t(user.procCount > 1 ? 'misc.activeUserLinePlural' : 'misc.activeUserLine', {
+                                        vram: (user.vramMb / 1024).toFixed(2),
+                                        count: user.procCount
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        const InlineGpuDetailPanel = ({ selectedGpuRef, resolvedGpu, onClear, t }) => {
+            if (!selectedGpuRef) {
+                return <div className="soft-panel-subtle p-4 text-sm text-[#6f685f]">{t('detail.clickGpuHint')}</div>;
+            }
+
+            const state = resolvedGpu?.state || 'gpu_not_found';
+            if (state !== 'ready') {
+                const message = state === 'server_offline'
+                    ? t('gpu.modal.serverOffline')
+                    : state === 'no_data'
+                        ? t('gpu.modal.noData')
+                        : state === 'server_not_found'
+                            ? t('gpu.modal.serverNotFound')
+                            : t('gpu.modal.gpuNotFound');
+                return (
+                    <div className="soft-panel-subtle p-4 text-sm text-[#6f685f] flex items-center justify-between gap-3">
+                        <span>{message}</span>
+                        <button type="button" onClick={onClear} className="muted-button px-3 py-1.5 text-xs">{t('action.close')}</button>
+                    </div>
+                );
+            }
+
+            const gpu = resolvedGpu.gpu || {};
+            const gpuIndex = resolvedGpu.gpuIndex;
+            const utilization = safeNumber(gpu.utilization);
+            const memoryUsed = safeNumber(gpu.memory_used);
+            const memoryTotal = safeNumber(gpu.memory_total);
+            const memoryPercent = memoryTotal !== null && memoryTotal > 0 && memoryUsed !== null
+                ? clampPercent((memoryUsed / memoryTotal) * 100)
+                : safeNumber(gpu.memory_utilization);
+            const temperature = safeNumber(gpu.temperature);
+            const power = safeNumber(gpu.power_draw);
+            const fanSpeed = safeNumber(gpu.fan_speed);
+
+            return (
+                <div className="soft-panel-subtle p-4">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <div className="text-sm font-semibold text-[#22201d]">{gpu.name || `GPU ${gpuIndex}`}</div>
+                            <div className="text-[11px] text-[#776f66]">{t('gpu.modal.gpuIndex')} {gpuIndex}</div>
+                        </div>
+                        <button type="button" onClick={onClear} className="muted-button px-3 py-1.5 text-xs">{t('action.close')}</button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mt-3">
+                        <div className="soft-panel-subtle p-2.5 border border-[rgba(60,47,35,0.08)]">
+                            <div className="text-[10px] uppercase tracking-[0.11em] text-[#847c72]">{t('gpu.modal.utilization')}</div>
+                            <div className="text-sm font-semibold text-[#26231f] mt-1">{utilization !== null ? `${utilization.toFixed(1)}%` : t('node.na')}</div>
+                        </div>
+                        <div className="soft-panel-subtle p-2.5 border border-[rgba(60,47,35,0.08)]">
+                            <div className="text-[10px] uppercase tracking-[0.11em] text-[#847c72]">{t('gpu.modal.vramUsedTotal')}</div>
+                            <div className="text-sm font-semibold text-[#26231f] mt-1">{memoryUsed !== null ? memoryUsed.toFixed(1) : t('node.na')} / {memoryTotal !== null ? memoryTotal.toFixed(1) : t('node.na')} GB</div>
+                        </div>
+                        <div className="soft-panel-subtle p-2.5 border border-[rgba(60,47,35,0.08)]">
+                            <div className="text-[10px] uppercase tracking-[0.11em] text-[#847c72]">{t('gpu.modal.temperature')}</div>
+                            <div className="text-sm font-semibold text-[#26231f] mt-1">{temperature !== null ? `${temperature.toFixed(0)}C` : t('node.na')}</div>
+                        </div>
+                        <div className="soft-panel-subtle p-2.5 border border-[rgba(60,47,35,0.08)]">
+                            <div className="text-[10px] uppercase tracking-[0.11em] text-[#847c72]">{t('gpu.modal.powerDraw')}</div>
+                            <div className="text-sm font-semibold text-[#26231f] mt-1">{power !== null ? `${power.toFixed(0)}W` : t('node.na')}</div>
+                        </div>
+                    </div>
+
+                    <div className="mt-3">
+                        <div className="flex items-center justify-between text-[10px] text-[#6f685f] mb-1">
+                            <span>{t('gpu.modal.vramUsage')}</span>
+                            <span className="font-mono">{memoryPercent !== null ? `${memoryPercent.toFixed(1)}%` : t('node.na')}</span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-[#e4ded3] overflow-hidden">
+                            <div className="h-full rounded-full bg-[#8b9f98]" style={{ width: `${clampPercent(memoryPercent ?? 0)}%` }} />
+                        </div>
+                    </div>
+
+                    <div className="text-[11px] text-[#6f685f] mt-2">
+                        {t('gpu.modal.fanSpeed')}: {fanSpeed !== null ? `${fanSpeed.toFixed(0)}%` : t('node.na')}
+                    </div>
+                </div>
+            );
+        };
+
         const App = () => {
             const [servers, setServers] = useState([]);
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [isActivityOpen, setIsActivityOpen] = useState(false);
             const [modalData, setModalData] = useState({ name: "", url: "http://" });
             const [language, setLanguage] = useState(() => getInitialLanguage());
+            const [selectedServerId, setSelectedServerId] = useState(null);
+            const [nodeQuery, setNodeQuery] = useState('');
+            const [sortMode, setSortMode] = useState('availability');
             const historyRef = useRef({});
             const latestServersRef = useRef([]);
             const activeFetchIdRef = useRef(0);
@@ -1553,6 +2511,13 @@
                 document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
                 document.title = t('app.title');
             }, [language, t]);
+
+            useEffect(() => {
+                if (!selectedGpuRef) return;
+                if (selectedServerId === null || String(selectedGpuRef.serverId) !== String(selectedServerId)) {
+                    setSelectedGpuRef(null);
+                }
+            }, [selectedGpuRef, selectedServerId]);
 
             useEffect(() => () => {
                 const activeResolver = dialogResolverRef.current;
@@ -1613,6 +2578,7 @@
                 status: 'pending',
                 data: null,
                 metrics: null,
+                lastSeenAt: null,
             });
 
             useEffect(() => {
@@ -1707,7 +2673,7 @@
                                 }
                             }
                             historyRef.current[server.url] = { timestamp: currentTime, sent: jsonData.net_sent_mb, recv: jsonData.net_recv_mb };
-                            return { id: server.id, status: 'online', data: jsonData, metrics: { upSpeed, downSpeed } };
+                            return { id: server.id, status: 'online', data: jsonData, metrics: { upSpeed, downSpeed }, lastSeenAt: currentTime };
                         } catch {
                             return { id: server.id, status: 'offline' };
                         } finally {
@@ -1728,7 +2694,7 @@
                             const next = resultMap.get(server.id);
                             if (!next) return server;
                             if (next.status === 'offline') return { ...server, status: 'offline' };
-                            return { ...server, status: 'online', data: next.data, metrics: next.metrics };
+                            return { ...server, status: 'online', data: next.data, metrics: next.metrics, lastSeenAt: next.lastSeenAt };
                         });
                     });
                     setLastSyncedAt(new Date());
@@ -1756,7 +2722,10 @@
                         id: Date.now(),
                         name: modalData.name,
                         url: modalData.url,
-                        status: 'pending'
+                        status: 'pending',
+                        data: null,
+                        metrics: null,
+                        lastSeenAt: null,
                     };
                     const newList = [...latestServersRef.current, newServer];
                     const saveResult = await saveConfig(newList);
@@ -1809,123 +2778,146 @@
                 });
             };
 
-            const onlineServers = servers.filter((s) => s.status === 'online');
-            const activeCount = onlineServers.length;
-            const totalServers = servers.length;
-            const totalGpus = onlineServers.reduce((acc, s) => acc + (Array.isArray(s.data?.gpus) ? s.data.gpus.length : 0), 0);
+            const enrichedServers = useMemo(() => {
+                const nowMs = Date.now();
+                return servers.map((server) => {
+                    const gpuSummary = getServerGpuSummary(server);
+                    const activeUsers = getServerActiveUsers(server);
+                    const availabilityScore = computeAvailabilityScore(server, nowMs);
+                    const availabilityTier = getAvailabilityTier(availabilityScore, server);
+                    return {
+                        ...server,
+                        hostDisplay: getServerHostDisplay(server),
+                        activeUsers,
+                        activeUserCount: activeUsers.length,
+                        gpuSummary,
+                        availabilityScore,
+                        availabilityTier,
+                        cpuPercent: safeNumber(server?.data?.cpu_usage),
+                        ramPercent: safeNumber(server?.data?.ram_percent),
+                        networkDown: safeNumber(server?.metrics?.downSpeed) || 0,
+                        networkUp: safeNumber(server?.metrics?.upSpeed) || 0,
+                        dataAgeSec: computeDataAgeSeconds(server, nowMs),
+                    };
+                });
+            }, [servers]);
 
-            const allProcesses = onlineServers
-                .filter((s) => Array.isArray(s.data?.processes))
-                .flatMap((s) => s.data.processes.map((p) => ({ ...p, serverName: s.name })))
-                .filter((p) => !['root', 'gdm'].includes(String(p.user || '').toLowerCase()));
+            const filteredServers = useMemo(() => {
+                const query = nodeQuery.trim().toLowerCase();
+                const filtered = enrichedServers.filter((server) => {
+                    if (!query) return true;
+                    const target = `${server.name || ''} ${server.url || ''} ${server.hostDisplay || ''}`.toLowerCase();
+                    return target.includes(query);
+                });
+                return sortServersForMode(filtered, sortMode);
+            }, [enrichedServers, nodeQuery, sortMode]);
+
+            useEffect(() => {
+                if (filteredServers.length === 0) {
+                    setSelectedServerId(null);
+                    return;
+                }
+
+                const exists = filteredServers.find((item) => String(item.id) === String(selectedServerId));
+                if (exists) {
+                    const hasData = !!exists.data;
+                    const shouldFallback = exists.status === 'offline' && !hasData;
+                    if (!shouldFallback) return;
+                }
+
+                const firstOnline = filteredServers.find((item) => item.status === 'online');
+                const fallback = firstOnline || filteredServers[0];
+                if (fallback && String(fallback.id) !== String(selectedServerId)) {
+                    setSelectedServerId(fallback.id);
+                }
+            }, [filteredServers, selectedServerId]);
+
+            const selectedServer = useMemo(
+                () => filteredServers.find((item) => String(item.id) === String(selectedServerId)) || null,
+                [filteredServers, selectedServerId]
+            );
+
+            const onlineServers = useMemo(() => enrichedServers.filter((server) => server.status === 'online'), [enrichedServers]);
+            const activeCount = onlineServers.length;
+            const totalServers = enrichedServers.length;
+            const totalGpus = onlineServers.reduce((sum, server) => sum + server.gpuSummary.gpuCount, 0);
+            const totalPower = onlineServers.reduce((sum, server) => sum + server.gpuSummary.totalPower, 0);
+            const totalCpuAvg = onlineServers.length
+                ? onlineServers.reduce((sum, server) => sum + (server.cpuPercent || 0), 0) / onlineServers.length
+                : null;
+            const totalRamAvg = onlineServers.length
+                ? onlineServers.reduce((sum, server) => sum + (server.ramPercent || 0), 0) / onlineServers.length
+                : null;
+
+            const allProcesses = useMemo(() => onlineServers
+                .flatMap((server) => getServerProcesses(server).map((proc) => ({ ...proc, serverName: server.name })))
+                .filter((proc) => !SYSTEM_USER_BLACKLIST.has(resolveProcessUser(proc).toLowerCase())), [onlineServers]);
 
             const activeUsersCount = useMemo(() => {
-                const totals = {};
-                allProcesses.forEach((p) => {
-                    const name = p.user || p.username || t('misc.unknown');
-                    if (!totals[name]) totals[name] = 0;
-                    totals[name] += (safeNumber(p.vram_used_mb) || 0);
-                });
-                const thresholdMb = 0.1 * 1024;
-                return Object.values(totals).filter((total) => total >= thresholdMb).length;
-            }, [allProcesses, t]);
-
-            const topUsers = useMemo(() => {
-                const map = {};
+                const users = new Set();
                 allProcesses.forEach((proc) => {
-                    const name = proc.user || proc.username || t('misc.unknown');
-                    if (!map[name]) map[name] = { name, vramMb: 0, procCount: 0 };
-                    map[name].vramMb += (safeNumber(proc.vram_used_mb) || 0);
-                    map[name].procCount += 1;
+                    if (!isActiveGpuProcess(proc)) return;
+                    const user = resolveProcessUser(proc);
+                    if (!user) return;
+                    users.add(user);
                 });
-                return Object.values(map)
-                    .filter((item) => item.vramMb >= 0.1 * 1024)
-                    .sort((a, b) => b.vramMb - a.vramMb)
-                    .slice(0, 6);
-            }, [allProcesses, t]);
+                return users.size;
+            }, [allProcesses]);
 
-            const cpuValues = onlineServers.map((s) => safeNumber(s.data?.cpu_usage)).filter((v) => v !== null);
-            const ramValues = onlineServers.map((s) => safeNumber(s.data?.ram_percent)).filter((v) => v !== null);
-            const totalCpuAvg = cpuValues.length ? cpuValues.reduce((sum, v) => sum + v, 0) / cpuValues.length : null;
-            const totalRamAvg = ramValues.length ? ramValues.reduce((sum, v) => sum + v, 0) / ramValues.length : null;
+            const selectedUsers = useMemo(() => buildServerTopUsers(selectedServer, t), [selectedServer, t]);
 
-            const allGpuData = onlineServers.flatMap((s) => (Array.isArray(s.data?.gpus) ? s.data.gpus : []));
-            const powerValues = allGpuData.map((gpu) => safeNumber(gpu.power_draw)).filter((v) => v !== null);
-            const totalPower = powerValues.length ? powerValues.reduce((sum, v) => sum + v, 0) : null;
-
-            const vramUsedValues = allGpuData.map((gpu) => safeNumber(gpu.memory_used)).filter((v) => v !== null);
-            const vramTotalValues = allGpuData.map((gpu) => safeNumber(gpu.memory_total)).filter((v) => v !== null);
-            const totalVramUsed = vramUsedValues.length ? vramUsedValues.reduce((sum, v) => sum + v, 0) : null;
-            const totalVram = vramTotalValues.length ? vramTotalValues.reduce((sum, v) => sum + v, 0) : null;
-
-            const totalDown = onlineServers.reduce((sum, s) => sum + (safeNumber(s.metrics?.downSpeed) || 0), 0);
-            const totalUp = onlineServers.reduce((sum, s) => sum + (safeNumber(s.metrics?.upSpeed) || 0), 0);
-
-            const highestCpuNode = onlineServers
-                .map((s) => ({ name: s.name, cpu: safeNumber(s.data?.cpu_usage) }))
-                .filter((item) => item.cpu !== null)
-                .sort((a, b) => b.cpu - a.cpu)[0] || null;
-
-            const highestPowerNode = onlineServers
-                .map((s) => {
-                    const pwr = (Array.isArray(s.data?.gpus) ? s.data.gpus : []).reduce((sum, gpu) => sum + (safeNumber(gpu.power_draw) || 0), 0);
-                    return { name: s.name, power: pwr };
-                })
-                .sort((a, b) => b.power - a.power)[0] || null;
-
-            const onlineRatio = totalServers > 0 ? (activeCount / totalServers) * 100 : 0;
-            const fleetState = totalServers === 0
-                ? t('fleet.idle')
-                : activeCount === totalServers
-                    ? t('fleet.healthy')
-                    : activeCount === 0
-                        ? t('fleet.idle')
-                        : t('fleet.partial');
-
-            const snapshotEvents = [
-                {
-                    label: t('snapshot.updatedLabel'),
-                    value: lastSyncedAt ? formatTime(lastSyncedAt) : '-',
-                    detail: t('snapshot.updatedDetail')
-                },
-                {
-                    label: t('snapshot.reachabilityLabel'),
-                    value: t('snapshot.reachabilityValue', { online: activeCount, total: totalServers || 0 }),
-                    detail: totalServers ? t('snapshot.reachabilityDetail', { percent: Math.round(onlineRatio) }) : t('snapshot.reachabilityWaiting')
-                },
-                {
-                    label: t('snapshot.occupancyLabel'),
-                    value: t('snapshot.occupancyValue', { count: activeUsersCount }),
-                    detail: t('snapshot.occupancyDetail')
-                },
-                {
-                    label: t('snapshot.peakCpuLabel'),
-                    value: highestCpuNode ? `${highestCpuNode.name}` : '-',
-                    detail: highestCpuNode ? t('snapshot.peakCpuDetail', { cpu: highestCpuNode.cpu.toFixed(1) }) : t('snapshot.peakCpuEmpty')
-                },
-                {
-                    label: t('snapshot.powerFocusLabel'),
-                    value: highestPowerNode && highestPowerNode.power > 0 ? highestPowerNode.name : '-',
-                    detail: highestPowerNode && highestPowerNode.power > 0 ? t('snapshot.powerFocusDetail', { power: highestPowerNode.power.toFixed(0) }) : t('snapshot.powerFocusEmpty')
-                }
-            ];
+            const snapshotEvents = useMemo(() => {
+                if (!selectedServer) return [];
+                return [
+                    {
+                        label: t('snapshot.updatedLabel'),
+                        value: selectedServer.lastSeenAt ? formatTime(new Date(selectedServer.lastSeenAt)) : t('node.na'),
+                        detail: selectedServer.status === 'online' ? t('detail.onlineHint') : t('detail.offlineHint'),
+                    },
+                    {
+                        label: t('availability.score'),
+                        value: `${selectedServer.availabilityScore}`,
+                        detail: t(`availability.${selectedServer.availabilityTier}`),
+                    },
+                    {
+                        label: t('snapshot.occupancyLabel'),
+                        value: t('snapshot.occupancyValue', { count: selectedServer.activeUserCount }),
+                        detail: `${t('node.idleGpu')} ${selectedServer.gpuSummary.idleGpuCount} · ${t('node.busyGpu')} ${getBusyGpuCount(selectedServer)}`,
+                    },
+                    {
+                        label: t('node.dataAge'),
+                        value: formatAgeShort(selectedServer.dataAgeSec, t),
+                        detail: t('snapshot.updatedDetail'),
+                    },
+                    {
+                        label: t('metric.net'),
+                        value: `↓ ${formatSpeed(selectedServer.networkDown)} / ↑ ${formatSpeed(selectedServer.networkUp)}`,
+                        detail: t('drawer.networkThroughput'),
+                    },
+                ];
+            }, [selectedServer, t]);
 
             return (
-                <div className="min-h-screen pb-14">
-                    <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 md:py-8">
-                        <header className="soft-panel p-4 md:p-5 mb-6">
-                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                                <div className="flex items-start gap-3">
-                                    <div className="w-11 h-11 rounded-2xl border border-[rgba(60,47,35,0.1)] bg-[#f2ede4] flex items-center justify-center text-[#3f3a34]">
-                                        <Icons.LayoutDashboard className="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <div className="section-eyebrow mb-1">{t('app.eyebrow')}</div>
-                                        <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-[#1a1917]">{t('app.dashboardTitle')}</h1>
-                                        <p className="text-sm text-[#6b665e] mt-1">{t('app.dashboardSubtitle')}</p>
-                                    </div>
+                <div className="min-h-screen pb-12">
+                    <div className="max-w-[1480px] mx-auto px-4 sm:px-6 py-6 md:py-8">
+                        <header className="soft-panel p-5 mb-5">
+                            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                <div className="min-w-0">
+                                    <div className="section-eyebrow mb-1">{t('app.eyebrow')}</div>
+                                    <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-[#1a1917]">
+                                        {t('app.title')} <span className="text-[#6b665e]">/ {t('app.fleetOverviewHeading')}</span>
+                                    </h1>
+                                    <p className="text-sm text-[#6b665e] mt-1">{t('app.dashboardSubtitle')}</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
+                                    <SummaryPill label={t('summary.synced')} value={lastSyncedAt ? formatTime(lastSyncedAt) : '-'} tone="default" />
+                                    <SummaryPill label={t('summary.refresh')} value={t('summary.refreshValue')} tone="default" />
+                                    <button
+                                        onClick={() => setIsModalOpen(true)}
+                                        className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
+                                    >
+                                        <Icons.Plus className="w-4 h-4" /> {t('action.addNode')}
+                                    </button>
                                     <button
                                         onClick={() => setIsActivityOpen(true)}
                                         className="muted-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
@@ -1933,21 +2925,7 @@
                                     >
                                         <Icons.Users className="w-4 h-4" />
                                         {t('action.gpuUsers')}
-                                        {activeUsersCount > 0 ? (
-                                            <span className="px-2 py-0.5 rounded-full bg-[#dcebe8] text-[#2d5a54] text-[11px] font-semibold">{activeUsersCount}</span>
-                                        ) : null}
                                     </button>
-
-                                    <a
-                                        href="https://github.com/J4ck1e2000/Lab-Tutorial"
-                                        target="_blank"
-                                        className="muted-button px-3 py-2 text-sm inline-flex items-center gap-2 opacity-80 hover:opacity-100"
-                                        rel="noreferrer"
-                                        title={t('misc.projectRepository')}
-                                    >
-                                        <Icons.Github className="w-4 h-4" />
-                                    </a>
-
                                     <button
                                         onClick={() => setLanguage((prev) => (prev === 'en' ? 'zh' : 'en'))}
                                         className="muted-button px-3 py-2 text-sm font-medium"
@@ -1958,170 +2936,128 @@
                                     </button>
                                 </div>
                             </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mt-5">
+                                <NodeKpiTile label={t('metric.onlineServers')} value={`${activeCount} / ${totalServers}`} sub={t('metric.liveReachability')} icon={Icons.Server} />
+                                <NodeKpiTile label={t('metric.totalGpu')} value={`${totalGpus}`} sub={t('metric.detectedOnlineNodes')} icon={Icons.Zap} />
+                                <NodeKpiTile label={t('metric.totalPower')} value={totalPower > 0 ? `${totalPower.toFixed(0)} W` : '-'} sub={t('metric.summedGpuDraw')} icon={Icons.Activity} />
+                                <NodeKpiTile label={t('metric.avgCpu')} value={totalCpuAvg !== null ? `${totalCpuAvg.toFixed(1)}%` : '-'} sub={t('metric.onlineNodesOnly')} icon={Icons.Cpu} />
+                                <NodeKpiTile label={t('metric.avgRam')} value={totalRamAvg !== null ? `${totalRamAvg.toFixed(1)}%` : '-'} sub={t('metric.onlineNodesOnly')} icon={Icons.HardDrive} />
+                                <NodeKpiTile label={t('summary.activeUsers')} value={`${activeUsersCount}`} sub={t('drawer.thresholdNote')} icon={Icons.Users} />
+                            </div>
                         </header>
 
-                        <section className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
-                            <div className="soft-panel p-6 md:p-8 xl:col-span-8">
-                                <div className="section-eyebrow mb-2">{t('app.fleetOverviewEyebrow')}</div>
-                                <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#1a1917]">{t('app.fleetOverviewTitle')}</h2>
-                                <p className="text-sm md:text-base text-[#6b665e] mt-3 max-w-3xl">
-                                    {t('app.fleetOverviewSubtitle')}
-                                </p>
-                                <div className="mt-5 flex flex-wrap gap-2">
-                                    <SummaryPill label={t('summary.nodes')} value={t('summary.totalSuffix', { count: totalServers || 0 })} tone="neutral" />
-                                    <SummaryPill label={t('summary.refresh')} value={t('summary.refreshValue')} tone="default" />
-                                    <SummaryPill label={t('summary.synced')} value={lastSyncedAt ? formatTime(lastSyncedAt) : '-'} tone="default" />
-                                    <SummaryPill label={t('summary.activeUsers')} value={`${activeUsersCount}`} tone="default" />
-                                </div>
-                            </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-[370px_minmax(0,1fr)] gap-5">
+                            <aside className="soft-panel p-4 md:p-5">
+                                <NodeListToolbar
+                                    query={nodeQuery}
+                                    onQueryChange={setNodeQuery}
+                                    sortMode={sortMode}
+                                    onSortModeChange={setSortMode}
+                                    t={t}
+                                />
 
-                            <div className="soft-panel p-6 xl:col-span-4">
-                                <div className="section-eyebrow mb-2">{t('app.clusterSummaryEyebrow')}</div>
-                                <div className="text-xl font-semibold text-[#1f1d1b]">{t('app.clusterSummaryTitle')}</div>
-                                <div className="mt-4">
-                                    <div className="flex items-end justify-between mb-2">
-                                        <div className="text-3xl font-semibold leading-none text-[#1b1917]">{Math.round(onlineRatio)}%</div>
-                                        <div className="text-xs text-[#6b665e]">{t('summary.onlineRatio', { online: activeCount, total: totalServers || 0 })}</div>
-                                    </div>
-                                    <MiniProgress value={onlineRatio} tone="teal" />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2.5 mt-5">
-                                    <MetricTile label={t('metric.status')} value={fleetState} sub={t('metric.computedReachability')} icon={Icons.Server} />
-                                    <MetricTile label={t('metric.gpus')} value={`${totalGpus}`} sub={t('metric.detectedOnlineNodes')} icon={Icons.Zap} />
-                                </div>
-                            </div>
-                        </section>
-
-                        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                            <div className="xl:col-span-12">
-                                <SectionCard
-                                    eyebrow={t('app.nodeSummaryEyebrow')}
-                                    title={t('app.nodeSummaryTitle')}
-                                    subtitle={t('app.nodeSummarySubtitle')}
-                                    right={
-                                        <button onClick={() => setIsModalOpen(true)} className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2">
-                                            <Icons.Plus className="w-4 h-4" /> {t('action.addNode')}
-                                        </button>
-                                    }
-                                >
+                                <div className="mt-3 space-y-2.5 max-h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar pr-1">
                                     {servers.length === 0 ? (
-                                        <div className="soft-panel-subtle p-10 text-center">
-                                            <div className="text-base font-semibold text-[#2d2a27] mb-2">{t('empty.noConfiguredNodes')}</div>
-                                            <div className="text-sm text-[#6e675f] mb-5">{t('empty.addFirstNode')}</div>
-                                            <button onClick={() => setIsModalOpen(true)} className="primary-button px-5 py-2 text-sm font-medium inline-flex items-center gap-2">
+                                        <div className="soft-panel-subtle p-5 text-center">
+                                            <div className="text-sm font-semibold text-[#2d2a27] mb-1">{t('empty.noConfiguredNodes')}</div>
+                                            <div className="text-xs text-[#6e675f] mb-3">{t('empty.addFirstNode')}</div>
+                                            <button onClick={() => setIsModalOpen(true)} className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2">
                                                 <Icons.Plus className="w-4 h-4" /> {t('action.connectNode')}
                                             </button>
                                         </div>
+                                    ) : filteredServers.length === 0 ? (
+                                        <div className="soft-panel-subtle p-5 text-center">
+                                            <div className="text-sm text-[#6f685f]">{t('panel.emptyFilter')}</div>
+                                            <button type="button" className="muted-button px-4 py-2 text-xs font-medium mt-3" onClick={() => setNodeQuery('')}>
+                                                {t('action.clearFilter')}
+                                            </button>
+                                        </div>
                                     ) : (
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
-                                            {servers.map((s) => (
-                                                <ServerCard key={s.id} server={s} onDelete={deleteServer} onSelectGpu={handleSelectGpu} t={t} />
-                                            ))}
-                                        </div>
+                                        filteredServers.map((server) => (
+                                            <NodeListItem
+                                                key={server.id}
+                                                server={server}
+                                                isSelected={String(selectedServerId) === String(server.id)}
+                                                onSelect={(item) => setSelectedServerId(item.id)}
+                                                onDelete={deleteServer}
+                                                t={t}
+                                            />
+                                        ))
                                     )}
-                                </SectionCard>
-                            </div>
+                                </div>
+                            </aside>
 
-                            <div className="xl:col-span-4">
-                                <SectionCard
-                                    eyebrow={t('app.runtimeEyebrow')}
-                                    title={t('app.runtimeTitle')}
-                                    subtitle={t('app.runtimeSubtitle')}
-                                >
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
-                                        <MetricTile label={t('metric.onlineServers')} value={`${activeCount} / ${totalServers || 0}`} sub={t('metric.liveReachability')} icon={Icons.Server} />
-                                        <MetricTile label={t('metric.totalGpu')} value={`${totalGpus}`} sub={t('metric.acrossReachableNodes')} icon={Icons.Zap} />
-                                        <MetricTile label={t('metric.totalPower')} value={totalPower !== null ? `${totalPower.toFixed(0)} W` : '-'} sub={t('metric.summedGpuDraw')} icon={Icons.Activity} />
-                                        <MetricTile label={t('metric.avgCpu')} value={totalCpuAvg !== null ? `${totalCpuAvg.toFixed(1)}%` : '-'} sub={t('metric.onlineNodesOnly')} icon={Icons.Cpu} />
-                                        <MetricTile label={t('metric.avgRam')} value={totalRamAvg !== null ? `${totalRamAvg.toFixed(1)}%` : '-'} sub={t('metric.onlineNodesOnly')} icon={Icons.HardDrive} />
-                                        <MetricTile
-                                            label={t('metric.vram')}
-                                            value={totalVramUsed !== null && totalVram !== null ? `${totalVramUsed.toFixed(1)} / ${totalVram.toFixed(1)} GB` : '-'}
-                                            sub={t('metric.usedTotal')}
-                                            icon={Icons.HardDrive}
-                                        />
-                                    </div>
-                                </SectionCard>
-                            </div>
+                            <section className="space-y-5">
+                                {!selectedServer ? (
+                                    <div className="soft-panel p-8 text-center text-[#6f685f] text-sm">{t('panel.emptySelect')}</div>
+                                ) : (
+                                    <>
+                                        <NodeHeroCard server={selectedServer} t={t} />
 
-                            <div className="xl:col-span-4">
-                                <SectionCard
-                                    eyebrow={t('app.latestLogEyebrow')}
-                                    title={t('app.latestLogTitle')}
-                                    subtitle={t('app.latestLogSubtitle')}
-                                    right={
-                                        <div className="text-xs text-[#6f685f] inline-flex items-center gap-1">
-                                            <Icons.Clock className="w-3.5 h-3.5" /> {lastSyncedAt ? formatTime(lastSyncedAt) : '-'}
-                                        </div>
-                                    }
-                                >
-                                    <div className="space-y-2.5">
-                                        {snapshotEvents.map((event, idx) => (
-                                            <div key={idx} className="soft-panel-subtle p-3.5">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div>
-                                                        <div className="text-[11px] uppercase tracking-[0.1em] text-[#867f76] font-semibold">{event.label}</div>
-                                                        <div className="text-sm font-semibold text-[#2b2926] mt-1">{event.value}</div>
-                                                    </div>
-                                                    <div className="text-[10px] text-[#7a7269]">#{idx + 1}</div>
-                                                </div>
-                                                <div className="text-xs text-[#6f685f] mt-2">{event.detail}</div>
+                                        <section className="soft-panel p-5">
+                                            <div className="section-eyebrow mb-2">{t('detail.resourceOverview')}</div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                                                <NodeKpiTile
+                                                    label={t('metric.cpu')}
+                                                    value={selectedServer.cpuPercent !== null ? `${selectedServer.cpuPercent.toFixed(1)}%` : t('node.na')}
+                                                    sub={selectedServer.data?.cpu_cores ? `${selectedServer.data.cpu_cores} ${t('metric.cores')}` : t('node.na')}
+                                                    icon={Icons.Cpu}
+                                                />
+                                                <NodeKpiTile
+                                                    label={t('metric.ram')}
+                                                    value={selectedServer.ramPercent !== null ? `${selectedServer.ramPercent.toFixed(1)}%` : t('node.na')}
+                                                    sub={safeNumber(selectedServer?.data?.ram_used) !== null ? `${Number(selectedServer.data.ram_used).toFixed(1)} ${t('metric.gbUsed')}` : t('node.na')}
+                                                    icon={Icons.HardDrive}
+                                                />
+                                                <NodeKpiTile
+                                                    label={t('metric.net')}
+                                                    value={`↓ ${formatSpeed(selectedServer.networkDown)}`}
+                                                    sub={`${t('metric.up')} ${formatSpeed(selectedServer.networkUp)}`}
+                                                    icon={Icons.Activity}
+                                                />
+                                                <NodeKpiTile
+                                                    label={t('metric.gpus')}
+                                                    value={`${selectedServer.gpuSummary.gpuCount}`}
+                                                    sub={`${selectedServer.gpuSummary.totalMemoryUsed.toFixed(1)} / ${selectedServer.gpuSummary.totalMemory.toFixed(1)} GB · ${selectedServer.gpuSummary.totalPower.toFixed(0)}W · ${selectedServer.activeUserCount} ${t('node.users')}`}
+                                                    icon={Icons.Zap}
+                                                />
                                             </div>
-                                        ))}
-                                    </div>
-                                </SectionCard>
-                            </div>
+                                        </section>
 
-                            <div className="xl:col-span-4">
-                                <SectionCard
-                                    eyebrow={t('app.recentEyebrow')}
-                                    title={t('app.recentTitle')}
-                                    subtitle={t('app.recentSubtitle')}
-                                >
-                                    <div className="soft-panel-subtle p-3 mb-3">
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-[#6f685f]">{t('drawer.totalActiveUsers')}</span>
-                                            <span className="font-semibold text-[#2b2926]">{activeUsersCount}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-sm mt-2">
-                                            <span className="text-[#6f685f]">{t('drawer.networkThroughput')}</span>
-                                            <span className="font-mono text-[#2b2926]">↓ {formatSpeed(totalDown)} / ↑ {formatSpeed(totalUp)}</span>
-                                        </div>
-                                    </div>
-
-                                    {topUsers.length === 0 ? (
-                                        <div className="soft-panel-subtle p-4 text-sm text-[#6f685f]">{t('empty.noActiveGpuUsersSnapshot')}</div>
-                                    ) : (
-                                        <div className="space-y-2.5">
-                                            {topUsers.map((user, idx) => (
-                                                <div key={user.name} className="soft-panel-subtle p-3 flex items-center gap-3">
-                                                    <div className={cx('w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold', toneFromName(user.name))}>
-                                                        {String(user.name).slice(0, 1).toUpperCase()}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <div className="truncate text-sm font-semibold text-[#2b2926]">{user.name}</div>
-                                                            <div className="text-[10px] font-mono text-[#7a7269]">#{idx + 1}</div>
-                                                        </div>
-                                                        <div className="text-xs text-[#6f685f] mt-0.5">
-                                                            {t(user.procCount > 1 ? 'misc.activeUserLinePlural' : 'misc.activeUserLine', {
-                                                                vram: (user.vramMb / 1024).toFixed(2),
-                                                                count: user.procCount
-                                                            })}
-                                                        </div>
-                                                    </div>
+                                        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] gap-5">
+                                            <section className="soft-panel p-5">
+                                                <div className="section-eyebrow mb-2">{t('detail.gpuMatrix')}</div>
+                                                <GpuMatrixPanel server={selectedServer} onSelectGpu={handleSelectGpu} t={t} />
+                                                <div className="mt-4">
+                                                    <div className="section-eyebrow mb-2">{t('detail.gpuDetail')}</div>
+                                                    <InlineGpuDetailPanel
+                                                        selectedGpuRef={selectedGpuRef}
+                                                        resolvedGpu={resolvedSelectedGpu}
+                                                        onClear={() => setSelectedGpuRef(null)}
+                                                        t={t}
+                                                    />
                                                 </div>
-                                            ))}
+                                            </section>
+
+                                            <div className="space-y-5">
+                                                <section className="soft-panel p-5">
+                                                    <div className="section-eyebrow mb-2">{t('detail.snapshotEvents')}</div>
+                                                    <EventFeed events={snapshotEvents} />
+                                                </section>
+                                                <section className="soft-panel p-5">
+                                                    <div className="section-eyebrow mb-2">{t('detail.userSummary')}</div>
+                                                    <UserSummaryList users={selectedUsers} t={t} />
+                                                </section>
+                                            </div>
                                         </div>
-                                    )}
-                                </SectionCard>
-                            </div>
+                                    </>
+                                )}
+                            </section>
                         </div>
                     </div>
 
                     <ActivityDrawer isOpen={isActivityOpen} onClose={() => setIsActivityOpen(false)} processes={allProcesses} t={t} />
-                    <GpuDetailModal selectedGpuRef={selectedGpuRef} resolvedGpu={resolvedSelectedGpu} onClose={() => setSelectedGpuRef(null)} t={t} />
                     <ConfirmDialog config={dialogState && dialogState.type === 'confirm' ? dialogState : null} onResolve={resolveDialog} t={t} />
                     <ToastStack toasts={toasts} onDismiss={dismissToast} t={t} />
 
