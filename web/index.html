@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nexus Monitor</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛰️</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>馃洶锔?/text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -122,6 +122,21 @@
             from { opacity: 0; }
             to { opacity: 1; }
         }
+
+        .gpu-mini-card {
+            transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+        }
+
+        .gpu-mini-card:hover {
+            transform: translateY(-1px);
+            border-color: rgba(60, 47, 35, 0.16);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 18px rgba(0, 0, 0, 0.05);
+        }
+
+        .gpu-mini-card:focus-visible {
+            outline: 2px solid rgba(95, 145, 137, 0.55);
+            outline-offset: 2px;
+        }
     </style>
 </head>
 <body>
@@ -235,6 +250,395 @@
         };
 
         const GATEWAY_TOKEN_STORAGE_KEY = 'nexus_gateway_token';
+        const LANGUAGE_STORAGE_KEY = 'nexus_language';
+        const DEFAULT_LANGUAGE = 'en';
+
+        const translations = {
+            en: {
+                app: {
+                    title: 'Nexus Monitor',
+                    eyebrow: 'Nexus Monitor',
+                    dashboardTitle: 'Cluster Operations Dashboard',
+                    dashboardSubtitle: 'Quiet, real-time infrastructure visibility for distributed GPU nodes.',
+                    fleetOverviewEyebrow: 'Fleet Overview',
+                    fleetOverviewTitle: 'Unified Node Health & Runtime Snapshot',
+                    fleetOverviewSubtitle: 'Monitoring surfaces are fully connected to live gateway polling and node metrics streams. Visuals are editorial, while data and control paths remain untouched.',
+                    clusterSummaryEyebrow: 'Cluster Summary',
+                    clusterSummaryTitle: 'Overall Fleet Health',
+                    nodeSummaryEyebrow: 'Node Summary',
+                    nodeSummaryTitle: 'Server Cards',
+                    nodeSummarySubtitle: 'Per-node resource status, connectivity, and live GPU telemetry.',
+                    runtimeEyebrow: 'Runtime Metadata',
+                    runtimeTitle: 'Cluster Metrics',
+                    runtimeSubtitle: 'Aggregated from online nodes and reported telemetry fields.',
+                    latestLogEyebrow: 'Latest Log',
+                    latestLogTitle: 'Live Activity / Cluster Events',
+                    latestLogSubtitle: 'Snapshot-driven status feed from current polling cycle.',
+                    recentEyebrow: 'Recent Completions',
+                    recentTitle: 'Active GPU Users',
+                    recentSubtitle: 'Current occupancy ranking based on observed VRAM usage.',
+                },
+                action: {
+                    gpuUsers: 'GPU Users',
+                    gatewayToken: 'Gateway Token',
+                    gatewayTokenActive: 'Gateway Token: Active',
+                    addNode: 'Add Node',
+                    connectNode: 'Connect Node',
+                    connectAgent: 'Connect Agent',
+                    deleteNode: 'Delete Node',
+                    cancel: 'Cancel',
+                    close: 'Close',
+                    langSwitchTitleToZh: 'Switch to Chinese',
+                    langSwitchTitleToEn: 'Switch to English',
+                    langSwitchAriaToZh: 'Switch language to Chinese',
+                    langSwitchAriaToEn: 'Switch language to English',
+                },
+                common: {
+                    online: 'online',
+                    offline: 'offline',
+                },
+                summary: {
+                    nodes: 'Nodes',
+                    refresh: 'Refresh',
+                    synced: 'Synced',
+                    gateway: 'Gateway',
+                    activeUsers: 'Active Users',
+                    refreshValue: '2s polling',
+                    authenticated: 'Authenticated',
+                    notSet: 'Not set',
+                    totalSuffix: '{count} total',
+                    onlineRatio: '{online} / {total} online',
+                },
+                metric: {
+                    status: 'Status',
+                    gpus: 'GPUs',
+                    onlineServers: 'Online Servers',
+                    totalGpu: 'Total GPU',
+                    totalPower: 'Total Power',
+                    avgCpu: 'Avg CPU',
+                    avgRam: 'Avg RAM',
+                    vram: 'VRAM',
+                    cpu: 'CPU',
+                    ram: 'RAM',
+                    net: 'NET',
+                    pwr: 'PWR',
+                    usedTotal: 'Used / Total',
+                    liveReachability: 'Live reachability',
+                    acrossReachableNodes: 'Across reachable nodes',
+                    summedGpuDraw: 'Summed GPU draw',
+                    onlineNodesOnly: 'Online nodes only',
+                    computedReachability: 'Computed from online reachability',
+                    detectedOnlineNodes: 'Detected from online nodes',
+                    cores: 'Cores',
+                    gbUsed: 'GB Used',
+                    gpuUnit: 'GPU',
+                    up: 'Up',
+                },
+                fleet: {
+                    idle: 'Idle',
+                    healthy: 'Healthy',
+                    partial: 'Partial',
+                },
+                empty: {
+                    noConfiguredNodes: 'No configured nodes yet',
+                    addFirstNode: 'Add your first agent node to begin monitoring.',
+                    noGpuData: 'No GPU data reported by this node.',
+                    nodeUnreachable: 'Node currently unreachable. Existing config is kept and will reconnect automatically once available.',
+                    noActiveGpuUsers: 'No active GPU users right now.',
+                    noActiveGpuUsersSnapshot: 'No active GPU users in the latest snapshot.',
+                },
+                drawer: {
+                    eyebrow: 'GPU Users',
+                    title: 'Live Occupancy',
+                    thresholdNote: 'Only users with VRAM usage >= 0.1 GB are listed.',
+                    server: 'Server',
+                    gpuIndex: 'GPU Index',
+                    pid: 'PID',
+                    vram: 'VRAM',
+                    totalActiveUsers: 'Total Active Users',
+                    networkThroughput: 'Network Throughput',
+                },
+                gpu: {
+                    card: {
+                        aria: 'View details for {name}',
+                        device: 'Device',
+                        utilization: 'Utilization',
+                        vram: 'VRAM',
+                        power: 'Power',
+                        fan: 'Fan',
+                    },
+                    modal: {
+                        eyebrow: 'GPU Details',
+                        closeTitle: 'Close GPU details',
+                        summary: 'Summary',
+                        index: 'Index',
+                        util: 'Util',
+                        temp: 'Temp',
+                        vramUsage: 'VRAM Usage',
+                        gpuIndex: 'GPU Index',
+                        temperature: 'Temperature',
+                        utilization: 'Utilization',
+                        vramUsedTotal: 'VRAM Used / Total',
+                        powerDraw: 'Power Draw',
+                        fanSpeed: 'Fan Speed',
+                        deviceId: 'Device ID',
+                    },
+                },
+                modal: {
+                    configuration: 'Configuration',
+                    addNode: 'Add Node',
+                    nodeName: 'Node Name',
+                    nodeNamePlaceholder: 'e.g. research-4090',
+                    agentUrl: 'Agent URL',
+                    agentUrlPlaceholder: 'http://192.168.x.x:8005',
+                    agentTokenOptional: 'Agent Token (Optional)',
+                    agentTokenPlaceholder: 'Bearer token for this agent',
+                    securityPin: 'Security PIN',
+                    pinPlaceholder: '0000',
+                },
+                snapshot: {
+                    updatedLabel: 'Snapshot Updated',
+                    updatedDetail: 'Pulled from live polling window',
+                    reachabilityLabel: 'Node Reachability',
+                    reachabilityValue: '{online} / {total} online',
+                    reachabilityDetail: '{percent}% reachable',
+                    reachabilityWaiting: 'Waiting for configured nodes',
+                    occupancyLabel: 'GPU Occupancy',
+                    occupancyValue: '{count} active users',
+                    occupancyDetail: 'Derived from current process snapshot',
+                    peakCpuLabel: 'Peak CPU Node',
+                    peakCpuDetail: '{cpu}% CPU',
+                    peakCpuEmpty: 'No online metrics available',
+                    powerFocusLabel: 'Power Focus',
+                    powerFocusDetail: '{power}W',
+                    powerFocusEmpty: 'No power telemetry reported',
+                },
+                prompt: {
+                    gatewayTokenTitle: 'Gateway Bearer Token',
+                    gatewayTokenConfig: 'Set Gateway Bearer Token (leave empty to clear):',
+                    gatewayTokenRequired: 'Gateway token required. Please enter Bearer token:',
+                    adminPin: 'Admin PIN (MMDD)',
+                    confirmDeleteNode: 'Delete node?',
+                },
+                notify: {
+                    gatewayAuthFailed: 'Gateway authentication failed. Please check your Bearer token.',
+                    invalidPin: 'Security PIN is incorrect.',
+                    saveConfigFailed: 'Failed to save node configuration. Please try again.',
+                },
+                misc: {
+                    projectRepository: 'Project Repository',
+                    includesVramUsers: 'Only includes users with VRAM usage >= 0.1 GB',
+                    processCount: '{count} process',
+                    processCountPlural: '{count} processes',
+                    activeUserLine: '{vram} GB VRAM / {count} process',
+                    activeUserLinePlural: '{vram} GB VRAM / {count} processes',
+                    unknown: 'Unknown',
+                },
+            },
+            zh: {
+                app: {
+                    title: 'Nexus 监控台',
+                    eyebrow: 'Nexus 监控台',
+                    dashboardTitle: '集群运维仪表盘',
+                    dashboardSubtitle: '面向分布式 GPU 节点的安静、实时基础设施可视化。',
+                    fleetOverviewEyebrow: '集群总览',
+                    fleetOverviewTitle: '统一节点健康与运行快照',
+                    fleetOverviewSubtitle: '监控视图已接入网关实时轮询与节点指标流，视觉层保持现有风格，数据与控制链路不变。',
+                    clusterSummaryEyebrow: '集群摘要',
+                    clusterSummaryTitle: '整体集群健康',
+                    nodeSummaryEyebrow: '节点概览',
+                    nodeSummaryTitle: '服务器卡片',
+                    nodeSummarySubtitle: '按节点展示资源状态、连通性与实时 GPU 遥测。',
+                    runtimeEyebrow: '运行时元数据',
+                    runtimeTitle: '集群指标',
+                    runtimeSubtitle: '基于在线节点与上报遥测数据聚合。',
+                    latestLogEyebrow: '最新日志',
+                    latestLogTitle: '实时活动 / 集群事件',
+                    latestLogSubtitle: '由当前轮询周期生成的状态快照。',
+                    recentEyebrow: '最近统计',
+                    recentTitle: '活跃 GPU 用户',
+                    recentSubtitle: '按观察到的显存占用进行当前用户排行。',
+                },
+                action: {
+                    gpuUsers: 'GPU 用户',
+                    gatewayToken: '网关令牌',
+                    gatewayTokenActive: '网关令牌：已启用',
+                    addNode: '添加节点',
+                    connectNode: '连接节点',
+                    connectAgent: '连接 Agent',
+                    deleteNode: '删除节点',
+                    cancel: '取消',
+                    close: '关闭',
+                    langSwitchTitleToZh: '切换为中文',
+                    langSwitchTitleToEn: '切换为英文',
+                    langSwitchAriaToZh: '将语言切换为中文',
+                    langSwitchAriaToEn: '将语言切换为英文',
+                },
+                common: {
+                    online: '在线',
+                    offline: '离线',
+                },
+                summary: {
+                    nodes: '节点',
+                    refresh: '刷新',
+                    synced: '同步',
+                    gateway: '网关',
+                    activeUsers: '活跃用户',
+                    refreshValue: '2秒轮询',
+                    authenticated: '已认证',
+                    notSet: '未设置',
+                    totalSuffix: '共 {count} 台',
+                    onlineRatio: '在线 {online} / {total}',
+                },
+                metric: {
+                    status: '状态',
+                    gpus: '显卡数',
+                    onlineServers: '在线服务器',
+                    totalGpu: 'GPU 总数',
+                    totalPower: '总功耗',
+                    avgCpu: '平均 CPU',
+                    avgRam: '平均内存',
+                    vram: '显存',
+                    cpu: 'CPU',
+                    ram: '内存',
+                    net: '网络',
+                    pwr: '功耗',
+                    usedTotal: '已用 / 总量',
+                    liveReachability: '在线可达性',
+                    acrossReachableNodes: '在线节点汇总',
+                    summedGpuDraw: 'GPU 功耗总和',
+                    onlineNodesOnly: '仅在线节点',
+                    computedReachability: '根据在线可达性计算',
+                    detectedOnlineNodes: '从在线节点检测',
+                    cores: '核心',
+                    gbUsed: 'GB 已用',
+                    gpuUnit: 'GPU',
+                    up: '上行',
+                },
+                fleet: {
+                    idle: '空闲',
+                    healthy: '健康',
+                    partial: '部分在线',
+                },
+                empty: {
+                    noConfiguredNodes: '暂未配置节点',
+                    addFirstNode: '添加第一个 Agent 节点后即可开始监控。',
+                    noGpuData: '该节点未上报 GPU 数据。',
+                    nodeUnreachable: '节点当前不可达。现有配置会保留，节点恢复后将自动重连。',
+                    noActiveGpuUsers: '当前没有活跃 GPU 用户。',
+                    noActiveGpuUsersSnapshot: '当前快照中没有活跃 GPU 用户。',
+                },
+                drawer: {
+                    eyebrow: 'GPU 用户',
+                    title: '实时占用',
+                    thresholdNote: '仅展示显存占用 >= 0.1 GB 的用户。',
+                    server: '服务器',
+                    gpuIndex: 'GPU 索引',
+                    pid: '进程号',
+                    vram: '显存',
+                    totalActiveUsers: '活跃用户总数',
+                    networkThroughput: '网络吞吐',
+                },
+                gpu: {
+                    card: {
+                        aria: '查看 {name} 的详情',
+                        device: '设备',
+                        utilization: '利用率',
+                        vram: '显存',
+                        power: '功耗',
+                        fan: '风扇',
+                    },
+                    modal: {
+                        eyebrow: 'GPU 详情',
+                        closeTitle: '关闭 GPU 详情',
+                        summary: '摘要',
+                        index: '索引',
+                        util: '利用率',
+                        temp: '温度',
+                        vramUsage: '显存占用',
+                        gpuIndex: 'GPU 索引',
+                        temperature: '温度',
+                        utilization: '利用率',
+                        vramUsedTotal: '显存已用 / 总量',
+                        powerDraw: '功耗',
+                        fanSpeed: '风扇转速',
+                        deviceId: '设备 ID',
+                    },
+                },
+                modal: {
+                    configuration: '配置',
+                    addNode: '添加节点',
+                    nodeName: '节点名称',
+                    nodeNamePlaceholder: '例如：research-4090',
+                    agentUrl: 'Agent 地址',
+                    agentUrlPlaceholder: 'http://192.168.x.x:8005',
+                    agentTokenOptional: 'Agent 令牌（可选）',
+                    agentTokenPlaceholder: '此 Agent 的 Bearer 令牌',
+                    securityPin: '安全 PIN',
+                    pinPlaceholder: '0000',
+                },
+                snapshot: {
+                    updatedLabel: '快照更新时间',
+                    updatedDetail: '来自实时轮询窗口',
+                    reachabilityLabel: '节点可达性',
+                    reachabilityValue: '在线 {online} / {total}',
+                    reachabilityDetail: '可达率 {percent}%',
+                    reachabilityWaiting: '等待节点配置中',
+                    occupancyLabel: 'GPU 占用',
+                    occupancyValue: '{count} 位活跃用户',
+                    occupancyDetail: '由当前进程快照推导',
+                    peakCpuLabel: 'CPU 峰值节点',
+                    peakCpuDetail: 'CPU {cpu}%',
+                    peakCpuEmpty: '暂无在线指标数据',
+                    powerFocusLabel: '功耗关注节点',
+                    powerFocusDetail: '{power}W',
+                    powerFocusEmpty: '暂无功耗遥测数据',
+                },
+                prompt: {
+                    gatewayTokenTitle: '网关 Bearer 令牌',
+                    gatewayTokenConfig: '设置网关 Bearer 令牌（留空则清除）：',
+                    gatewayTokenRequired: '需要网关令牌，请输入 Bearer 令牌：',
+                    adminPin: '管理员 PIN（MMDD）',
+                    confirmDeleteNode: '确认删除该节点？',
+                },
+                notify: {
+                    gatewayAuthFailed: '网关认证失败，请检查 Bearer 令牌。',
+                    invalidPin: '安全 PIN 不正确。',
+                    saveConfigFailed: '保存节点配置失败，请重试。',
+                },
+                misc: {
+                    projectRepository: '项目仓库',
+                    includesVramUsers: '仅包含显存占用 >= 0.1 GB 的用户',
+                    processCount: '{count} 个进程',
+                    processCountPlural: '{count} 个进程',
+                    activeUserLine: '{vram} GB 显存 / {count} 个进程',
+                    activeUserLinePlural: '{vram} GB 显存 / {count} 个进程',
+                    unknown: '未知',
+                },
+            },
+        };
+
+        const resolveTranslationPath = (messages, key) => key.split('.').reduce((acc, part) => (acc && acc[part] !== undefined ? acc[part] : undefined), messages);
+        const formatTranslation = (text, params = {}) => text.replace(/\{(\w+)\}/g, (_, p1) => (params[p1] !== undefined ? String(params[p1]) : ''));
+        const createTranslator = (language) => {
+            const fallbackMessages = translations[DEFAULT_LANGUAGE] || {};
+            const currentMessages = translations[language] || fallbackMessages;
+            return (key, params = {}) => {
+                const raw = resolveTranslationPath(currentMessages, key) ?? resolveTranslationPath(fallbackMessages, key);
+                if (typeof raw === 'function') return raw(params);
+                if (typeof raw === 'string') return formatTranslation(raw, params);
+                return key;
+            };
+        };
+
+        const getInitialLanguage = () => {
+            try {
+                const cached = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+                if (cached === 'zh' || cached === 'en') return cached;
+            } catch (e) {}
+            const browserLanguage = (navigator.language || navigator.userLanguage || DEFAULT_LANGUAGE).toLowerCase();
+            return browserLanguage.startsWith('zh') ? 'zh' : 'en';
+        };
 
         const clampPercent = (value) => {
             const num = Number(value);
@@ -374,144 +778,338 @@
             </div>
         );
 
-        const GpuMiniCard = ({ gpu, index }) => {
-            const cleaned = (gpu.name || `GPU ${index}`).replace('NVIDIA GeForce ', '').replace('NVIDIA ', '');
+        const GpuMiniCard = ({ gpu, index, layoutMode = 'compact', onSelect, t }) => {
+            const isSingle = layoutMode === 'single';
+            const rawName = String(gpu.name || `GPU ${index}`);
+            const cleanedName = rawName.replace('NVIDIA GeForce ', '').replace('NVIDIA ', '');
+            const displayName = isSingle ? rawName : (cleanedName || rawName);
             const temp = safeNumber(gpu.temperature);
-            const util = clampPercent(gpu.utilization);
+            const utilizationRaw = safeNumber(gpu.utilization);
+            const utilization = utilizationRaw !== null ? clampPercent(utilizationRaw) : null;
             const memoryUsed = safeNumber(gpu.memory_used);
             const memoryTotal = safeNumber(gpu.memory_total);
-            const memoryPercentRaw = memoryTotal && memoryTotal > 0 && memoryUsed !== null
+            const memoryPercentRaw = memoryTotal !== null && memoryTotal > 0 && memoryUsed !== null
                 ? (memoryUsed / memoryTotal) * 100
                 : safeNumber(gpu.memory_utilization);
-            const memoryPercent = clampPercent(memoryPercentRaw);
+            const memoryPercent = memoryPercentRaw !== null ? clampPercent(memoryPercentRaw) : null;
             const power = safeNumber(gpu.power_draw);
+            const fanSpeed = safeNumber(gpu.fan_speed);
+            const canSelect = typeof onSelect === 'function';
 
             return (
-                <div className="soft-panel-subtle p-3.5">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-6 h-6 rounded-lg border border-[#d8cfc4] bg-[#efe9de] flex items-center justify-center text-[10px] font-mono text-[#635d56]">{index}</div>
-                            <div className="min-w-0">
-                                <div className="text-xs font-semibold text-[#2a2826] truncate" title={gpu.name || `GPU ${index}`}>{cleaned || `GPU ${index}`}</div>
-                                <div className="text-[10px] text-[#827b72]">Device</div>
+                <button
+                    type="button"
+                    className={cx(
+                        'soft-panel-subtle gpu-mini-card w-full text-left p-3.5',
+                        isSingle ? 'md:p-4' : '',
+                        canSelect ? 'cursor-pointer' : 'cursor-default'
+                    )}
+                    onClick={canSelect ? () => onSelect(gpu, index) : undefined}
+                    aria-label={t('gpu.card.aria', { name: rawName })}
+                >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                            <div className={cx(
+                                'rounded-lg border border-[#d8cfc4] bg-[#efe9de] flex items-center justify-center text-[10px] font-mono text-[#635d56] shrink-0',
+                                isSingle ? 'w-7 h-7' : 'w-6 h-6'
+                            )}>
+                                {index}
+                            </div>
+                            <div className={cx('min-w-0', isSingle ? 'pr-1' : '')}>
+                                <div
+                                    className={cx(
+                                        'font-semibold text-[#2a2826]',
+                                        isSingle ? 'text-sm leading-snug break-words' : 'text-xs truncate'
+                                    )}
+                                    title={rawName}
+                                >
+                                    {displayName || `GPU ${index}`}
+                                </div>
+                                <div className="text-[10px] text-[#827b72]">{t('gpu.card.device')}</div>
                             </div>
                         </div>
-                        <div className="px-2 py-1 rounded-full border border-[#d6cdc2] bg-[#efe8dc] text-[10px] font-mono text-[#665f57]">
-                            {temp !== null ? `${temp.toFixed(0)}°C` : '-'}
+                        <div className="px-2 py-1 rounded-full border border-[#d6cdc2] bg-[#efe8dc] text-[10px] font-mono text-[#665f57] shrink-0">
+                            {temp !== null ? `${temp.toFixed(0)}C` : '-'}
                         </div>
                     </div>
 
                     <div className="space-y-2.5">
                         <div>
                             <div className="flex items-center justify-between text-[10px] text-[#6f685f] mb-1">
-                                <span className="uppercase tracking-[0.08em]">Utilization</span>
-                                <span className="font-mono text-[#3e3934]">{Number.isFinite(util) ? `${util.toFixed(0)}%` : '-'}</span>
+                                <span className="uppercase tracking-[0.08em]">{t('gpu.card.utilization')}</span>
+                                <span className="font-mono text-[#3e3934]">{utilization !== null ? `${utilization.toFixed(0)}%` : '-'}</span>
                             </div>
-                            <MiniProgress value={util} tone="teal" />
+                            <MiniProgress value={utilization !== null ? utilization : 0} tone="teal" />
                         </div>
                         <div>
                             <div className="flex items-center justify-between text-[10px] text-[#6f685f] mb-1">
-                                <span className="uppercase tracking-[0.08em]">VRAM</span>
+                                <span className="uppercase tracking-[0.08em]">{t('gpu.card.vram')}</span>
                                 <span className="font-mono text-[#3e3934]">
                                     {memoryUsed !== null ? memoryUsed.toFixed(1) : '-'} / {memoryTotal !== null ? memoryTotal.toFixed(1) : '-'} GB
                                 </span>
                             </div>
-                            <MiniProgress value={memoryPercent} tone="muted" />
+                            <MiniProgress value={memoryPercent !== null ? memoryPercent : 0} tone="muted" />
                         </div>
                     </div>
 
                     <div className="flex items-center justify-between mt-2.5 text-[10px] text-[#6f685f]">
-                        <span className="font-mono">Power {power !== null ? `${power.toFixed(0)}W` : '-'}</span>
-                        <span className="font-mono">Fan {safeNumber(gpu.fan_speed) !== null ? `${Number(gpu.fan_speed).toFixed(0)}%` : '-'}</span>
+                        <span className="font-mono">{t('gpu.card.power')} {power !== null ? `${power.toFixed(0)}W` : '-'}</span>
+                        <span className="font-mono">{t('gpu.card.fan')} {fanSpeed !== null ? `${fanSpeed.toFixed(0)}%` : '-'}</span>
                     </div>
+                </button>
+            );
+        };
+
+        const GpuDetailModal = ({ payload, onClose, t }) => {
+            const [isVisible, setIsVisible] = useState(false);
+            const [isClosing, setIsClosing] = useState(false);
+            const closeTimerRef = useRef(null);
+
+            useEffect(() => {
+                if (!payload) return undefined;
+
+                setIsClosing(false);
+                setIsVisible(false);
+                const frame = requestAnimationFrame(() => setIsVisible(true));
+                const previousOverflow = document.body.style.overflow;
+                document.body.style.overflow = 'hidden';
+
+                return () => {
+                    cancelAnimationFrame(frame);
+                    document.body.style.overflow = previousOverflow;
+                    if (closeTimerRef.current) {
+                        clearTimeout(closeTimerRef.current);
+                        closeTimerRef.current = null;
+                    }
+                };
+            }, [payload]);
+
+            const requestClose = () => {
+                if (!payload || isClosing) return;
+                setIsClosing(true);
+                setIsVisible(false);
+                if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+                closeTimerRef.current = setTimeout(() => {
+                    closeTimerRef.current = null;
+                    onClose();
+                }, 180);
+            };
+
+            useEffect(() => {
+                if (!payload) return undefined;
+                const handleKeyDown = (event) => {
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        requestClose();
+                    }
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [payload, isClosing]);
+
+            if (!payload) return null;
+
+            const gpu = payload.gpu || {};
+            const gpuIndex = payload.index;
+            const rawName = (typeof gpu.name === 'string' && gpu.name.trim()) ? gpu.name.trim() : `GPU ${gpuIndex}`;
+            const temp = safeNumber(gpu.temperature);
+            const utilizationRaw = safeNumber(gpu.utilization);
+            const utilization = utilizationRaw !== null ? clampPercent(utilizationRaw) : null;
+            const memoryUsed = safeNumber(gpu.memory_used);
+            const memoryTotal = safeNumber(gpu.memory_total);
+            const memoryPercentRaw = memoryTotal !== null && memoryTotal > 0 && memoryUsed !== null
+                ? (memoryUsed / memoryTotal) * 100
+                : safeNumber(gpu.memory_utilization);
+            const memoryPercent = memoryPercentRaw !== null ? clampPercent(memoryPercentRaw) : null;
+            const power = safeNumber(gpu.power_draw);
+            const fanSpeed = safeNumber(gpu.fan_speed);
+            const gpuID = safeNumber(gpu.id);
+
+            const detailItems = [
+                { label: t('gpu.modal.gpuIndex'), value: gpuIndex !== null && gpuIndex !== undefined ? gpuIndex : '-' },
+                { label: t('gpu.modal.temperature'), value: temp !== null ? `${temp.toFixed(0)}C` : '-' },
+                { label: t('gpu.modal.utilization'), value: utilization !== null ? `${utilization.toFixed(0)}%` : '-' },
+                { label: t('gpu.modal.vramUsedTotal'), value: `${memoryUsed !== null ? memoryUsed.toFixed(1) : '-'} / ${memoryTotal !== null ? memoryTotal.toFixed(1) : '-'} GB` },
+                { label: t('gpu.modal.vramUsage'), value: memoryPercent !== null ? `${memoryPercent.toFixed(1)}%` : '-' },
+                { label: t('gpu.modal.powerDraw'), value: power !== null ? `${power.toFixed(0)}W` : '-' },
+                { label: t('gpu.modal.fanSpeed'), value: fanSpeed !== null ? `${fanSpeed.toFixed(0)}%` : '-' },
+                { label: t('gpu.modal.deviceId'), value: gpuID !== null ? gpuID : '-' },
+            ];
+
+            return (
+                <div className="fixed inset-0 z-50 p-4 flex items-center justify-center">
+                    <div
+                        className={cx(
+                            'absolute inset-0 bg-[#2f2922]/22 backdrop-blur-[2px] transition-opacity duration-200',
+                            isVisible ? 'opacity-100' : 'opacity-0'
+                        )}
+                        onClick={requestClose}
+                    />
+
+                    <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="gpu-detail-title"
+                        className={cx(
+                            'relative w-full max-w-xl max-h-[calc(100vh-2rem)] soft-panel overflow-hidden transition-all duration-200',
+                            isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-[0.98]'
+                        )}
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="px-5 py-4 border-b border-[rgba(60,47,35,0.08)] flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="section-eyebrow mb-1">{t('gpu.modal.eyebrow')}</div>
+                                <h3 id="gpu-detail-title" className="text-lg font-semibold text-[#1f1d1b] break-words">{rawName || '-'}</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={requestClose}
+                                className="muted-button p-2 text-[#6f685f]"
+                                title={t('gpu.modal.closeTitle')}
+                                aria-label={t('gpu.modal.closeTitle')}
+                            >
+                                <Icons.X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 max-h-[calc(100vh-10rem)] overflow-y-auto custom-scrollbar space-y-4">
+                            <div className="soft-panel-subtle p-4">
+                                <div className="text-[10px] uppercase tracking-[0.12em] text-[#837b72] font-semibold mb-2">{t('gpu.modal.summary')}</div>
+                                <div className="flex flex-wrap gap-2">
+                                    <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#efe7dc] text-[11px] font-mono text-[#615b54]">
+                                        {t('gpu.modal.index')} {gpuIndex !== null && gpuIndex !== undefined ? gpuIndex : '-'}
+                                    </span>
+                                    <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#ece7df] text-[11px] font-mono text-[#615b54]">
+                                        {t('gpu.modal.util')} {utilization !== null ? `${utilization.toFixed(0)}%` : '-'}
+                                    </span>
+                                    <span className="px-2.5 py-1 rounded-full border border-[#d8cfc4] bg-[#ece7df] text-[11px] font-mono text-[#615b54]">
+                                        {t('gpu.modal.temp')} {temp !== null ? `${temp.toFixed(0)}C` : '-'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="soft-panel-subtle p-4">
+                                <div className="flex items-center justify-between text-[11px] text-[#6f685f] mb-1.5">
+                                    <span className="uppercase tracking-[0.08em]">{t('gpu.modal.vramUsage')}</span>
+                                    <span className="font-mono text-[#3e3934]">{memoryPercent !== null ? `${memoryPercent.toFixed(1)}%` : '-'}</span>
+                                </div>
+                                <MiniProgress value={memoryPercent !== null ? memoryPercent : 0} tone="muted" />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {detailItems.map((item) => (
+                                    <div key={item.label} className="soft-panel-subtle p-3">
+                                        <div className="text-[10px] uppercase tracking-[0.12em] text-[#877f76] font-semibold mb-1.5">{item.label}</div>
+                                        <div className="text-sm font-mono text-[#2f2b28] break-words">{item.value}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
                 </div>
             );
         };
 
-        const ServerCard = ({ server, onDelete }) => {
+        const ServerCard = ({ server, onDelete, t }) => {
             const isOffline = server.status === 'offline';
             const data = server.data || {};
             const gpus = Array.isArray(data.gpus) ? data.gpus : [];
+            const [selectedGpu, setSelectedGpu] = useState(null);
             const metrics = server.metrics || { upSpeed: 0, downSpeed: 0 };
             const totalPower = gpus.reduce((sum, gpu) => sum + (safeNumber(gpu.power_draw) || 0), 0);
             const ipOrHost = data.ip_address || (server.url ? server.url.replace('http://', '').replace('https://', '').split('/')[0] : '-');
+            const isSingleGpu = gpus.length === 1;
+            const gpuGridStyle = isSingleGpu
+                ? { gridTemplateColumns: 'minmax(0, 1fr)' }
+                : { gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' };
 
             const statusTone = isOffline
                 ? 'bg-[#ece2dd] text-[#705f57] border-[#ddcdc4]'
                 : 'bg-[#dcebe8] text-[#2f6058] border-[#c8ddd8]';
 
             return (
-                <article className="soft-panel p-4 md:p-5 h-full card-hover">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-2 mb-1.5">
-                                <h3 className="text-base font-semibold text-[#1e1c1a] truncate">{server.name}</h3>
-                                <span className={cx('px-2 py-1 rounded-full border text-[10px] uppercase tracking-[0.08em] font-semibold', statusTone)}>
-                                    {isOffline ? 'offline' : 'online'}
-                                </span>
+                <>
+                    <article className="soft-panel p-4 md:p-5 h-full card-hover">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <h3 className="text-base font-semibold text-[#1e1c1a] truncate">{server.name}</h3>
+                                    <span className={cx('px-2 py-1 rounded-full border text-[10px] uppercase tracking-[0.08em] font-semibold', statusTone)}>
+                                        {isOffline ? t('common.offline') : t('common.online')}
+                                    </span>
+                                </div>
+                                <div className="text-[11px] font-mono text-[#746e66] break-all">{ipOrHost}</div>
                             </div>
-                            <div className="text-[11px] font-mono text-[#746e66] break-all">{ipOrHost}</div>
+                            <button
+                                onClick={() => onDelete(server.id)}
+                                className="muted-button p-2 text-[#746d64] hover:text-[#3d3732]"
+                                title={t('action.deleteNode')}
+                            >
+                                <Icons.Trash2 className="w-4 h-4" />
+                            </button>
                         </div>
-                        <button
-                            onClick={() => onDelete(server.id)}
-                            className="muted-button p-2 text-[#746d64] hover:text-[#3d3732]"
-                            title="Delete Node"
-                        >
-                            <Icons.Trash2 className="w-4 h-4" />
-                        </button>
-                    </div>
 
-                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 mt-4">
-                        <ServerMetricTile
-                            label="CPU"
-                            value={safeNumber(data.cpu_usage) !== null ? `${Number(data.cpu_usage).toFixed(1)}%` : '-'}
-                            sub={safeNumber(data.cpu_cores) !== null ? `${Number(data.cpu_cores).toFixed(0)} Cores` : '-'}
-                            icon={Icons.Cpu}
-                        />
-                        <ServerMetricTile
-                            label="RAM"
-                            value={safeNumber(data.ram_percent) !== null ? `${Number(data.ram_percent).toFixed(1)}%` : '-'}
-                            sub={safeNumber(data.ram_used) !== null ? `${Number(data.ram_used).toFixed(1)} GB Used` : '-'}
-                            icon={Icons.HardDrive}
-                        />
-                        <ServerMetricTile
-                            label="NET"
-                            value={`${formatSpeed(metrics.downSpeed)}`}
-                            sub={`↑ ${formatSpeed(metrics.upSpeed)}`}
-                            icon={Icons.Activity}
-                        />
-                        <ServerMetricTile
-                            label="PWR"
-                            value={isOffline ? '-' : `${totalPower.toFixed(0)}W`}
-                            sub={`${gpus.length} GPU`}
-                            icon={Icons.Zap}
-                        />
-                    </div>
+                        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 mt-4">
+                            <ServerMetricTile
+                                label={t('metric.cpu')}
+                                value={safeNumber(data.cpu_usage) !== null ? `${Number(data.cpu_usage).toFixed(1)}%` : '-'}
+                                sub={safeNumber(data.cpu_cores) !== null ? `${Number(data.cpu_cores).toFixed(0)} ${t('metric.cores')}` : '-'}
+                                icon={Icons.Cpu}
+                            />
+                            <ServerMetricTile
+                                label={t('metric.ram')}
+                                value={safeNumber(data.ram_percent) !== null ? `${Number(data.ram_percent).toFixed(1)}%` : '-'}
+                                sub={safeNumber(data.ram_used) !== null ? `${Number(data.ram_used).toFixed(1)} ${t('metric.gbUsed')}` : '-'}
+                                icon={Icons.HardDrive}
+                            />
+                            <ServerMetricTile
+                                label={t('metric.net')}
+                                value={`${formatSpeed(metrics.downSpeed)}`}
+                                sub={`${t('metric.up')} ${formatSpeed(metrics.upSpeed)}`}
+                                icon={Icons.Activity}
+                            />
+                            <ServerMetricTile
+                                label={t('metric.pwr')}
+                                value={isOffline ? '-' : `${totalPower.toFixed(0)}W`}
+                                sub={`${gpus.length} ${t('metric.gpuUnit')}`}
+                                icon={Icons.Zap}
+                            />
+                        </div>
 
-                    <div className="mt-4">
-                        {isOffline ? (
-                            <div className="soft-panel-subtle p-4 text-sm text-[#736c63]">
-                                Node currently unreachable. Existing config is kept and will reconnect automatically once available.
-                            </div>
-                        ) : gpus.length === 0 ? (
-                            <div className="soft-panel-subtle p-4 text-sm text-[#736c63]">No GPU data reported by this node.</div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {gpus.map((gpu, idx) => (
-                                    <GpuMiniCard key={idx} gpu={gpu} index={idx} />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </article>
+                        <div className="mt-4">
+                            {isOffline ? (
+                                <div className="soft-panel-subtle p-4 text-sm text-[#736c63]">
+                                    {t('empty.nodeUnreachable')}
+                                </div>
+                            ) : gpus.length === 0 ? (
+                                <div className="soft-panel-subtle p-4 text-sm text-[#736c63]">{t('empty.noGpuData')}</div>
+                            ) : (
+                                <div className="grid gap-3" style={gpuGridStyle}>
+                                    {gpus.map((gpu, idx) => (
+                                        <GpuMiniCard
+                                            key={idx}
+                                            gpu={gpu}
+                                            index={idx}
+                                            layoutMode={isSingleGpu ? 'single' : 'compact'}
+                                            t={t}
+                                            onSelect={(gpuData, gpuIndex) => setSelectedGpu({ gpu: gpuData, index: gpuIndex })}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </article>
+
+                    <GpuDetailModal payload={selectedGpu} onClose={() => setSelectedGpu(null)} t={t} />
+                </>
             );
         };
 
-        const ActivityDrawer = ({ isOpen, onClose, processes }) => {
+        const ActivityDrawer = ({ isOpen, onClose, processes, t }) => {
             const users = useMemo(() => {
                 const map = {};
                 processes.forEach((proc) => {
-                    const name = proc.user || proc.username || 'Unknown';
+                    const name = proc.user || proc.username || t('misc.unknown');
                     if (!map[name]) map[name] = { name, processes: [], totalVram: 0, gpuCount: 0 };
                     map[name].processes.push(proc);
                     map[name].totalVram += (safeNumber(proc.vram_used_mb) || 0);
@@ -521,7 +1119,7 @@
                 return Object.values(map)
                     .filter((u) => u.totalVram >= thresholdMb)
                     .sort((a, b) => b.totalVram - a.totalVram);
-            }, [processes]);
+            }, [processes, t]);
 
             const [expandedUser, setExpandedUser] = useState(null);
             if (!isOpen) return null;
@@ -532,20 +1130,20 @@
                     <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-[#f7f4ef] border-l border-[rgba(60,47,35,0.1)] shadow-[0_18px_50px_rgba(30,26,22,0.16)] drawer-enter flex flex-col">
                         <div className="px-5 py-4 border-b border-[rgba(60,47,35,0.08)] flex items-center justify-between">
                             <div>
-                                <div className="section-eyebrow mb-1">GPU Users</div>
-                                <h3 className="text-lg font-semibold text-[#1d1a18]">Live Occupancy</h3>
+                                <div className="section-eyebrow mb-1">{t('drawer.eyebrow')}</div>
+                                <h3 className="text-lg font-semibold text-[#1d1a18]">{t('drawer.title')}</h3>
                             </div>
-                            <button onClick={onClose} className="muted-button p-2 text-[#6f685f]" title="Close">
+                            <button onClick={onClose} className="muted-button p-2 text-[#6f685f]" title={t('action.close')}>
                                 <Icons.X className="w-4 h-4" />
                             </button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4">
                             {users.length === 0 ? (
-                                <div className="soft-panel-subtle p-6 text-center text-[#6f685f] text-sm">No active GPU users right now.</div>
+                                <div className="soft-panel-subtle p-6 text-center text-[#6f685f] text-sm">{t('empty.noActiveGpuUsers')}</div>
                             ) : (
                                 <div className="space-y-3">
-                                    <div className="text-[11px] text-[#7a736a]">Only users with VRAM usage ≥ 0.1 GB are listed.</div>
+                                    <div className="text-[11px] text-[#7a736a]">{t('drawer.thresholdNote')}</div>
                                     {users.map((user, idx) => {
                                         const isExpanded = expandedUser === user.name;
                                         return (
@@ -564,7 +1162,7 @@
                                                         </div>
                                                         <div className="mt-1 flex items-center gap-2 text-[10px] text-[#756e66]">
                                                             <span className="px-1.5 py-0.5 rounded-full border border-[#d8cfc4] bg-[#efe7dc]">{(user.totalVram / 1024).toFixed(1)} GB</span>
-                                                            <span className="px-1.5 py-0.5 rounded-full border border-[#d8cfc4] bg-[#ece7df]">{user.gpuCount} GPU</span>
+                                                            <span className="px-1.5 py-0.5 rounded-full border border-[#d8cfc4] bg-[#ece7df]">{user.gpuCount} {t('metric.gpuUnit')}</span>
                                                         </div>
                                                     </div>
                                                     <Icons.ChevronDown className={cx('w-4 h-4 text-[#80786f] transition-transform', isExpanded ? 'rotate-180' : '')} />
@@ -576,19 +1174,19 @@
                                                             <div key={i} className="mt-3 soft-panel-subtle p-3">
                                                                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                                                                     <div>
-                                                                        <div className="text-[#867e74] uppercase tracking-[0.08em] mb-1">Server</div>
+                                                                        <div className="text-[#867e74] uppercase tracking-[0.08em] mb-1">{t('drawer.server')}</div>
                                                                         <div className="font-semibold text-[#2c2926]">{proc.serverName || '-'}</div>
                                                                     </div>
                                                                     <div>
-                                                                        <div className="text-[#867e74] uppercase tracking-[0.08em] mb-1">GPU Index</div>
+                                                                        <div className="text-[#867e74] uppercase tracking-[0.08em] mb-1">{t('drawer.gpuIndex')}</div>
                                                                         <div className="font-mono text-[#2c2926]">{proc.gpu_index !== null && proc.gpu_index !== undefined ? proc.gpu_index : '-'}</div>
                                                                     </div>
                                                                     <div>
-                                                                        <div className="text-[#867e74] uppercase tracking-[0.08em] mb-1">PID</div>
+                                                                        <div className="text-[#867e74] uppercase tracking-[0.08em] mb-1">{t('drawer.pid')}</div>
                                                                         <div className="font-mono text-[#2c2926]">{proc.pid || '-'}</div>
                                                                     </div>
                                                                     <div>
-                                                                        <div className="text-[#867e74] uppercase tracking-[0.08em] mb-1">VRAM</div>
+                                                                        <div className="text-[#867e74] uppercase tracking-[0.08em] mb-1">{t('drawer.vram')}</div>
                                                                         <div className="font-mono text-[#2c2926]">{safeNumber(proc.vram_used_mb) !== null ? `${(Number(proc.vram_used_mb) / 1024).toFixed(2)} GB` : '-'}</div>
                                                                     </div>
                                                                 </div>
@@ -612,11 +1210,21 @@
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [isActivityOpen, setIsActivityOpen] = useState(false);
             const [modalData, setModalData] = useState({ name: "", url: "http://", pin: "", token: "" });
+            const [language, setLanguage] = useState(() => getInitialLanguage());
             const historyRef = useRef({});
             const latestServersRef = useRef([]);
             const activeFetchIdRef = useRef(0);
             const [lastSyncedAt, setLastSyncedAt] = useState(null);
             const [gatewayToken, setGatewayToken] = useState(() => localStorage.getItem(GATEWAY_TOKEN_STORAGE_KEY) || '');
+            const t = useMemo(() => createTranslator(language), [language]);
+
+            useEffect(() => {
+                try {
+                    localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+                } catch (e) {}
+                document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
+                document.title = t('app.title');
+            }, [language, t]);
 
             const saveGatewayToken = (rawToken) => {
                 const token = normalizeToken(rawToken);
@@ -626,7 +1234,7 @@
                 return token;
             };
 
-            const promptGatewayToken = (message = 'Gateway Bearer Token') => {
+            const promptGatewayToken = (message = t('prompt.gatewayTokenTitle')) => {
                 const input = prompt(message, gatewayToken || '');
                 if (input === null) return null;
                 return saveGatewayToken(input);
@@ -641,7 +1249,7 @@
 
                 let res = await runRequest(gatewayToken);
                 if (allowPrompt && res.status === 401) {
-                    const refreshedToken = promptGatewayToken('Gateway token required. Please enter Bearer token:');
+                    const refreshedToken = promptGatewayToken(t('prompt.gatewayTokenRequired'));
                     if (refreshedToken !== null) {
                         res = await runRequest(refreshedToken);
                     }
@@ -696,14 +1304,14 @@
 
             const showSaveConfigError = (reason) => {
                 if (reason === 'unauthorized') {
-                    alert('Gateway authentication failed. Please check your Bearer token.');
+                    alert(t('notify.gatewayAuthFailed'));
                     return;
                 }
                 if (reason === 'invalid_pin') {
-                    alert('Security PIN is incorrect.');
+                    alert(t('notify.invalidPin'));
                     return;
                 }
-                alert('Failed to save node configuration. Please try again.');
+                alert(t('notify.saveConfigFailed'));
             };
 
             useEffect(() => {
@@ -818,8 +1426,8 @@
             };
 
             const deleteServer = async (id) => {
-                if (!confirm('Delete node?')) return;
-                const pin = prompt('Admin PIN (MMDD)');
+                if (!confirm(t('prompt.confirmDeleteNode'))) return;
+                const pin = prompt(t('prompt.adminPin'));
                 if (!pin) return;
                 const newList = servers.filter((x) => x.id !== id);
                 const saveResult = await saveConfig(newList, pin);
@@ -845,18 +1453,18 @@
             const activeUsersCount = useMemo(() => {
                 const totals = {};
                 allProcesses.forEach((p) => {
-                    const name = p.user || p.username || 'Unknown';
+                    const name = p.user || p.username || t('misc.unknown');
                     if (!totals[name]) totals[name] = 0;
                     totals[name] += (safeNumber(p.vram_used_mb) || 0);
                 });
                 const thresholdMb = 0.1 * 1024;
                 return Object.values(totals).filter((total) => total >= thresholdMb).length;
-            }, [allProcesses]);
+            }, [allProcesses, t]);
 
             const topUsers = useMemo(() => {
                 const map = {};
                 allProcesses.forEach((proc) => {
-                    const name = proc.user || proc.username || 'Unknown';
+                    const name = proc.user || proc.username || t('misc.unknown');
                     if (!map[name]) map[name] = { name, vramMb: 0, procCount: 0 };
                     map[name].vramMb += (safeNumber(proc.vram_used_mb) || 0);
                     map[name].procCount += 1;
@@ -865,7 +1473,7 @@
                     .filter((item) => item.vramMb >= 0.1 * 1024)
                     .sort((a, b) => b.vramMb - a.vramMb)
                     .slice(0, 6);
-            }, [allProcesses]);
+            }, [allProcesses, t]);
 
             const cpuValues = onlineServers.map((s) => safeNumber(s.data?.cpu_usage)).filter((v) => v !== null);
             const ramValues = onlineServers.map((s) => safeNumber(s.data?.ram_percent)).filter((v) => v !== null);
@@ -897,33 +1505,39 @@
                 .sort((a, b) => b.power - a.power)[0] || null;
 
             const onlineRatio = totalServers > 0 ? (activeCount / totalServers) * 100 : 0;
-            const fleetState = totalServers === 0 ? 'Idle' : activeCount === totalServers ? 'Healthy' : activeCount === 0 ? 'Idle' : 'Partial';
+            const fleetState = totalServers === 0
+                ? t('fleet.idle')
+                : activeCount === totalServers
+                    ? t('fleet.healthy')
+                    : activeCount === 0
+                        ? t('fleet.idle')
+                        : t('fleet.partial');
 
             const snapshotEvents = [
                 {
-                    label: 'Snapshot Updated',
+                    label: t('snapshot.updatedLabel'),
                     value: lastSyncedAt ? formatTime(lastSyncedAt) : '-',
-                    detail: 'Pulled from live polling window'
+                    detail: t('snapshot.updatedDetail')
                 },
                 {
-                    label: 'Node Reachability',
-                    value: `${activeCount} / ${totalServers || 0} online`,
-                    detail: totalServers ? `${Math.round(onlineRatio)}% reachable` : 'Waiting for configured nodes'
+                    label: t('snapshot.reachabilityLabel'),
+                    value: t('snapshot.reachabilityValue', { online: activeCount, total: totalServers || 0 }),
+                    detail: totalServers ? t('snapshot.reachabilityDetail', { percent: Math.round(onlineRatio) }) : t('snapshot.reachabilityWaiting')
                 },
                 {
-                    label: 'GPU Occupancy',
-                    value: `${activeUsersCount} active users`,
-                    detail: 'Derived from current process snapshot'
+                    label: t('snapshot.occupancyLabel'),
+                    value: t('snapshot.occupancyValue', { count: activeUsersCount }),
+                    detail: t('snapshot.occupancyDetail')
                 },
                 {
-                    label: 'Peak CPU Node',
+                    label: t('snapshot.peakCpuLabel'),
                     value: highestCpuNode ? `${highestCpuNode.name}` : '-',
-                    detail: highestCpuNode ? `${highestCpuNode.cpu.toFixed(1)}% CPU` : 'No online metrics available'
+                    detail: highestCpuNode ? t('snapshot.peakCpuDetail', { cpu: highestCpuNode.cpu.toFixed(1) }) : t('snapshot.peakCpuEmpty')
                 },
                 {
-                    label: 'Power Focus',
+                    label: t('snapshot.powerFocusLabel'),
                     value: highestPowerNode && highestPowerNode.power > 0 ? highestPowerNode.name : '-',
-                    detail: highestPowerNode && highestPowerNode.power > 0 ? `${highestPowerNode.power.toFixed(0)}W` : 'No power telemetry reported'
+                    detail: highestPowerNode && highestPowerNode.power > 0 ? t('snapshot.powerFocusDetail', { power: highestPowerNode.power.toFixed(0) }) : t('snapshot.powerFocusEmpty')
                 }
             ];
 
@@ -937,34 +1551,43 @@
                                         <Icons.LayoutDashboard className="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <div className="section-eyebrow mb-1">Nexus Monitor</div>
-                                        <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-[#1a1917]">Cluster Operations Dashboard</h1>
-                                        <p className="text-sm text-[#6b665e] mt-1">Quiet, real-time infrastructure visibility for distributed GPU nodes.</p>
+                                        <div className="section-eyebrow mb-1">{t('app.eyebrow')}</div>
+                                        <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-[#1a1917]">{t('app.dashboardTitle')}</h1>
+                                        <p className="text-sm text-[#6b665e] mt-1">{t('app.dashboardSubtitle')}</p>
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <button
+                                        onClick={() => setLanguage((prev) => (prev === 'en' ? 'zh' : 'en'))}
+                                        className="muted-button px-3 py-2 text-sm font-medium"
+                                        title={language === 'en' ? t('action.langSwitchTitleToZh') : t('action.langSwitchTitleToEn')}
+                                        aria-label={language === 'en' ? t('action.langSwitchAriaToZh') : t('action.langSwitchAriaToEn')}
+                                    >
+                                        {language === 'en' ? '中文' : 'EN'}
+                                    </button>
+
+                                    <button
                                         onClick={() => setIsActivityOpen(true)}
                                         className="muted-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
-                                        title="Only includes users with VRAM usage >= 0.1 GB"
+                                        title={t('misc.includesVramUsers')}
                                     >
                                         <Icons.Users className="w-4 h-4" />
-                                        GPU Users
+                                        {t('action.gpuUsers')}
                                         {activeUsersCount > 0 ? (
                                             <span className="px-2 py-0.5 rounded-full bg-[#dcebe8] text-[#2d5a54] text-[11px] font-semibold">{activeUsersCount}</span>
                                         ) : null}
                                     </button>
 
                                     <button
-                                        onClick={() => promptGatewayToken('Set Gateway Bearer Token (leave empty to clear):')}
+                                        onClick={() => promptGatewayToken(t('prompt.gatewayTokenConfig'))}
                                         className={cx('muted-button px-4 py-2 text-sm font-medium', gatewayToken ? 'bg-[#deebe7] text-[#2d5a54] border-[#c8ddd8]' : '')}
-                                        title="Configure Authorization Bearer token used by gateway"
+                                        title={t('prompt.gatewayTokenTitle')}
                                     >
-                                        {gatewayToken ? 'Gateway Token: Active' : 'Gateway Token'}
+                                        {gatewayToken ? t('action.gatewayTokenActive') : t('action.gatewayToken')}
                                     </button>
 
                                     <button onClick={() => setIsModalOpen(true)} className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2">
-                                        <Icons.Plus className="w-4 h-4" /> Add Node
+                                        <Icons.Plus className="w-4 h-4" /> {t('action.addNode')}
                                     </button>
 
                                     <a
@@ -972,7 +1595,7 @@
                                         target="_blank"
                                         className="muted-button px-3 py-2 text-sm inline-flex items-center gap-2 opacity-80 hover:opacity-100"
                                         rel="noreferrer"
-                                        title="Project Repository"
+                                        title={t('misc.projectRepository')}
                                     >
                                         <Icons.Github className="w-4 h-4" />
                                     </a>
@@ -982,34 +1605,34 @@
 
                         <section className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
                             <div className="soft-panel p-6 md:p-8 xl:col-span-8">
-                                <div className="section-eyebrow mb-2">Fleet Overview</div>
-                                <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#1a1917]">Unified Node Health & Runtime Snapshot</h2>
+                                <div className="section-eyebrow mb-2">{t('app.fleetOverviewEyebrow')}</div>
+                                <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#1a1917]">{t('app.fleetOverviewTitle')}</h2>
                                 <p className="text-sm md:text-base text-[#6b665e] mt-3 max-w-3xl">
-                                    Monitoring surfaces are fully connected to live gateway polling and node metrics streams. Visuals are editorial, while data and control paths remain untouched.
+                                    {t('app.fleetOverviewSubtitle')}
                                 </p>
                                 <div className="mt-5 flex flex-wrap gap-2">
-                                    <SummaryPill label="Nodes" value={`${totalServers || 0} total`} tone="neutral" />
-                                    <SummaryPill label="Refresh" value="2s polling" tone="default" />
-                                    <SummaryPill label="Synced" value={lastSyncedAt ? formatTime(lastSyncedAt) : '-'} tone="default" />
-                                    <SummaryPill label="Gateway" value={gatewayToken ? 'Authenticated' : 'Not set'} tone={gatewayToken ? 'positive' : 'warning'} />
-                                    <SummaryPill label="Active Users" value={`${activeUsersCount}`} tone="default" />
+                                    <SummaryPill label={t('summary.nodes')} value={t('summary.totalSuffix', { count: totalServers || 0 })} tone="neutral" />
+                                    <SummaryPill label={t('summary.refresh')} value={t('summary.refreshValue')} tone="default" />
+                                    <SummaryPill label={t('summary.synced')} value={lastSyncedAt ? formatTime(lastSyncedAt) : '-'} tone="default" />
+                                    <SummaryPill label={t('summary.gateway')} value={gatewayToken ? t('summary.authenticated') : t('summary.notSet')} tone={gatewayToken ? 'positive' : 'warning'} />
+                                    <SummaryPill label={t('summary.activeUsers')} value={`${activeUsersCount}`} tone="default" />
                                 </div>
                             </div>
 
                             <div className="soft-panel p-6 xl:col-span-4">
-                                <div className="section-eyebrow mb-2">Cluster Summary</div>
-                                <div className="text-xl font-semibold text-[#1f1d1b]">Overall Fleet Health</div>
+                                <div className="section-eyebrow mb-2">{t('app.clusterSummaryEyebrow')}</div>
+                                <div className="text-xl font-semibold text-[#1f1d1b]">{t('app.clusterSummaryTitle')}</div>
                                 <div className="mt-4">
                                     <div className="flex items-end justify-between mb-2">
                                         <div className="text-3xl font-semibold leading-none text-[#1b1917]">{Math.round(onlineRatio)}%</div>
-                                        <div className="text-xs text-[#6b665e]">{activeCount} / {totalServers || 0} online</div>
+                                        <div className="text-xs text-[#6b665e]">{t('summary.onlineRatio', { online: activeCount, total: totalServers || 0 })}</div>
                                     </div>
                                     <MiniProgress value={onlineRatio} tone="teal" />
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-2.5 mt-5">
-                                    <MetricTile label="Status" value={fleetState} sub="Computed from online reachability" icon={Icons.Server} />
-                                    <MetricTile label="GPUs" value={`${totalGpus}`} sub="Detected from online nodes" icon={Icons.Zap} />
+                                    <MetricTile label={t('metric.status')} value={fleetState} sub={t('metric.computedReachability')} icon={Icons.Server} />
+                                    <MetricTile label={t('metric.gpus')} value={`${totalGpus}`} sub={t('metric.detectedOnlineNodes')} icon={Icons.Zap} />
                                 </div>
                             </div>
                         </section>
@@ -1017,22 +1640,22 @@
                         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                             <div className="xl:col-span-12">
                                 <SectionCard
-                                    eyebrow="Node Summary"
-                                    title="Server Cards"
-                                    subtitle="Per-node resource status, connectivity, and live GPU telemetry."
+                                    eyebrow={t('app.nodeSummaryEyebrow')}
+                                    title={t('app.nodeSummaryTitle')}
+                                    subtitle={t('app.nodeSummarySubtitle')}
                                 >
                                     {servers.length === 0 ? (
                                         <div className="soft-panel-subtle p-10 text-center">
-                                            <div className="text-base font-semibold text-[#2d2a27] mb-2">No configured nodes yet</div>
-                                            <div className="text-sm text-[#6e675f] mb-5">Add your first agent node to begin monitoring.</div>
+                                            <div className="text-base font-semibold text-[#2d2a27] mb-2">{t('empty.noConfiguredNodes')}</div>
+                                            <div className="text-sm text-[#6e675f] mb-5">{t('empty.addFirstNode')}</div>
                                             <button onClick={() => setIsModalOpen(true)} className="primary-button px-5 py-2 text-sm font-medium inline-flex items-center gap-2">
-                                                <Icons.Plus className="w-4 h-4" /> Connect Node
+                                                <Icons.Plus className="w-4 h-4" /> {t('action.connectNode')}
                                             </button>
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
                                             {servers.map((s) => (
-                                                <ServerCard key={s.id} server={s} onDelete={deleteServer} />
+                                                <ServerCard key={s.id} server={s} onDelete={deleteServer} t={t} />
                                             ))}
                                         </div>
                                     )}
@@ -1041,20 +1664,20 @@
 
                             <div className="xl:col-span-4">
                                 <SectionCard
-                                    eyebrow="Runtime Metadata"
-                                    title="Cluster Metrics"
-                                    subtitle="Aggregated from online nodes and reported telemetry fields."
+                                    eyebrow={t('app.runtimeEyebrow')}
+                                    title={t('app.runtimeTitle')}
+                                    subtitle={t('app.runtimeSubtitle')}
                                 >
                                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
-                                        <MetricTile label="Online Servers" value={`${activeCount} / ${totalServers || 0}`} sub="Live reachability" icon={Icons.Server} />
-                                        <MetricTile label="Total GPU" value={`${totalGpus}`} sub="Across reachable nodes" icon={Icons.Zap} />
-                                        <MetricTile label="Total Power" value={totalPower !== null ? `${totalPower.toFixed(0)} W` : '-'} sub="Summed GPU draw" icon={Icons.Activity} />
-                                        <MetricTile label="Avg CPU" value={totalCpuAvg !== null ? `${totalCpuAvg.toFixed(1)}%` : '-'} sub="Online nodes only" icon={Icons.Cpu} />
-                                        <MetricTile label="Avg RAM" value={totalRamAvg !== null ? `${totalRamAvg.toFixed(1)}%` : '-'} sub="Online nodes only" icon={Icons.HardDrive} />
+                                        <MetricTile label={t('metric.onlineServers')} value={`${activeCount} / ${totalServers || 0}`} sub={t('metric.liveReachability')} icon={Icons.Server} />
+                                        <MetricTile label={t('metric.totalGpu')} value={`${totalGpus}`} sub={t('metric.acrossReachableNodes')} icon={Icons.Zap} />
+                                        <MetricTile label={t('metric.totalPower')} value={totalPower !== null ? `${totalPower.toFixed(0)} W` : '-'} sub={t('metric.summedGpuDraw')} icon={Icons.Activity} />
+                                        <MetricTile label={t('metric.avgCpu')} value={totalCpuAvg !== null ? `${totalCpuAvg.toFixed(1)}%` : '-'} sub={t('metric.onlineNodesOnly')} icon={Icons.Cpu} />
+                                        <MetricTile label={t('metric.avgRam')} value={totalRamAvg !== null ? `${totalRamAvg.toFixed(1)}%` : '-'} sub={t('metric.onlineNodesOnly')} icon={Icons.HardDrive} />
                                         <MetricTile
-                                            label="VRAM"
+                                            label={t('metric.vram')}
                                             value={totalVramUsed !== null && totalVram !== null ? `${totalVramUsed.toFixed(1)} / ${totalVram.toFixed(1)} GB` : '-'}
-                                            sub="Used / Total"
+                                            sub={t('metric.usedTotal')}
                                             icon={Icons.HardDrive}
                                         />
                                     </div>
@@ -1063,9 +1686,9 @@
 
                             <div className="xl:col-span-4">
                                 <SectionCard
-                                    eyebrow="Latest Log"
-                                    title="Live Activity / Cluster Events"
-                                    subtitle="Snapshot-driven status feed from current polling cycle."
+                                    eyebrow={t('app.latestLogEyebrow')}
+                                    title={t('app.latestLogTitle')}
+                                    subtitle={t('app.latestLogSubtitle')}
                                     right={
                                         <div className="text-xs text-[#6f685f] inline-flex items-center gap-1">
                                             <Icons.Clock className="w-3.5 h-3.5" /> {lastSyncedAt ? formatTime(lastSyncedAt) : '-'}
@@ -1091,23 +1714,23 @@
 
                             <div className="xl:col-span-4">
                                 <SectionCard
-                                    eyebrow="Recent Completions"
-                                    title="Active GPU Users"
-                                    subtitle="Current occupancy ranking based on observed VRAM usage."
+                                    eyebrow={t('app.recentEyebrow')}
+                                    title={t('app.recentTitle')}
+                                    subtitle={t('app.recentSubtitle')}
                                 >
                                     <div className="soft-panel-subtle p-3 mb-3">
                                         <div className="flex items-center justify-between text-sm">
-                                            <span className="text-[#6f685f]">Total Active Users</span>
+                                            <span className="text-[#6f685f]">{t('drawer.totalActiveUsers')}</span>
                                             <span className="font-semibold text-[#2b2926]">{activeUsersCount}</span>
                                         </div>
                                         <div className="flex items-center justify-between text-sm mt-2">
-                                            <span className="text-[#6f685f]">Network Throughput</span>
+                                            <span className="text-[#6f685f]">{t('drawer.networkThroughput')}</span>
                                             <span className="font-mono text-[#2b2926]">↓ {formatSpeed(totalDown)} / ↑ {formatSpeed(totalUp)}</span>
                                         </div>
                                     </div>
 
                                     {topUsers.length === 0 ? (
-                                        <div className="soft-panel-subtle p-4 text-sm text-[#6f685f]">No active GPU users in the latest snapshot.</div>
+                                        <div className="soft-panel-subtle p-4 text-sm text-[#6f685f]">{t('empty.noActiveGpuUsersSnapshot')}</div>
                                     ) : (
                                         <div className="space-y-2.5">
                                             {topUsers.map((user, idx) => (
@@ -1121,7 +1744,10 @@
                                                             <div className="text-[10px] font-mono text-[#7a7269]">#{idx + 1}</div>
                                                         </div>
                                                         <div className="text-xs text-[#6f685f] mt-0.5">
-                                                            {(user.vramMb / 1024).toFixed(2)} GB VRAM · {user.procCount} process{user.procCount > 1 ? 'es' : ''}
+                                                            {t(user.procCount > 1 ? 'misc.activeUserLinePlural' : 'misc.activeUserLine', {
+                                                                vram: (user.vramMb / 1024).toFixed(2),
+                                                                count: user.procCount
+                                                            })}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1133,63 +1759,63 @@
                         </div>
                     </div>
 
-                    <ActivityDrawer isOpen={isActivityOpen} onClose={() => setIsActivityOpen(false)} processes={allProcesses} />
+                    <ActivityDrawer isOpen={isActivityOpen} onClose={() => setIsActivityOpen(false)} processes={allProcesses} t={t} />
 
                     {isModalOpen ? (
                         <div className="fixed inset-0 z-50 bg-[#2f2922]/22 backdrop-blur-[2px] p-4 flex items-center justify-center fade-enter">
                             <div className="soft-panel w-full max-w-lg p-6 md:p-7">
                                 <div className="flex items-center justify-between mb-5">
                                     <div>
-                                        <div className="section-eyebrow mb-1">Configuration</div>
-                                        <h3 className="text-xl font-semibold text-[#1f1d1b]">Add Node</h3>
+                                        <div className="section-eyebrow mb-1">{t('modal.configuration')}</div>
+                                        <h3 className="text-xl font-semibold text-[#1f1d1b]">{t('modal.addNode')}</h3>
                                     </div>
-                                    <button onClick={() => setIsModalOpen(false)} className="muted-button p-2 text-[#6f685f]" title="Close">
+                                    <button onClick={() => setIsModalOpen(false)} className="muted-button p-2 text-[#6f685f]" title={t('action.close')}>
                                         <Icons.X className="w-4 h-4" />
                                     </button>
                                 </div>
 
                                 <div className="space-y-3.5">
                                     <div>
-                                        <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">Node Name</label>
+                                        <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">{t('modal.nodeName')}</label>
                                         <input
                                             type="text"
                                             className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors"
-                                            placeholder="e.g. research-4090"
+                                            placeholder={t('modal.nodeNamePlaceholder')}
                                             value={modalData.name}
                                             onChange={(e) => setModalData({ ...modalData, name: e.target.value })}
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">Agent URL</label>
+                                        <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">{t('modal.agentUrl')}</label>
                                         <input
                                             type="text"
                                             className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors font-mono"
-                                            placeholder="http://192.168.x.x:8005"
+                                            placeholder={t('modal.agentUrlPlaceholder')}
                                             value={modalData.url}
                                             onChange={(e) => setModalData({ ...modalData, url: e.target.value })}
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">Agent Token (Optional)</label>
+                                        <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">{t('modal.agentTokenOptional')}</label>
                                         <input
                                             type="text"
                                             className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors font-mono"
-                                            placeholder="Bearer token for this agent"
+                                            placeholder={t('modal.agentTokenPlaceholder')}
                                             value={modalData.token}
                                             onChange={(e) => setModalData({ ...modalData, token: e.target.value })}
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">Security PIN</label>
+                                        <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">{t('modal.securityPin')}</label>
                                         <input
                                             type="text"
                                             inputMode="numeric"
                                             maxLength={4}
                                             className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors font-mono tracking-[0.5em] text-center"
-                                            placeholder="••••"
+                                            placeholder={t('modal.pinPlaceholder')}
                                             value={modalData.pin}
                                             onChange={(e) => setModalData({ ...modalData, pin: e.target.value.replace(/\D/g, '') })}
                                         />
@@ -1197,8 +1823,8 @@
                                 </div>
 
                                 <div className="mt-6 flex gap-2.5">
-                                    <button onClick={() => setIsModalOpen(false)} className="muted-button flex-1 px-4 py-2.5 text-sm font-medium">Cancel</button>
-                                    <button onClick={addServer} className="primary-button flex-1 px-4 py-2.5 text-sm font-medium">Connect Agent</button>
+                                    <button onClick={() => setIsModalOpen(false)} className="muted-button flex-1 px-4 py-2.5 text-sm font-medium">{t('action.cancel')}</button>
+                                    <button onClick={addServer} className="primary-button flex-1 px-4 py-2.5 text-sm font-medium">{t('action.connectAgent')}</button>
                                 </div>
                             </div>
                         </div>
