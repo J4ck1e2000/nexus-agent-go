@@ -14,7 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"nexus-agent-go/internal/agent"
-	"nexus-agent-go/internal/auth"
 	"nexus-agent-go/internal/model"
 	toolsvc "nexus-agent-go/internal/tools"
 )
@@ -31,7 +30,6 @@ func main() {
 
 	service := agent.NewService(pollInterval)
 	metricsTools := toolsvc.NewMetricsTools(service)
-	agentToken := strings.TrimSpace(os.Getenv("NEXUS_AGENT_TOKEN"))
 	runnerCtx, stopCollector := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stopCollector()
 	go service.Start(runnerCtx)
@@ -48,7 +46,6 @@ func main() {
 	})
 
 	metricsRoutes := r.Group("/metrics")
-	metricsRoutes.Use(auth.BearerTokenMiddleware(agentToken))
 
 	metricsRoutes.GET("", func(c *gin.Context) {
 		metrics, err := metricsTools.GetCurrentMetrics(c.Request.Context())
@@ -129,7 +126,7 @@ func corsAll() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-PIN")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return

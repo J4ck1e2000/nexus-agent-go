@@ -12,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"nexus-agent-go/internal/auth"
 	"nexus-agent-go/internal/model"
 )
 
@@ -21,7 +20,6 @@ type Handler struct {
 	store       *ConfigStore
 	versionInfo VersionInfo
 	proxyClient *http.Client
-	nowFn       func() time.Time
 }
 
 // NewHandler 创建网关请求处理器。
@@ -30,20 +28,16 @@ func NewHandler(store *ConfigStore, versionInfo VersionInfo) *Handler {
 		store:       store,
 		versionInfo: versionInfo,
 		proxyClient: &http.Client{Timeout: 3 * time.Second},
-		nowFn:       time.Now,
 	}
 }
 
 // RegisterAPIRoutes 注册网关 API 路由。
-func (h *Handler) RegisterAPIRoutes(r *gin.Engine, authMiddleware gin.HandlerFunc) {
+func (h *Handler) RegisterAPIRoutes(r *gin.Engine) {
 	api := r.Group("/api")
 	api.GET("/version", h.getVersion)
-
-	protected := api.Group("")
-	protected.Use(authMiddleware)
-	protected.GET("/config", h.getConfig)
-	protected.POST("/config", h.saveConfig)
-	protected.GET("/proxy", h.proxyRequest)
+	api.GET("/config", h.getConfig)
+	api.POST("/config", h.saveConfig)
+	api.GET("/proxy", h.proxyRequest)
 }
 
 // RegisterStaticRoutes 注册静态资源与前端入口路由。
@@ -95,13 +89,7 @@ func (h *Handler) getConfig(c *gin.Context) {
 }
 
 // saveConfig 保存节点配置。
-// Bearer Token 已作为主鉴权方式，X-PIN 仅保留兼容逻辑（可选）。
 func (h *Handler) saveConfig(c *gin.Context) {
-	if pin := strings.TrimSpace(c.GetHeader("X-PIN")); pin != "" && pin != h.nowFn().Format("0102") {
-		c.JSON(http.StatusForbidden, gin.H{"error": "invalid_pin"})
-		return
-	}
-
 	var configs []model.AgentConfig
 	if err := c.ShouldBindJSON(&configs); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
@@ -133,14 +121,6 @@ func (h *Handler) proxyRequest(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
-	}
-	if targetAuthHeader := strings.TrimSpace(c.GetHeader("X-Target-Authorization")); targetAuthHeader != "" {
-		targetToken, ok := auth.ExtractBearerToken(targetAuthHeader)
-		if !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_target_authorization"})
-			return
-		}
-		req.Header.Set("Authorization", "Bearer "+targetToken)
 	}
 
 	resp, err := h.proxyClient.Do(req)

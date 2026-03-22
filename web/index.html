@@ -249,7 +249,6 @@
             )
         };
 
-        const GATEWAY_TOKEN_STORAGE_KEY = 'nexus_gateway_token';
         const LANGUAGE_STORAGE_KEY = 'nexus_language';
         const DEFAULT_LANGUAGE = 'en';
 
@@ -280,8 +279,6 @@
                 },
                 action: {
                     gpuUsers: 'GPU Users',
-                    gatewayToken: 'Gateway Token',
-                    gatewayTokenActive: 'Gateway Token: Active',
                     addNode: 'Add Node',
                     connectNode: 'Connect Node',
                     connectAgent: 'Connect Agent',
@@ -304,11 +301,8 @@
                     nodes: 'Nodes',
                     refresh: 'Refresh',
                     synced: 'Synced',
-                    gateway: 'Gateway',
                     activeUsers: 'Active Users',
                     refreshValue: '2s polling',
-                    authenticated: 'Authenticated',
-                    notSet: 'Not set',
                     totalSuffix: '{count} total',
                     onlineRatio: '{online} / {total} online',
                 },
@@ -400,10 +394,6 @@
                     nodeNamePlaceholder: 'e.g. research-4090',
                     agentUrl: 'Agent URL',
                     agentUrlPlaceholder: 'http://192.168.x.x:8005',
-                    agentTokenOptional: 'Agent Token (Optional)',
-                    agentTokenPlaceholder: 'Bearer token for this agent',
-                    securityPin: 'Security PIN',
-                    pinPlaceholder: '0000',
                 },
                 snapshot: {
                     updatedLabel: 'Snapshot Updated',
@@ -422,33 +412,14 @@
                     powerFocusDetail: '{power}W',
                     powerFocusEmpty: 'No power telemetry reported',
                 },
-                prompt: {
-                    gatewayTokenTitle: 'Gateway Bearer Token',
-                    gatewayTokenConfig: 'Set Gateway Bearer Token (leave empty to clear):',
-                    gatewayTokenRequired: 'Gateway token required. Please enter Bearer token:',
-                    adminPin: 'Admin PIN (MMDD)',
-                    confirmDeleteNode: 'Delete node?',
-                },
                 dialog: {
                     deleteNodeTitle: 'Delete Node',
                     deleteNodeDescription: 'Remove "{name}" from this dashboard?',
-                    adminPinTitle: 'Enter Admin PIN',
-                    adminPinDescription: 'Please enter today\'s 4-digit Admin PIN to confirm deletion.',
-                    pinFormatHint: 'PIN must be 4 digits.',
-                    gatewayTokenTitle: 'Set Gateway Bearer Token',
-                    gatewayTokenDescription: 'Update token below. Leave empty to clear token.',
-                    gatewayTokenRequiredTitle: 'Gateway Token Required',
-                    gatewayTokenRequiredDescription: 'Gateway authentication returned 401. Please enter a valid Bearer token.',
-                    gatewayTokenPlaceholder: 'Bearer token',
                     requiredField: 'This field is required.',
                 },
                 notify: {
-                    gatewayAuthFailed: 'Gateway authentication failed. Please check your Bearer token.',
-                    invalidPin: 'Security PIN is incorrect.',
                     saveConfigFailed: 'Failed to save node configuration. Please try again.',
                     nodeDeleted: 'Node "{name}" deleted.',
-                    tokenUpdated: 'Gateway token updated.',
-                    tokenCleared: 'Gateway token cleared.',
                 },
                 misc: {
                     projectRepository: 'Project Repository',
@@ -486,8 +457,6 @@
                 },
                 action: {
                     gpuUsers: 'GPU 用户',
-                    gatewayToken: '网关令牌',
-                    gatewayTokenActive: '网关令牌：已启用',
                     addNode: '添加节点',
                     connectNode: '连接节点',
                     connectAgent: '连接 Agent',
@@ -510,11 +479,8 @@
                     nodes: '节点',
                     refresh: '刷新',
                     synced: '同步',
-                    gateway: '网关',
                     activeUsers: '活跃用户',
                     refreshValue: '2秒轮询',
-                    authenticated: '已认证',
-                    notSet: '未设置',
                     totalSuffix: '共 {count} 台',
                     onlineRatio: '在线 {online} / {total}',
                 },
@@ -606,10 +572,6 @@
                     nodeNamePlaceholder: '例如：research-4090',
                     agentUrl: 'Agent 地址',
                     agentUrlPlaceholder: 'http://192.168.x.x:8005',
-                    agentTokenOptional: 'Agent 令牌（可选）',
-                    agentTokenPlaceholder: '此 Agent 的 Bearer 令牌',
-                    securityPin: '安全 PIN',
-                    pinPlaceholder: '0000',
                 },
                 snapshot: {
                     updatedLabel: '快照更新时间',
@@ -628,33 +590,14 @@
                     powerFocusDetail: '{power}W',
                     powerFocusEmpty: '暂无功耗遥测数据',
                 },
-                prompt: {
-                    gatewayTokenTitle: '网关 Bearer 令牌',
-                    gatewayTokenConfig: '设置网关 Bearer 令牌（留空则清除）：',
-                    gatewayTokenRequired: '需要网关令牌，请输入 Bearer 令牌：',
-                    adminPin: '管理员 PIN（MMDD）',
-                    confirmDeleteNode: '确认删除该节点？',
-                },
                 dialog: {
                     deleteNodeTitle: '删除节点',
                     deleteNodeDescription: '确认从监控面板移除节点「{name}」吗？',
-                    adminPinTitle: '输入管理员 PIN',
-                    adminPinDescription: '请输入今日 4 位管理员 PIN 以确认删除。',
-                    pinFormatHint: 'PIN 必须是 4 位数字。',
-                    gatewayTokenTitle: '设置网关 Bearer 令牌',
-                    gatewayTokenDescription: '在下方更新令牌，留空可清除令牌。',
-                    gatewayTokenRequiredTitle: '需要网关令牌',
-                    gatewayTokenRequiredDescription: '网关认证返回 401，请输入有效的 Bearer 令牌。',
-                    gatewayTokenPlaceholder: 'Bearer 令牌',
                     requiredField: '该字段不能为空。',
                 },
                 notify: {
-                    gatewayAuthFailed: '网关认证失败，请检查 Bearer 令牌。',
-                    invalidPin: '安全 PIN 不正确。',
                     saveConfigFailed: '保存节点配置失败，请重试。',
                     nodeDeleted: '已删除节点「{name}」。',
-                    tokenUpdated: '网关令牌已更新。',
-                    tokenCleared: '网关令牌已清除。',
                 },
                 misc: {
                     projectRepository: '项目仓库',
@@ -726,24 +669,6 @@
         const formatOneDecimal = (value, suffix = '') => {
             if (!Number.isFinite(value)) return '-';
             return `${value.toFixed(1)}${suffix}`;
-        };
-
-        const getTodayPin = () => {
-            const d = new Date();
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            return mm + dd;
-        };
-
-        const validatePin = (pin) => typeof pin === 'string' && /^\d{4}$/.test(pin) && pin === getTodayPin();
-        const normalizeToken = (token) => (typeof token === 'string' ? token.trim() : '');
-        const buildBearerHeader = (token) => {
-            const normalized = normalizeToken(token);
-            return normalized ? { Authorization: `Bearer ${normalized}` } : {};
-        };
-        const buildTargetAuthorizationHeader = (token) => {
-            const normalized = normalizeToken(token);
-            return normalized ? { 'X-Target-Authorization': `Bearer ${normalized}` } : {};
         };
 
         const avatarTones = [
@@ -1606,13 +1531,12 @@
             const [servers, setServers] = useState([]);
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [isActivityOpen, setIsActivityOpen] = useState(false);
-            const [modalData, setModalData] = useState({ name: "", url: "http://", pin: "", token: "" });
+            const [modalData, setModalData] = useState({ name: "", url: "http://" });
             const [language, setLanguage] = useState(() => getInitialLanguage());
             const historyRef = useRef({});
             const latestServersRef = useRef([]);
             const activeFetchIdRef = useRef(0);
             const [lastSyncedAt, setLastSyncedAt] = useState(null);
-            const [gatewayToken, setGatewayToken] = useState(() => localStorage.getItem(GATEWAY_TOKEN_STORAGE_KEY) || '');
             const [selectedGpuRef, setSelectedGpuRef] = useState(null);
             const [dialogState, setDialogState] = useState(null);
             const dialogResolverRef = useRef(null);
@@ -1682,71 +1606,29 @@
                 ...options,
             });
 
-            const openPromptDialog = (options = {}) => openDialog({
-                type: 'prompt',
-                confirmText: t('action.submit'),
-                cancelText: t('action.cancel'),
-                closeOnEsc: true,
-                closeOnBackdrop: true,
-                trim: true,
-                ...options,
+            const normalizeServerConfig = (server) => ({
+                id: server.id,
+                name: server.name,
+                url: server.url,
+                status: 'pending',
+                data: null,
+                metrics: null,
             });
-
-            const saveGatewayToken = (rawToken) => {
-                const token = normalizeToken(rawToken);
-                setGatewayToken(token);
-                if (token) localStorage.setItem(GATEWAY_TOKEN_STORAGE_KEY, token);
-                else localStorage.removeItem(GATEWAY_TOKEN_STORAGE_KEY);
-                return token;
-            };
-
-            const openGatewayTokenDialog = async ({ required = false } = {}) => {
-                const input = await openPromptDialog({
-                    title: required ? t('dialog.gatewayTokenRequiredTitle') : t('dialog.gatewayTokenTitle'),
-                    description: required ? t('dialog.gatewayTokenRequiredDescription') : t('dialog.gatewayTokenDescription'),
-                    placeholder: t('dialog.gatewayTokenPlaceholder'),
-                    initialValue: gatewayToken || '',
-                    required,
-                    closeOnBackdrop: !required,
-                    closeOnEsc: !required,
-                });
-                if (input === null) return null;
-                const savedToken = saveGatewayToken(input);
-                pushToast(savedToken ? t('notify.tokenUpdated') : t('notify.tokenCleared'), 'success');
-                return savedToken;
-            };
-
-            const fetchWithGatewayAuth = async (url, options = {}, allowPrompt = true) => {
-                const runRequest = (token) => {
-                    const baseHeaders = options.headers || {};
-                    const headers = { ...baseHeaders, ...buildBearerHeader(token) };
-                    return fetch(url, { ...options, headers });
-                };
-
-                let res = await runRequest(gatewayToken);
-                if (allowPrompt && res.status === 401) {
-                    const refreshedToken = await openGatewayTokenDialog({ required: true });
-                    if (refreshedToken !== null) {
-                        res = await runRequest(refreshedToken);
-                    }
-                }
-                return res;
-            };
 
             useEffect(() => {
                 const loadConfig = async () => {
                     try {
-                        const res = await fetchWithGatewayAuth('/api/config');
+                        const res = await fetch('/api/config');
                         if (res.ok) {
                             const data = await res.json();
-                            setServers(data.map((s) => ({ ...s, token: normalizeToken(s.token || ''), status: 'pending', data: null, metrics: null })));
+                            setServers(data.map(normalizeServerConfig));
                         } else {
                             throw new Error();
                         }
                     } catch {
                         const saved = localStorage.getItem('nexus_servers_fallback');
                         if (saved) {
-                            setServers(JSON.parse(saved).map((s) => ({ ...s, token: normalizeToken(s.token || ''), status: 'pending', data: null, metrics: null })));
+                            setServers(JSON.parse(saved).map(normalizeServerConfig));
                         }
                     }
                 };
@@ -1757,36 +1639,23 @@
                 latestServersRef.current = servers;
             }, [servers]);
 
-            const saveConfig = async (newServersList, pin) => {
-                const configToSave = newServersList.map((s) => ({ id: s.id, name: s.name, url: s.url, token: normalizeToken(s.token) }));
+            const saveConfig = async (newServersList) => {
+                const configToSave = newServersList.map((s) => ({ id: s.id, name: s.name, url: s.url }));
                 try {
-                    const res = await fetchWithGatewayAuth('/api/config', {
+                    const res = await fetch('/api/config', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-PIN': pin || '' },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(configToSave),
                     });
                     if (res.ok) return { ok: true };
-                    if (res.status === 401) return { ok: false, reason: 'unauthorized' };
-                    if (res.status === 403) return { ok: false, reason: 'invalid_pin' };
                     return { ok: false, reason: 'server_error' };
                 } catch {
-                    if (validatePin(pin)) {
-                        localStorage.setItem('nexus_servers_fallback', JSON.stringify(configToSave));
-                        return { ok: true };
-                    }
-                    return { ok: false, reason: 'network_error' };
+                    localStorage.setItem('nexus_servers_fallback', JSON.stringify(configToSave));
+                    return { ok: true };
                 }
             };
 
-            const showSaveConfigError = (reason) => {
-                if (reason === 'unauthorized') {
-                    pushToast(t('notify.gatewayAuthFailed'), 'error');
-                    return;
-                }
-                if (reason === 'invalid_pin') {
-                    pushToast(t('notify.invalidPin'), 'error');
-                    return;
-                }
+            const showSaveConfigError = () => {
                 pushToast(t('notify.saveConfigFailed'), 'error');
             };
 
@@ -1812,18 +1681,15 @@
                         try {
                             const targetUrl = `${server.url}/metrics`;
                             const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-                            const targetToken = normalizeToken(server.token || '');
                             let res;
                             try {
-                                res = await fetchWithGatewayAuth(proxyUrl, {
+                                res = await fetch(proxyUrl, {
                                     signal: controller.signal,
-                                    headers: { ...buildTargetAuthorizationHeader(targetToken) },
-                                }, false);
+                                });
                                 if (res.status !== 200) throw new Error();
                             } catch {
                                 res = await fetch(targetUrl, {
                                     signal: controller.signal,
-                                    headers: { ...buildBearerHeader(targetToken) },
                                 });
                             }
                             if (!res.ok) throw new Error();
@@ -1880,7 +1746,7 @@
                     inFlightTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
                     inFlightControllers.forEach((controller) => controller.abort());
                 };
-            }, [gatewayToken]);
+            }, []);
 
             const addServer = async () => {
                 if (isSavingServer) return;
@@ -1890,18 +1756,17 @@
                         id: Date.now(),
                         name: modalData.name,
                         url: modalData.url,
-                        token: normalizeToken(modalData.token),
                         status: 'pending'
                     };
                     const newList = [...latestServersRef.current, newServer];
-                    const saveResult = await saveConfig(newList, modalData.pin);
+                    const saveResult = await saveConfig(newList);
                     if (!saveResult.ok) {
-                        showSaveConfigError(saveResult.reason);
+                        showSaveConfigError();
                         return;
                     }
                     setServers(newList);
                     setIsModalOpen(false);
-                    setModalData({ name: "", url: "http://", pin: "", token: "" });
+                    setModalData({ name: "", url: "http://" });
                 } finally {
                     setIsSavingServer(false);
                 }
@@ -1918,37 +1783,21 @@
                 });
                 if (!confirmed) return;
 
-                await openPromptDialog({
-                    title: t('dialog.adminPinTitle'),
-                    description: t('dialog.adminPinDescription'),
-                    placeholder: t('modal.pinPlaceholder'),
-                    inputType: 'password',
-                    inputMode: 'numeric',
-                    maxLength: 4,
-                    required: true,
-                    closeOnBackdrop: false,
-                    closeOnEsc: false,
-                    confirmText: t('action.deleteNode'),
-                    validate: (value) => (/^\d{4}$/.test(value) ? '' : t('dialog.pinFormatHint')),
-                    beforeResolve: async (pin) => {
-                        const currentServers = latestServersRef.current;
-                        const newList = currentServers.filter((item) => item.id !== server.id);
-                        const saveResult = await saveConfig(newList, pin);
-                        if (!saveResult.ok) {
-                            showSaveConfigError(saveResult.reason);
-                            return false;
-                        }
+                const currentServers = latestServersRef.current;
+                const newList = currentServers.filter((item) => item.id !== server.id);
+                const saveResult = await saveConfig(newList);
+                if (!saveResult.ok) {
+                    showSaveConfigError();
+                    return;
+                }
 
-                        const removedServer = currentServers.find((item) => item.id === server.id);
-                        if (removedServer) delete historyRef.current[removedServer.url];
-                        setServers(newList);
-                        if (selectedGpuRef && String(selectedGpuRef.serverId) === String(server.id)) {
-                            setSelectedGpuRef(null);
-                        }
-                        pushToast(t('notify.nodeDeleted', { name: server.name || '-' }), 'success');
-                        return true;
-                    }
-                });
+                const removedServer = currentServers.find((item) => item.id === server.id);
+                if (removedServer) delete historyRef.current[removedServer.url];
+                setServers(newList);
+                if (selectedGpuRef && String(selectedGpuRef.serverId) === String(server.id)) {
+                    setSelectedGpuRef(null);
+                }
+                pushToast(t('notify.nodeDeleted', { name: server.name || '-' }), 'success');
             };
 
             const handleSelectGpu = (serverId, gpuIndex, gpu) => {
@@ -2089,14 +1938,6 @@
                                         ) : null}
                                     </button>
 
-                                    <button
-                                        onClick={() => openGatewayTokenDialog()}
-                                        className={cx('muted-button px-4 py-2 text-sm font-medium', gatewayToken ? 'bg-[#deebe7] text-[#2d5a54] border-[#c8ddd8]' : '')}
-                                        title={t('dialog.gatewayTokenTitle')}
-                                    >
-                                        {gatewayToken ? t('action.gatewayTokenActive') : t('action.gatewayToken')}
-                                    </button>
-
                                     <a
                                         href="https://github.com/J4ck1e2000/Lab-Tutorial"
                                         target="_blank"
@@ -2130,7 +1971,6 @@
                                     <SummaryPill label={t('summary.nodes')} value={t('summary.totalSuffix', { count: totalServers || 0 })} tone="neutral" />
                                     <SummaryPill label={t('summary.refresh')} value={t('summary.refreshValue')} tone="default" />
                                     <SummaryPill label={t('summary.synced')} value={lastSyncedAt ? formatTime(lastSyncedAt) : '-'} tone="default" />
-                                    <SummaryPill label={t('summary.gateway')} value={gatewayToken ? t('summary.authenticated') : t('summary.notSet')} tone={gatewayToken ? 'positive' : 'warning'} />
                                     <SummaryPill label={t('summary.activeUsers')} value={`${activeUsersCount}`} tone="default" />
                                 </div>
                             </div>
@@ -2283,7 +2123,6 @@
                     <ActivityDrawer isOpen={isActivityOpen} onClose={() => setIsActivityOpen(false)} processes={allProcesses} t={t} />
                     <GpuDetailModal selectedGpuRef={selectedGpuRef} resolvedGpu={resolvedSelectedGpu} onClose={() => setSelectedGpuRef(null)} t={t} />
                     <ConfirmDialog config={dialogState && dialogState.type === 'confirm' ? dialogState : null} onResolve={resolveDialog} t={t} />
-                    <PromptDialog config={dialogState && dialogState.type === 'prompt' ? dialogState : null} onResolve={resolveDialog} t={t} />
                     <ToastStack toasts={toasts} onDismiss={dismissToast} t={t} />
 
                     {isModalOpen ? (
@@ -2326,32 +2165,6 @@
                                             value={modalData.url}
                                             disabled={isSavingServer}
                                             onChange={(e) => setModalData({ ...modalData, url: e.target.value })}
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">{t('modal.agentTokenOptional')}</label>
-                                        <input
-                                            type="text"
-                                            className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors font-mono"
-                                            placeholder={t('modal.agentTokenPlaceholder')}
-                                            value={modalData.token}
-                                            disabled={isSavingServer}
-                                            onChange={(e) => setModalData({ ...modalData, token: e.target.value })}
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">{t('modal.securityPin')}</label>
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            maxLength={4}
-                                            className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-4 py-3 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors font-mono tracking-[0.5em] text-center"
-                                            placeholder={t('modal.pinPlaceholder')}
-                                            value={modalData.pin}
-                                            disabled={isSavingServer}
-                                            onChange={(e) => setModalData({ ...modalData, pin: e.target.value.replace(/\D/g, '') })}
                                         />
                                     </div>
                                 </div>

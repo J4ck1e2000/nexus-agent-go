@@ -1,70 +1,99 @@
 package gateway
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 )
 
-func setupProxyTestRouter(t *testing.T) *gin.Engine {
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func setupProxyTestRouter(t *testing.T, proxyClient *http.Client) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
 	r := gin.New()
 	h := NewHandler(NewConfigStore(filepath.Join(t.TempDir(), "config.json")), VersionInfo{})
-	h.RegisterAPIRoutes(r, func(c *gin.Context) { c.Next() })
+	if proxyClient != nil {
+		h.proxyClient = proxyClient
+	}
+	h.RegisterAPIRoutes(r)
 	return r
 }
 
-func TestProxyRequest_ForwardsTargetAuthorization(t *testing.T) {
-	r := setupProxyTestRouter(t)
+func TestProxyRequest_ForwardsResponseWithoutAuthorizationHeader(t *testing.T) {
+	var forwardedAuthorization string
+	proxyClient := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			forwardedAuthorization = req.Header.Get("Authorization")
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"status":"ok"}`)),
+			}, nil
+		}),
+	}
+	r := setupProxyTestRouter(t, proxyClient)
 
-	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if got := req.Header.Get("Authorization"); got != "Bearer secret-token" {
-			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte("unauthorized"))
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	}))
-	defer target.Close()
-
-	req := httptest.NewRequest(http.MethodGet, "/api/proxy?url="+url.QueryEscape(target.URL), nil)
-	req.Header.Set("X-Target-Authorization", "Bearer secret-token")
+	req := httptest.NewRequest(http.MethodGet, "/api/proxy?url="+url.QueryEscape("http://example.com/metrics"), nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status mismatch: got=%d want=%d", w.Code, http.StatusOK)
 	}
-	if body := w.Body.String(); body != "ok" {
-		t.Fatalf("body mismatch: got=%q want=%q", body, "ok")
+	if contentType := w.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Fatalf("content type mismatch: got=%q want=%q", contentType, "application/json")
+	}
+	var payload map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if got := payload["status"]; got != "ok" {
+		t.Fatalf("status mismatch in body: got=%q want=%q", got, "ok")
+	}
+	if forwardedAuthorization != "" {
+		t.Fatalf("unexpected authorization header forwarded: %q", forwardedAuthorization)
 	}
 }
 
-func TestProxyRequest_RejectsInvalidTargetAuthorization(t *testing.T) {
-	r := setupProxyTestRouter(t)
+func TestProxyRequest_RejectsInvalidURL(t *testing.T) {
+	r := setupProxyTestRouter(t, nil)
 
-	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	}))
-	defer target.Close()
-
-	req := httptest.NewRequest(http.MethodGet, "/api/proxy?url="+url.QueryEscape(target.URL), nil)
-	req.Header.Set("X-Target-Authorization", "Basic abc")
+	req := httptest.NewRequest(http.MethodGet, "/api/proxy?url="+url.QueryEscape("ftp://example.com"), nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status mismatch: got=%d want=%d", w.Code, http.StatusBadRequest)
 	}
-	if body := w.Body.String(); body != "{\"error\":\"invalid_target_authorization\"}" {
+	if body := w.Body.String(); body != "{\"error\":\"invalid_url\"}" {
+		t.Fatalf("body mismatch: got=%q", body)
+	}
+}
+
+func TestProxyRequest_MissingURLParameter(t *testing.T) {
+	r := setupProxyTestRouter(t, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxy", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status mismatch: got=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+	if body := w.Body.String(); body != "{\"error\":\"Missing 'url' parameter\"}" {
 		t.Fatalf("body mismatch: got=%q", body)
 	}
 }

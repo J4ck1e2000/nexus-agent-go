@@ -8,8 +8,6 @@ type AgentConfig struct {
 	Name string `json:"name"`
 	// URL 为节点 Agent 地址。
 	URL string `json:"url"`
-	// Token 为 Agent Bearer Token（可选）。
-	Token string `json:"token,omitempty"`
 }
 
 // ProcessInfo 表示进程级监控数据。

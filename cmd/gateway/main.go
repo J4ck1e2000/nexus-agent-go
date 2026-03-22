@@ -13,7 +13,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"nexus-agent-go/internal/auth"
 	"nexus-agent-go/internal/gateway"
 )
 
@@ -34,9 +33,8 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	gatewayToken := strings.TrimSpace(os.Getenv("NEXUS_GATEWAY_TOKEN"))
 	handler := gateway.NewHandler(gateway.NewConfigStore(configFile), version)
-	handler.RegisterAPIRoutes(r, auth.BearerTokenMiddleware(gatewayToken))
+	handler.RegisterAPIRoutes(r)
 	handler.RegisterStaticRoutes(r, webDir)
 
 	srv := &http.Server{
