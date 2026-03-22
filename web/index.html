@@ -855,13 +855,13 @@
 
         const SectionCard = ({ eyebrow, title, subtitle, right, children, className = '' }) => (
             <section className={cx('soft-panel p-6 md:p-7', className)}>
-                <div className="flex items-start justify-between gap-4 mb-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-5">
                     <div>
                         {eyebrow ? <div className="section-eyebrow mb-2">{eyebrow}</div> : null}
                         <h2 className="text-xl font-semibold tracking-tight text-[#1c1a18]">{title}</h2>
                         {subtitle ? <p className="text-sm text-[#6b665e] mt-1">{subtitle}</p> : null}
                     </div>
-                    {right ? <div>{right}</div> : null}
+                    {right ? <div className="shrink-0">{right}</div> : null}
                 </div>
                 {children}
             </section>
@@ -2078,15 +2078,6 @@
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <button
-                                        onClick={() => setLanguage((prev) => (prev === 'en' ? 'zh' : 'en'))}
-                                        className="muted-button px-3 py-2 text-sm font-medium"
-                                        title={language === 'en' ? t('action.langSwitchTitleToZh') : t('action.langSwitchTitleToEn')}
-                                        aria-label={language === 'en' ? t('action.langSwitchAriaToZh') : t('action.langSwitchAriaToEn')}
-                                    >
-                                        {language === 'en' ? '中文' : 'EN'}
-                                    </button>
-
-                                    <button
                                         onClick={() => setIsActivityOpen(true)}
                                         className="muted-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
                                         title={t('misc.includesVramUsers')}
@@ -2106,10 +2097,6 @@
                                         {gatewayToken ? t('action.gatewayTokenActive') : t('action.gatewayToken')}
                                     </button>
 
-                                    <button onClick={() => setIsModalOpen(true)} className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2">
-                                        <Icons.Plus className="w-4 h-4" /> {t('action.addNode')}
-                                    </button>
-
                                     <a
                                         href="https://github.com/J4ck1e2000/Lab-Tutorial"
                                         target="_blank"
@@ -2119,6 +2106,15 @@
                                     >
                                         <Icons.Github className="w-4 h-4" />
                                     </a>
+
+                                    <button
+                                        onClick={() => setLanguage((prev) => (prev === 'en' ? 'zh' : 'en'))}
+                                        className="muted-button px-3 py-2 text-sm font-medium"
+                                        title={language === 'en' ? t('action.langSwitchTitleToZh') : t('action.langSwitchTitleToEn')}
+                                        aria-label={language === 'en' ? t('action.langSwitchAriaToZh') : t('action.langSwitchAriaToEn')}
+                                    >
+                                        {language === 'en' ? '中文' : 'EN'}
+                                    </button>
                                 </div>
                             </div>
                         </header>
@@ -2163,6 +2159,11 @@
                                     eyebrow={t('app.nodeSummaryEyebrow')}
                                     title={t('app.nodeSummaryTitle')}
                                     subtitle={t('app.nodeSummarySubtitle')}
+                                    right={
+                                        <button onClick={() => setIsModalOpen(true)} className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2">
+                                            <Icons.Plus className="w-4 h-4" /> {t('action.addNode')}
+                                        </button>
+                                    }
                                 >
                                     {servers.length === 0 ? (
                                         <div className="soft-panel-subtle p-10 text-center">
