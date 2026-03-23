@@ -24,19 +24,26 @@ const authUserContextKey = "auth_user"
 
 // Handler 聚合网关 API 依赖与处理逻辑。
 type Handler struct {
-	store       *ConfigStore
-	auth        *AuthService
-	versionInfo VersionInfo
-	proxyClient *http.Client
+	store            *ConfigStore
+	auth             *AuthService
+	versionInfo      VersionInfo
+	proxyClient      *http.Client
+	nodeStateService *NodeStateService
 }
 
 // NewHandler 创建网关请求处理器。
-func NewHandler(store *ConfigStore, auth *AuthService, versionInfo VersionInfo) *Handler {
+func NewHandler(store *ConfigStore, auth *AuthService, versionInfo VersionInfo, nodeStateServices ...*NodeStateService) *Handler {
+	var nodeStateService *NodeStateService
+	if len(nodeStateServices) > 0 {
+		nodeStateService = nodeStateServices[0]
+	}
+
 	return &Handler{
-		store:       store,
-		auth:        auth,
-		versionInfo: versionInfo,
-		proxyClient: &http.Client{Timeout: 3 * time.Second},
+		store:            store,
+		auth:             auth,
+		versionInfo:      versionInfo,
+		proxyClient:      &http.Client{Timeout: 3 * time.Second},
+		nodeStateService: nodeStateService,
 	}
 }
 
@@ -51,6 +58,7 @@ func (h *Handler) RegisterAPIRoutes(r *gin.Engine) {
 	authorized.Use(h.authMiddleware())
 	authorized.GET("/me", h.getMe)
 	authorized.GET("/config", h.getConfig)
+	authorized.GET("/nodes/overview", h.getNodesOverview)
 	authorized.GET("/proxy", h.proxyRequest)
 
 	admin := authorized.Group("")
@@ -202,6 +210,31 @@ func (h *Handler) getConfig(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, configs)
+}
+
+// getNodesOverview 返回所有配置节点的聚合状态（优先 Redis 热状态）。
+func (h *Handler) getNodesOverview(c *gin.Context) {
+	if h.nodeStateService != nil {
+		overview, err := h.nodeStateService.GetNodesOverview(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+			return
+		}
+		c.JSON(http.StatusOK, overview)
+		return
+	}
+
+	// 兜底路径：未注入状态服务时，仍返回配置节点的 pending 结构。
+	configs, err := h.store.Load()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		return
+	}
+	overview := make([]NodeOverview, 0, len(configs))
+	for _, node := range configs {
+		overview = append(overview, nodeStateToOverview(pendingNodeState(node)))
+	}
+	c.JSON(http.StatusOK, overview)
 }
 
 // saveConfig 新增节点配置（兼容旧版数组写入）。
