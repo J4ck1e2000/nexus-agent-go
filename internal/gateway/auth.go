@@ -13,9 +13,23 @@ import (
 
 const defaultTokenTTL = 24 * time.Hour
 
+const (
+	minUsernameLength = 3
+	maxUsernameLength = 64
+	minPasswordLength = 6
+)
+
 var (
 	// ErrInvalidCredentials 表示用户名或密码错误。
 	ErrInvalidCredentials = errors.New("invalid_credentials")
+	// ErrInvalidRegisterPayload 表示注册参数非法。
+	ErrInvalidRegisterPayload = errors.New("invalid_register_payload")
+	// ErrInvalidUsername 表示用户名非法。
+	ErrInvalidUsername = errors.New("invalid_username")
+	// ErrPasswordTooShort 表示密码长度不足。
+	ErrPasswordTooShort = errors.New("password_too_short")
+	// ErrUserAlreadyExists 表示用户名已存在。
+	ErrUserAlreadyExists = errors.New("user_already_exists")
 	// ErrUnauthorized 表示 token 缺失或无效。
 	ErrUnauthorized = errors.New("unauthorized")
 )
@@ -86,6 +100,71 @@ func (s *AuthService) Authenticate(username, password string) (string, *AuthUser
 		Username: user.Username,
 		Role:     user.Role,
 	}, nil
+}
+
+// Register 创建普通用户账号。
+func (s *AuthService) Register(username, password string) (*AuthUser, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("auth service not initialized")
+	}
+
+	username = strings.TrimSpace(username)
+	if !isValidRegisterUsername(username) {
+		return nil, ErrInvalidUsername
+	}
+	if len(password) < minPasswordLength {
+		return nil, ErrPasswordTooShort
+	}
+
+	var existing User
+	err := s.db.Where("username = ?", username).Take(&existing).Error
+	if err == nil {
+		return nil, ErrUserAlreadyExists
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("query user failed: %w", err)
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password failed: %w", err)
+	}
+
+	user := User{
+		Username:     username,
+		PasswordHash: string(hashed),
+		Role:         RoleUser,
+	}
+	if err := s.db.Create(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, ErrUserAlreadyExists
+		}
+		return nil, fmt.Errorf("create user failed: %w", err)
+	}
+
+	return &AuthUser{
+		ID:       user.ID,
+		Username: user.Username,
+		Role:     user.Role,
+	}, nil
+}
+
+func isValidRegisterUsername(username string) bool {
+	if len(username) < minUsernameLength || len(username) > maxUsernameLength {
+		return false
+	}
+
+	for i := 0; i < len(username); i++ {
+		ch := username[i]
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') {
+			continue
+		}
+		if ch == '.' || ch == '_' || ch == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // ParseToken 解析 token 并返回当前用户信息。

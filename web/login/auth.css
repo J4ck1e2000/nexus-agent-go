@@ -82,6 +82,11 @@ body {
     background: #fcfaf6;
 }
 
+.auth-input:disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
+}
+
 .primary-button {
     background: #26231f;
     color: #f8f4ed;
@@ -117,6 +122,68 @@ body {
 
 .error-text {
     color: #8b4b45;
+}
+
+.success-text {
+    color: #2f6d63;
+}
+
+.switch-link {
+    color: #5f9189;
+    font-weight: 600;
+    text-decoration: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    transition: color 160ms ease;
+}
+
+.switch-link:hover {
+    color: #456f69;
+    text-decoration: underline;
+}
+
+.switch-link:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    text-decoration: none;
+}
+
+.mode-toggle {
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px;
+    gap: 4px;
+}
+
+.mode-toggle-button {
+    border: 0;
+    background: transparent;
+    color: #6d665d;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 160ms ease;
+}
+
+.mode-toggle-button:hover {
+    color: #3a3631;
+}
+
+.mode-toggle-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.mode-toggle-button.is-active {
+    background: #26231f;
+    color: #f8f4ed;
+    box-shadow: 0 2px 8px rgba(38, 35, 31, 0.18);
 }
 
 .demo-note {

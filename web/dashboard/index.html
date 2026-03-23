@@ -251,6 +251,7 @@
 
         const LANGUAGE_STORAGE_KEY = 'nexus_language';
         const TOKEN_STORAGE_KEY = 'nexus_auth_token';
+        const USER_STORAGE_KEY = 'nexus_auth_user';
         const DEFAULT_LANGUAGE = 'en';
 
         const translations = {
@@ -282,6 +283,7 @@
                 action: {
                     gpuUsers: 'GPU Users',
                     addNode: 'Add Node',
+                    logout: 'Log out',
                     clearFilter: 'Clear',
                     connectNode: 'Connect Node',
                     connectAgent: 'Connect Agent',
@@ -517,6 +519,7 @@
                 action: {
                     gpuUsers: 'GPU 用户',
                     addNode: '添加节点',
+                    logout: '退出登录',
                     clearFilter: '清空',
                     connectNode: '连接节点',
                     connectAgent: '连接 Agent',
@@ -2559,9 +2562,15 @@
             const clearSessionAndRedirect = useCallback(() => {
                 try {
                     localStorage.removeItem(TOKEN_STORAGE_KEY);
+                    localStorage.removeItem(USER_STORAGE_KEY);
                 } catch (e) {}
                 window.location.href = '/';
             }, []);
+
+            const handleLogout = useCallback(() => {
+                setCurrentUser(null);
+                clearSessionAndRedirect();
+            }, [clearSessionAndRedirect]);
 
             const authFetch = useCallback(async (input, init = {}) => {
                 const token = localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -3017,6 +3026,12 @@
                                         aria-label={language === 'en' ? t('action.langSwitchAriaToZh') : t('action.langSwitchAriaToEn')}
                                     >
                                         {language === 'en' ? '中文' : 'EN'}
+                                    </button>
+                                    <button
+                                        onClick={handleLogout}
+                                        className="muted-button px-4 py-2 text-sm font-medium"
+                                    >
+                                        {t('action.logout')}
                                     </button>
                                 </div>
                             </div>

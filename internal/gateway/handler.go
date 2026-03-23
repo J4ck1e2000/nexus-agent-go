@@ -44,6 +44,7 @@ func NewHandler(store *ConfigStore, auth *AuthService, versionInfo VersionInfo) 
 func (h *Handler) RegisterAPIRoutes(r *gin.Engine) {
 	api := r.Group("/api")
 	api.GET("/version", h.getVersion)
+	api.POST("/register", h.register)
 	api.POST("/login", h.login)
 
 	authorized := api.Group("")
@@ -107,6 +108,46 @@ func (h *Handler) getVersion(c *gin.Context) {
 type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+type registerRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// register 创建普通用户账号。
+func (h *Handler) register(c *gin.Context) {
+	if h.auth == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		return
+	}
+
+	var req registerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+		return
+	}
+
+	user, err := h.auth.Register(req.Username, req.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidUsername):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_username"})
+		case errors.Is(err, ErrPasswordTooShort):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "password_too_short"})
+		case errors.Is(err, ErrInvalidRegisterPayload):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+		case errors.Is(err, ErrUserAlreadyExists):
+			c.JSON(http.StatusConflict, gin.H{"error": "user_already_exists"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"user": user,
+	})
 }
 
 // login 校验用户名密码并下发 token。
