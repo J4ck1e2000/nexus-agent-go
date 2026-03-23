@@ -1,17 +1,85 @@
-const { useState } = React;
+const { useEffect, useState } = React;
+
+const TOKEN_STORAGE_KEY = 'nexus_auth_token';
 
 const LoginApp = () => {
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = (event) => {
+    useEffect(() => {
+        const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+        if (!token) return;
+
+        const checkSession = async () => {
+            try {
+                const res = await fetch('/api/me', {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+                if (res.ok) {
+                    window.location.href = '/dashboard';
+                    return;
+                }
+            } catch (e) {}
+
+            localStorage.removeItem(TOKEN_STORAGE_KEY);
+        };
+
+        checkSession();
+    }, []);
+
+    const handleSubmit = async (event) => {
         event.preventDefault();
         if (isSubmitting) return;
+
+        const normalizedUsername = username.trim();
+        if (!normalizedUsername || !password) {
+            setError('Username and password are required.');
+            return;
+        }
+
         setError('');
         setIsSubmitting(true);
-        window.location.href = '/dashboard';
+
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: normalizedUsername,
+                    password,
+                }),
+            });
+
+            const payload = await response.json().catch(() => null);
+            if (!response.ok) {
+                if (response.status === 401) {
+                    setError('Invalid username or password.');
+                } else if (payload && payload.error) {
+                    setError(`Login failed: ${payload.error}`);
+                } else {
+                    setError('Login failed. Please try again.');
+                }
+                return;
+            }
+
+            if (!payload || !payload.token) {
+                setError('Login failed: empty token.');
+                return;
+            }
+
+            localStorage.setItem(TOKEN_STORAGE_KEY, payload.token);
+            window.location.href = '/dashboard';
+        } catch (requestError) {
+            setError('Unable to connect to server. Please retry.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -32,19 +100,19 @@ const LoginApp = () => {
 
                 <form className="mt-6 space-y-3.5" onSubmit={handleSubmit} noValidate>
                     <div>
-                        <label htmlFor="email" className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">
-                            Email
+                        <label htmlFor="username" className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">
+                            Username
                         </label>
                         <input
-                            id="email"
-                            type="email"
-                            autoComplete="email"
-                            value={email}
+                            id="username"
+                            type="text"
+                            autoComplete="username"
+                            value={username}
                             onChange={(event) => {
-                                setEmail(event.target.value);
+                                setUsername(event.target.value);
                                 if (error) setError('');
                             }}
-                            placeholder="you@company.com"
+                            placeholder="admin"
                             className="auth-input"
                         />
                     </div>
@@ -75,10 +143,6 @@ const LoginApp = () => {
                         {isSubmitting ? 'Signing in...' : 'Sign in'}
                     </button>
                 </form>
-
-                <div className="mt-4 soft-panel-subtle demo-note px-3 py-2.5 text-xs">
-                    Demo only - authentication is not connected yet
-                </div>
 
                 <div className="mt-5 text-[11px] text-[#777066] leading-relaxed">
                     Monitor distributed GPU nodes with a calm, real-time dashboard.

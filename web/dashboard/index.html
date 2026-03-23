@@ -143,7 +143,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo } = React;
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
         const Icons = {
             Github: ({ className = "w-4 h-4" }) => (
@@ -250,6 +250,7 @@
         };
 
         const LANGUAGE_STORAGE_KEY = 'nexus_language';
+        const TOKEN_STORAGE_KEY = 'nexus_auth_token';
         const DEFAULT_LANGUAGE = 'en';
 
         const translations = {
@@ -1451,7 +1452,7 @@
             );
         };
 
-        const ServerCard = ({ server, onDelete, onSelectGpu, t }) => {
+        const ServerCard = ({ server, onDelete, onSelectGpu, canManage, t }) => {
             const isOffline = server.status === 'offline';
             const data = server.data || {};
             const gpus = Array.isArray(data.gpus) ? data.gpus : [];
@@ -1479,13 +1480,15 @@
                             </div>
                             <div className="text-[11px] font-mono text-[#746e66] break-all">{ipOrHost}</div>
                         </div>
-                        <button
-                            onClick={() => onDelete(server)}
-                            className="muted-button p-2 text-[#746d64] hover:text-[#3d3732]"
-                            title={t('action.deleteNode')}
-                        >
-                            <Icons.Trash2 className="w-4 h-4" />
-                        </button>
+                        {canManage ? (
+                            <button
+                                onClick={() => onDelete(server)}
+                                className="muted-button p-2 text-[#746d64] hover:text-[#3d3732]"
+                                title={t('action.deleteNode')}
+                            >
+                                <Icons.Trash2 className="w-4 h-4" />
+                            </button>
+                        ) : null}
                     </div>
 
                     <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 mt-4">
@@ -2121,7 +2124,7 @@
             </div>
         );
 
-        const NodeListItem = ({ server, isSelected, onSelect, onDelete, t }) => {
+        const NodeListItem = ({ server, isSelected, onSelect, onDelete, canManage, t }) => {
             const tierToneMap = {
                 highlyAvailable: 'bg-[#dcefe5] text-[#2f655a] border-[#c8dfd4]',
                 available: 'bg-[#deece8] text-[#345f59] border-[#cadfd9]',
@@ -2165,17 +2168,19 @@
                             <span className={cx('px-2 py-1 rounded-full border text-[10px] font-semibold whitespace-nowrap', tierToneMap[tier] || tierToneMap.offline)}>
                                 {tierLabel}
                             </span>
-                            <button
-                                type="button"
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    onDelete(server);
-                                }}
-                                className="muted-button p-1.5 text-[#746d64]"
-                                title={t('action.deleteNode')}
-                            >
-                                <Icons.Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {canManage ? (
+                                <button
+                                    type="button"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        onDelete(server);
+                                    }}
+                                    className="muted-button p-1.5 text-[#746d64]"
+                                    title={t('action.deleteNode')}
+                                >
+                                    <Icons.Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                            ) : null}
                         </div>
                     </div>
 
@@ -2488,6 +2493,8 @@
             const [isActivityOpen, setIsActivityOpen] = useState(false);
             const [modalData, setModalData] = useState({ name: "", url: "http://" });
             const [language, setLanguage] = useState(() => getInitialLanguage());
+            const [currentUser, setCurrentUser] = useState(null);
+            const [isAuthLoading, setIsAuthLoading] = useState(true);
             const [selectedServerId, setSelectedServerId] = useState(null);
             const [nodeQuery, setNodeQuery] = useState('');
             const [sortMode, setSortMode] = useState('availability');
@@ -2502,6 +2509,7 @@
             const toastTimersRef = useRef(new Map());
             const [isSavingServer, setIsSavingServer] = useState(false);
             const t = useMemo(() => createTranslator(language), [language]);
+            const isAdmin = currentUser && currentUser.role === 'admin';
             const resolvedSelectedGpu = useResolvedSelectedGpu(selectedGpuRef, servers);
 
             useEffect(() => {
@@ -2548,6 +2556,31 @@
                 return id;
             };
 
+            const clearSessionAndRedirect = useCallback(() => {
+                try {
+                    localStorage.removeItem(TOKEN_STORAGE_KEY);
+                } catch (e) {}
+                window.location.href = '/';
+            }, []);
+
+            const authFetch = useCallback(async (input, init = {}) => {
+                const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+                if (!token) {
+                    clearSessionAndRedirect();
+                    throw new Error('unauthorized');
+                }
+
+                const headers = new Headers(init.headers || {});
+                headers.set('Authorization', `Bearer ${token}`);
+
+                const response = await fetch(input, { ...init, headers });
+                if (response.status === 401) {
+                    clearSessionAndRedirect();
+                    throw new Error('unauthorized');
+                }
+                return response;
+            }, [clearSessionAndRedirect]);
+
             const openDialog = (config) => new Promise((resolve) => {
                 const previousResolver = dialogResolverRef.current;
                 if (typeof previousResolver === 'function') previousResolver(null);
@@ -2582,50 +2615,73 @@
             });
 
             useEffect(() => {
+                const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+                if (!token) {
+                    clearSessionAndRedirect();
+                    return undefined;
+                }
+
+                let disposed = false;
+                const bootstrapUser = async () => {
+                    try {
+                        const res = await authFetch('/api/me');
+                        if (!res.ok) {
+                            throw new Error('load_me_failed');
+                        }
+                        const profile = await res.json();
+                        if (disposed) return;
+                        setCurrentUser(profile);
+                    } catch (error) {
+                        if (!disposed) clearSessionAndRedirect();
+                    } finally {
+                        if (!disposed) setIsAuthLoading(false);
+                    }
+                };
+                bootstrapUser();
+
+                return () => {
+                    disposed = true;
+                };
+            }, [authFetch, clearSessionAndRedirect]);
+
+            useEffect(() => {
+                if (!currentUser) return;
+
+                let disposed = false;
                 const loadConfig = async () => {
                     try {
-                        const res = await fetch('/api/config');
-                        if (res.ok) {
-                            const data = await res.json();
-                            setServers(data.map(normalizeServerConfig));
-                        } else {
-                            throw new Error();
+                        const res = await authFetch('/api/config');
+                        if (!res.ok) {
+                            throw new Error('load_config_failed');
                         }
-                    } catch {
-                        const saved = localStorage.getItem('nexus_servers_fallback');
-                        if (saved) {
-                            setServers(JSON.parse(saved).map(normalizeServerConfig));
+                        const data = await res.json();
+                        if (disposed) return;
+                        setServers(data.map(normalizeServerConfig));
+                    } catch (error) {
+                        if (!disposed) {
+                            setServers([]);
+                            pushToast(t('notify.saveConfigFailed'), 'error');
                         }
                     }
                 };
                 loadConfig();
-            }, []);
+
+                return () => {
+                    disposed = true;
+                };
+            }, [authFetch, currentUser, t]);
 
             useEffect(() => {
                 latestServersRef.current = servers;
             }, [servers]);
-
-            const saveConfig = async (newServersList) => {
-                const configToSave = newServersList.map((s) => ({ id: s.id, name: s.name, url: s.url }));
-                try {
-                    const res = await fetch('/api/config', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(configToSave),
-                    });
-                    if (res.ok) return { ok: true };
-                    return { ok: false, reason: 'server_error' };
-                } catch {
-                    localStorage.setItem('nexus_servers_fallback', JSON.stringify(configToSave));
-                    return { ok: true };
-                }
-            };
 
             const showSaveConfigError = () => {
                 pushToast(t('notify.saveConfigFailed'), 'error');
             };
 
             useEffect(() => {
+                if (!currentUser) return;
+
                 let disposed = false;
                 const inFlightControllers = new Set();
                 const inFlightTimeouts = new Set();
@@ -2649,11 +2705,14 @@
                             const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
                             let res;
                             try {
-                                res = await fetch(proxyUrl, {
+                                res = await authFetch(proxyUrl, {
                                     signal: controller.signal,
                                 });
-                                if (res.status !== 200) throw new Error();
-                            } catch {
+                                if (res.status !== 200) throw new Error('proxy_failed');
+                            } catch (proxyErr) {
+                                if (proxyErr && proxyErr.message === 'unauthorized') {
+                                    throw proxyErr;
+                                }
                                 res = await fetch(targetUrl, {
                                     signal: controller.signal,
                                 });
@@ -2712,37 +2771,42 @@
                     inFlightTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
                     inFlightControllers.forEach((controller) => controller.abort());
                 };
-            }, []);
+            }, [authFetch, currentUser]);
 
             const addServer = async () => {
-                if (isSavingServer) return;
+                if (!isAdmin || isSavingServer) return;
                 setIsSavingServer(true);
                 try {
-                    const newServer = {
-                        id: Date.now(),
-                        name: modalData.name,
-                        url: modalData.url,
-                        status: 'pending',
-                        data: null,
-                        metrics: null,
-                        lastSeenAt: null,
-                    };
-                    const newList = [...latestServersRef.current, newServer];
-                    const saveResult = await saveConfig(newList);
-                    if (!saveResult.ok) {
+                    const name = modalData.name.trim();
+                    const url = modalData.url.trim();
+                    if (!name || !url) {
                         showSaveConfigError();
                         return;
                     }
-                    setServers(newList);
+
+                    const res = await authFetch('/api/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, url }),
+                    });
+                    if (!res.ok) {
+                        showSaveConfigError();
+                        return;
+                    }
+
+                    const createdNode = await res.json();
+                    setServers((prev) => [...prev, normalizeServerConfig(createdNode)]);
                     setIsModalOpen(false);
                     setModalData({ name: "", url: "http://" });
+                } catch (error) {
+                    showSaveConfigError();
                 } finally {
                     setIsSavingServer(false);
                 }
             };
 
             const deleteServer = async (server) => {
-                if (!server) return;
+                if (!isAdmin || !server) return;
 
                 const confirmed = await openConfirmDialog({
                     title: t('dialog.deleteNodeTitle'),
@@ -2752,14 +2816,22 @@
                 });
                 if (!confirmed) return;
 
-                const currentServers = latestServersRef.current;
-                const newList = currentServers.filter((item) => item.id !== server.id);
-                const saveResult = await saveConfig(newList);
-                if (!saveResult.ok) {
+                let deleteRes;
+                try {
+                    deleteRes = await authFetch(`/api/config/${server.id}`, {
+                        method: 'DELETE',
+                    });
+                } catch (error) {
+                    showSaveConfigError();
+                    return;
+                }
+                if (!deleteRes.ok) {
                     showSaveConfigError();
                     return;
                 }
 
+                const currentServers = latestServersRef.current;
+                const newList = currentServers.filter((item) => item.id !== server.id);
                 const removedServer = currentServers.find((item) => item.id === server.id);
                 if (removedServer) delete historyRef.current[removedServer.url];
                 setServers(newList);
@@ -2897,6 +2969,15 @@
                 ];
             }, [selectedServer, t]);
 
+            if (isAuthLoading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center text-sm text-[#6f685f]">
+                        {language === 'zh' ? '正在验证登录状态...' : 'Checking session...'}
+                    </div>
+                );
+            }
+            if (!currentUser) return null;
+
             return (
                 <div className="min-h-screen pb-12">
                     <div className="max-w-[1480px] mx-auto px-4 sm:px-6 py-6 md:py-8">
@@ -2912,12 +2993,15 @@
                                 <div className="flex flex-wrap items-center gap-2">
                                     <SummaryPill label={t('summary.synced')} value={lastSyncedAt ? formatTime(lastSyncedAt) : '-'} tone="default" />
                                     <SummaryPill label={t('summary.refresh')} value={t('summary.refreshValue')} tone="default" />
-                                    <button
-                                        onClick={() => setIsModalOpen(true)}
-                                        className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
-                                    >
-                                        <Icons.Plus className="w-4 h-4" /> {t('action.addNode')}
-                                    </button>
+                                    <SummaryPill label={language === 'zh' ? '角色' : 'Role'} value={currentUser.role} tone={isAdmin ? 'positive' : 'neutral'} />
+                                    {isAdmin ? (
+                                        <button
+                                            onClick={() => setIsModalOpen(true)}
+                                            className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
+                                        >
+                                            <Icons.Plus className="w-4 h-4" /> {t('action.addNode')}
+                                        </button>
+                                    ) : null}
                                     <button
                                         onClick={() => setIsActivityOpen(true)}
                                         className="muted-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
@@ -2962,9 +3046,11 @@
                                         <div className="soft-panel-subtle p-5 text-center">
                                             <div className="text-sm font-semibold text-[#2d2a27] mb-1">{t('empty.noConfiguredNodes')}</div>
                                             <div className="text-xs text-[#6e675f] mb-3">{t('empty.addFirstNode')}</div>
-                                            <button onClick={() => setIsModalOpen(true)} className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2">
-                                                <Icons.Plus className="w-4 h-4" /> {t('action.connectNode')}
-                                            </button>
+                                            {isAdmin ? (
+                                                <button onClick={() => setIsModalOpen(true)} className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2">
+                                                    <Icons.Plus className="w-4 h-4" /> {t('action.connectNode')}
+                                                </button>
+                                            ) : null}
                                         </div>
                                     ) : filteredServers.length === 0 ? (
                                         <div className="soft-panel-subtle p-5 text-center">
@@ -2981,6 +3067,7 @@
                                                 isSelected={String(selectedServerId) === String(server.id)}
                                                 onSelect={(item) => setSelectedServerId(item.id)}
                                                 onDelete={deleteServer}
+                                                canManage={isAdmin}
                                                 t={t}
                                             />
                                         ))
@@ -3061,7 +3148,7 @@
                     <ConfirmDialog config={dialogState && dialogState.type === 'confirm' ? dialogState : null} onResolve={resolveDialog} t={t} />
                     <ToastStack toasts={toasts} onDismiss={dismissToast} t={t} />
 
-                    {isModalOpen ? (
+                    {isModalOpen && isAdmin ? (
                         <div className="fixed inset-0 z-50 bg-[#2f2922]/22 backdrop-blur-[2px] p-4 flex items-center justify-center fade-enter">
                             <div className="soft-panel w-full max-w-lg p-6 md:p-7">
                                 <div className="flex items-center justify-between mb-5">

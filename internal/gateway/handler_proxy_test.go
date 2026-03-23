@@ -6,30 +6,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
-}
-
-func setupProxyTestRouter(t *testing.T, proxyClient *http.Client) *gin.Engine {
-	t.Helper()
-	gin.SetMode(gin.TestMode)
-
-	r := gin.New()
-	h := NewHandler(NewConfigStore(filepath.Join(t.TempDir(), "config.json")), VersionInfo{})
-	if proxyClient != nil {
-		h.proxyClient = proxyClient
-	}
-	h.RegisterAPIRoutes(r)
-	return r
 }
 
 func TestProxyRequest_ForwardsResponseWithoutAuthorizationHeader(t *testing.T) {
@@ -44,9 +28,11 @@ func TestProxyRequest_ForwardsResponseWithoutAuthorizationHeader(t *testing.T) {
 			}, nil
 		}),
 	}
-	r := setupProxyTestRouter(t, proxyClient)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/proxy?url="+url.QueryEscape("http://example.com/metrics"), nil)
+	r := setupGatewayTestRouter(t, proxyClient)
+	token := loginAndGetToken(t, r, "user", "user123")
+
+	req := authorizedRequest(http.MethodGet, "/api/proxy?url="+url.QueryEscape("http://example.com/metrics"), nil, token)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -69,9 +55,10 @@ func TestProxyRequest_ForwardsResponseWithoutAuthorizationHeader(t *testing.T) {
 }
 
 func TestProxyRequest_RejectsInvalidURL(t *testing.T) {
-	r := setupProxyTestRouter(t, nil)
+	r := setupGatewayTestRouter(t, nil)
+	token := loginAndGetToken(t, r, "user", "user123")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/proxy?url="+url.QueryEscape("ftp://example.com"), nil)
+	req := authorizedRequest(http.MethodGet, "/api/proxy?url="+url.QueryEscape("ftp://example.com"), nil, token)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -84,9 +71,10 @@ func TestProxyRequest_RejectsInvalidURL(t *testing.T) {
 }
 
 func TestProxyRequest_MissingURLParameter(t *testing.T) {
-	r := setupProxyTestRouter(t, nil)
+	r := setupGatewayTestRouter(t, nil)
+	token := loginAndGetToken(t, r, "user", "user123")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/proxy", nil)
+	req := authorizedRequest(http.MethodGet, "/api/proxy", nil, token)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

@@ -20,7 +20,18 @@ import (
 func main() {
 	port := envOr("PORT", "3000")
 	webDir := resolveWebDir(envOr("WEB_DIR", "web"))
-	configFile := envOr("CONFIG_FILE", filepath.Join(webDir, "config.json"))
+	legacyConfigFile := envOr("CONFIG_FILE", filepath.Join(webDir, "config.json"))
+	jwtSecret := envOr("JWT_SECRET", "nexus-agent-jwt-secret")
+
+	db, err := gateway.InitMySQLFromEnv()
+	if err != nil {
+		log.Fatalf("init mysql failed: %v", err)
+	}
+
+	store := gateway.NewConfigStore(db)
+	if err := store.BootstrapFromJSONIfEmpty(legacyConfigFile); err != nil {
+		log.Printf("bootstrap from legacy config skipped: %v", err)
+	}
 
 	version := gateway.VersionInfo{
 		Version:     time.Now().Unix(),
@@ -33,7 +44,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	handler := gateway.NewHandler(gateway.NewConfigStore(configFile), version)
+	handler := gateway.NewHandler(store, gateway.NewAuthService(db, jwtSecret), version)
 	handler.RegisterAPIRoutes(r)
 	handler.RegisterStaticRoutes(r, webDir)
 
@@ -46,7 +57,7 @@ func main() {
 	go func() {
 		log.Printf("Nexus Agent Go Gateway running at http://0.0.0.0:%s", port)
 		log.Printf("Web directory: %s", webDir)
-		log.Printf("Config file: %s", configFile)
+		log.Printf("Legacy config bootstrap file: %s", legacyConfigFile)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("gateway server failed: %v", err)
 		}
