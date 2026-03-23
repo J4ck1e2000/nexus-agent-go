@@ -72,6 +72,44 @@
             background: #f2eee7;
         }
 
+        .lang-toggle {
+            display: inline-flex;
+            align-items: center;
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .lang-toggle-button {
+            border: 0;
+            background: transparent;
+            color: #6d665d;
+            border-radius: 999px;
+            padding: 7px 13px;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1;
+            cursor: pointer;
+            transition: all 160ms ease;
+        }
+
+        .lang-toggle-button:hover {
+            color: #3a3631;
+        }
+
+        .lang-toggle-button:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(95, 145, 137, 0.18);
+        }
+
+        .lang-toggle-button.is-active {
+            background: #26231f;
+            color: #f8f4ed;
+            box-shadow: 0 2px 8px rgba(38, 35, 31, 0.18);
+        }
+
         .primary-button {
             background: #26231f;
             color: #f8f4ed;
@@ -250,6 +288,7 @@
         };
 
         const LANGUAGE_STORAGE_KEY = 'nexus_language';
+        const LEGACY_LANGUAGE_STORAGE_KEY = 'nexus_auth_language';
         const TOKEN_STORAGE_KEY = 'nexus_auth_token';
         const USER_STORAGE_KEY = 'nexus_auth_user';
         const DEFAULT_LANGUAGE = 'en';
@@ -742,13 +781,62 @@
             };
         };
 
+        const normalizeLanguage = (candidate) => {
+            if (typeof candidate !== 'string') return null;
+            const lower = candidate.toLowerCase();
+            if (lower.startsWith('zh')) return 'zh';
+            if (lower.startsWith('en')) return 'en';
+            return null;
+        };
+
+        const getBrowserLanguage = () => {
+            if (typeof navigator === 'undefined') return DEFAULT_LANGUAGE;
+
+            const browserLanguages = [];
+            if (Array.isArray(navigator.languages)) {
+                browserLanguages.push(...navigator.languages);
+            }
+            if (navigator.language) {
+                browserLanguages.push(navigator.language);
+            }
+            if (navigator.userLanguage) {
+                browserLanguages.push(navigator.userLanguage);
+            }
+
+            const hasChinese = browserLanguages.some((candidate) => normalizeLanguage(candidate) === 'zh');
+            return hasChinese ? 'zh' : DEFAULT_LANGUAGE;
+        };
+
+        const persistLanguage = (language) => {
+            const normalized = normalizeLanguage(language);
+            if (!normalized) {
+                return null;
+            }
+
+            try {
+                localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
+                localStorage.removeItem(LEGACY_LANGUAGE_STORAGE_KEY);
+            } catch (e) {}
+
+            return normalized;
+        };
+
         const getInitialLanguage = () => {
             try {
-                const cached = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-                if (cached === 'zh' || cached === 'en') return cached;
+                const normalizedStored = normalizeLanguage(localStorage.getItem(LANGUAGE_STORAGE_KEY));
+                if (normalizedStored) {
+                    localStorage.removeItem(LEGACY_LANGUAGE_STORAGE_KEY);
+                    return normalizedStored;
+                }
+
+                const normalizedLegacy = normalizeLanguage(localStorage.getItem(LEGACY_LANGUAGE_STORAGE_KEY));
+                if (normalizedLegacy) {
+                    persistLanguage(normalizedLegacy);
+                    return normalizedLegacy;
+                }
             } catch (e) {}
-            const browserLanguage = (navigator.language || navigator.userLanguage || DEFAULT_LANGUAGE).toLowerCase();
-            return browserLanguage.startsWith('zh') ? 'zh' : 'en';
+
+            return getBrowserLanguage();
         };
 
         const clampPercent = (value) => {
@@ -2516,12 +2604,17 @@
             const resolvedSelectedGpu = useResolvedSelectedGpu(selectedGpuRef, servers);
 
             useEffect(() => {
-                try {
-                    localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
-                } catch (e) {}
+                persistLanguage(language);
                 document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
                 document.title = t('app.title');
             }, [language, t]);
+
+            const switchLanguage = (nextLanguage) => {
+                const normalized = normalizeLanguage(nextLanguage);
+                if (!normalized || normalized === language) return;
+                persistLanguage(normalized);
+                setLanguage(normalized);
+            };
 
             useEffect(() => {
                 if (!selectedGpuRef) return;
@@ -3019,14 +3112,32 @@
                                         <Icons.Users className="w-4 h-4" />
                                         {t('action.gpuUsers')}
                                     </button>
-                                    <button
-                                        onClick={() => setLanguage((prev) => (prev === 'en' ? 'zh' : 'en'))}
-                                        className="muted-button px-3 py-2 text-sm font-medium"
-                                        title={language === 'en' ? t('action.langSwitchTitleToZh') : t('action.langSwitchTitleToEn')}
-                                        aria-label={language === 'en' ? t('action.langSwitchAriaToZh') : t('action.langSwitchAriaToEn')}
+                                    <div
+                                        className="lang-toggle inline-flex"
+                                        role="group"
+                                        aria-label={language === 'zh' ? '语言切换' : 'Language switch'}
                                     >
-                                        {language === 'en' ? '中文' : 'EN'}
-                                    </button>
+                                        <button
+                                            type="button"
+                                            className={`lang-toggle-button ${language === 'en' ? 'is-active' : ''}`}
+                                            onClick={() => switchLanguage('en')}
+                                            title={t('action.langSwitchTitleToEn')}
+                                            aria-label={t('action.langSwitchAriaToEn')}
+                                            aria-pressed={language === 'en'}
+                                        >
+                                            English
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`lang-toggle-button ${language === 'zh' ? 'is-active' : ''}`}
+                                            onClick={() => switchLanguage('zh')}
+                                            title={t('action.langSwitchTitleToZh')}
+                                            aria-label={t('action.langSwitchAriaToZh')}
+                                            aria-pressed={language === 'zh'}
+                                        >
+                                            中文
+                                        </button>
+                                    </div>
                                     <button
                                         onClick={handleLogout}
                                         className="muted-button px-4 py-2 text-sm font-medium"

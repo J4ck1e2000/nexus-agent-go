@@ -2,7 +2,8 @@ const { useEffect, useState } = React;
 
 const TOKEN_STORAGE_KEY = 'nexus_auth_token';
 const USER_STORAGE_KEY = 'nexus_auth_user';
-const LANG_STORAGE_KEY = 'nexus_auth_language';
+const LANGUAGE_STORAGE_KEY = 'nexus_language';
+const LEGACY_LANGUAGE_STORAGE_KEY = 'nexus_auth_language';
 const MODE_LOGIN = 'login';
 const MODE_REGISTER = 'register';
 const MIN_PASSWORD_LENGTH = 6;
@@ -212,12 +213,32 @@ const getBrowserLanguage = () => {
     return hasChinese ? 'zh' : 'en';
 };
 
+const persistLanguage = (language) => {
+    const normalized = normalizeLanguage(language);
+    if (!normalized) {
+        return null;
+    }
+
+    try {
+        localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
+        localStorage.removeItem(LEGACY_LANGUAGE_STORAGE_KEY);
+    } catch (e) {}
+
+    return normalized;
+};
+
 const getInitialLanguage = () => {
     try {
-        const storedLanguage = localStorage.getItem(LANG_STORAGE_KEY);
-        const normalizedStored = normalizeLanguage(storedLanguage);
+        const normalizedStored = normalizeLanguage(localStorage.getItem(LANGUAGE_STORAGE_KEY));
         if (normalizedStored) {
+            localStorage.removeItem(LEGACY_LANGUAGE_STORAGE_KEY);
             return normalizedStored;
+        }
+
+        const normalizedLegacy = normalizeLanguage(localStorage.getItem(LEGACY_LANGUAGE_STORAGE_KEY));
+        if (normalizedLegacy) {
+            persistLanguage(normalizedLegacy);
+            return normalizedLegacy;
         }
     } catch (e) {}
 
@@ -269,9 +290,7 @@ const LoginApp = () => {
     const t = (key, params) => translate(language, key, params);
 
     useEffect(() => {
-        try {
-            localStorage.setItem(LANG_STORAGE_KEY, language);
-        } catch (e) {}
+        persistLanguage(language);
     }, [language]);
 
     useEffect(() => {
@@ -324,6 +343,7 @@ const LoginApp = () => {
     const switchLanguage = (nextLanguage) => {
         const normalized = normalizeLanguage(nextLanguage);
         if (!normalized || normalized === language) return;
+        persistLanguage(normalized);
         setLanguage(normalized);
     };
 
@@ -462,6 +482,7 @@ const LoginApp = () => {
                                 type="button"
                                 className={`mode-toggle-button ${language === 'en' ? 'is-active' : ''}`}
                                 onClick={() => switchLanguage('en')}
+                                aria-pressed={language === 'en'}
                             >
                                 {t('language.options.en')}
                             </button>
@@ -469,6 +490,7 @@ const LoginApp = () => {
                                 type="button"
                                 className={`mode-toggle-button ${language === 'zh' ? 'is-active' : ''}`}
                                 onClick={() => switchLanguage('zh')}
+                                aria-pressed={language === 'zh'}
                             >
                                 {t('language.options.zh')}
                             </button>
