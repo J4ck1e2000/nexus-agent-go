@@ -322,11 +322,16 @@
                 action: {
                     gpuUsers: 'GPU Users',
                     addNode: 'Add Node',
+                    manageAccounts: 'Manage Accounts',
+                    createUser: 'Create User',
                     logout: 'Log out',
                     clearFilter: 'Clear',
                     connectNode: 'Connect Node',
                     connectAgent: 'Connect Agent',
                     deleteNode: 'Delete Node',
+                    deleteUser: 'Delete User',
+                    resetPassword: 'Reset Password',
+                    refreshUsers: 'Refresh Users',
                     confirm: 'Confirm',
                     submit: 'Submit',
                     submitting: 'Submitting...',
@@ -361,6 +366,28 @@
                     sortUsers: 'Active users',
                     emptyFilter: 'No nodes matched your filter.',
                     emptySelect: 'Select a node to inspect details.',
+                },
+                adminUsers: {
+                    eyebrow: 'Admin',
+                    title: 'User Management',
+                    subtitle: 'Manage registered users, roles, and credentials.',
+                    modalTitle: 'Manage Accounts',
+                    modalSubtitle: 'Search users, add accounts, and maintain roles securely.',
+                    addUserTitle: 'Add User',
+                    searchPlaceholder: 'Search users by username',
+                    loading: 'Loading users...',
+                    empty: 'No users found.',
+                    id: 'ID',
+                    username: 'Username',
+                    newUsername: 'New Username',
+                    newPassword: 'New Password',
+                    newRole: 'New Role',
+                    createButton: 'Create User',
+                    role: 'Role',
+                    createdAt: 'Created At',
+                    actions: 'Actions',
+                    roleUser: 'user',
+                    roleAdmin: 'admin',
                 },
                 availability: {
                     highlyAvailable: 'Highly Available',
@@ -514,11 +541,26 @@
                 dialog: {
                     deleteNodeTitle: 'Delete Node',
                     deleteNodeDescription: 'Remove "{name}" from this dashboard?',
+                    deleteUserTitle: 'Delete User',
+                    deleteUserDescription: 'Delete user "{name}"?',
+                    resetPasswordTitle: 'Reset Password',
+                    resetPasswordDescription: 'Set a new password for "{name}".',
+                    passwordTooShort: 'Password must be at least {min} characters.',
+                    usernameRequired: 'Username is required.',
+                    passwordRequired: 'Password is required.',
+                    invalidRole: 'Role must be user or admin.',
                     requiredField: 'This field is required.',
                 },
                 notify: {
                     saveConfigFailed: 'Failed to save node configuration. Please try again.',
                     nodeDeleted: 'Node "{name}" deleted.',
+                    loadUsersFailed: 'Failed to load users.',
+                    userDeleted: 'User "{name}" deleted.',
+                    userRoleUpdated: 'Role updated for "{name}".',
+                    userPasswordReset: 'Password reset for "{name}".',
+                    userCreated: 'User "{name}" created.',
+                    createUserFailed: 'Failed to create user: {error}',
+                    adminUserActionFailed: 'Operation failed: {error}',
                 },
                 misc: {
                     projectRepository: 'Project Repository',
@@ -558,11 +600,16 @@
                 action: {
                     gpuUsers: 'GPU 用户',
                     addNode: '添加节点',
+                    manageAccounts: '管理账号',
+                    createUser: '添加用户',
                     logout: '退出登录',
                     clearFilter: '清空',
                     connectNode: '连接节点',
                     connectAgent: '连接 Agent',
                     deleteNode: '删除节点',
+                    deleteUser: '删除用户',
+                    resetPassword: '重置密码',
+                    refreshUsers: '刷新用户',
                     confirm: '确认',
                     submit: '提交',
                     submitting: '提交中...',
@@ -597,6 +644,28 @@
                     sortUsers: '活跃用户数',
                     emptyFilter: '没有匹配筛选条件的节点。',
                     emptySelect: '请选择一个节点查看详情。',
+                },
+                adminUsers: {
+                    eyebrow: '管理员',
+                    title: '用户管理',
+                    subtitle: '管理已注册用户、角色与密码。',
+                    modalTitle: '管理账号',
+                    modalSubtitle: '支持搜索用户、添加账号并维护角色权限。',
+                    addUserTitle: '添加用户',
+                    searchPlaceholder: '按用户名搜索',
+                    loading: '正在加载用户...',
+                    empty: '没有匹配的用户。',
+                    id: 'ID',
+                    username: '用户名',
+                    newUsername: '新用户名',
+                    newPassword: '新密码',
+                    newRole: '新角色',
+                    createButton: '添加用户',
+                    role: '角色',
+                    createdAt: '创建时间',
+                    actions: '操作',
+                    roleUser: 'user',
+                    roleAdmin: 'admin',
                 },
                 availability: {
                     highlyAvailable: '高度可用',
@@ -750,11 +819,26 @@
                 dialog: {
                     deleteNodeTitle: '删除节点',
                     deleteNodeDescription: '确认从监控面板移除节点「{name}」吗？',
+                    deleteUserTitle: '删除用户',
+                    deleteUserDescription: '确认删除用户「{name}」吗？',
+                    resetPasswordTitle: '重置密码',
+                    resetPasswordDescription: '为用户「{name}」设置新密码。',
+                    passwordTooShort: '密码长度至少为 {min} 位。',
+                    usernameRequired: '用户名不能为空。',
+                    passwordRequired: '密码不能为空。',
+                    invalidRole: '角色必须是 user 或 admin。',
                     requiredField: '该字段不能为空。',
                 },
                 notify: {
                     saveConfigFailed: '保存节点配置失败，请重试。',
                     nodeDeleted: '已删除节点「{name}」。',
+                    loadUsersFailed: '加载用户失败。',
+                    userDeleted: '已删除用户「{name}」。',
+                    userRoleUpdated: '已更新用户「{name}」的角色。',
+                    userPasswordReset: '已重置用户「{name}」的密码。',
+                    userCreated: '已创建用户「{name}」。',
+                    createUserFailed: '创建用户失败：{error}',
+                    adminUserActionFailed: '操作失败：{error}',
                 },
                 misc: {
                     projectRepository: '项目仓库',
@@ -865,6 +949,16 @@
             const mm = String(d.getMinutes()).padStart(2, '0');
             const ss = String(d.getSeconds()).padStart(2, '0');
             return `${hh}:${mm}:${ss}`;
+        };
+
+        const formatDateTime = (value) => {
+            if (!value) return '-';
+            const date = value instanceof Date ? value : new Date(value);
+            if (Number.isNaN(date.getTime())) return '-';
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd} ${formatTime(date)}`;
         };
 
         const formatPercent = (value) => {
@@ -2599,6 +2693,13 @@
             const [toasts, setToasts] = useState([]);
             const toastTimersRef = useRef(new Map());
             const [isSavingServer, setIsSavingServer] = useState(false);
+            const [adminUsers, setAdminUsers] = useState([]);
+            const [userQuery, setUserQuery] = useState('');
+            const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false);
+            const [userActionKey, setUserActionKey] = useState('');
+            const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
+            const [newUserForm, setNewUserForm] = useState({ username: '', password: '', role: 'user' });
+            const [isCreatingUser, setIsCreatingUser] = useState(false);
             const t = useMemo(() => createTranslator(language), [language]);
             const isAdmin = currentUser && currentUser.role === 'admin';
             const resolvedSelectedGpu = useResolvedSelectedGpu(selectedGpuRef, servers);
@@ -2706,6 +2807,25 @@
                 ...options,
             });
 
+            const openPromptDialog = (options = {}) => openDialog({
+                type: 'prompt',
+                confirmText: t('action.submit'),
+                cancelText: t('action.cancel'),
+                closeOnEsc: true,
+                closeOnBackdrop: true,
+                ...options,
+            });
+
+            const readResponseError = async (response, fallback = 'request_failed') => {
+                try {
+                    const payload = await response.json();
+                    if (payload && typeof payload.error === 'string' && payload.error.trim()) {
+                        return payload.error.trim();
+                    }
+                } catch (parseError) {}
+                return fallback;
+            };
+
             const normalizeServerConfig = (server) => ({
                 id: server.id,
                 name: server.name,
@@ -2772,6 +2892,43 @@
                     disposed = true;
                 };
             }, [authFetch, currentUser, t]);
+
+            const loadAdminUsers = useCallback(async () => {
+                if (!isAdmin) return;
+
+                setIsLoadingAdminUsers(true);
+                try {
+                    const res = await authFetch('/api/admin/users');
+                    if (!res.ok) {
+                        const errorCode = await readResponseError(res, 'load_users_failed');
+                        pushToast(t('notify.adminUserActionFailed', { error: errorCode }), 'error');
+                        return;
+                    }
+
+                    const data = await res.json();
+                    setAdminUsers(Array.isArray(data) ? data : []);
+                } catch (error) {
+                    pushToast(t('notify.loadUsersFailed'), 'error');
+                } finally {
+                    setIsLoadingAdminUsers(false);
+                }
+            }, [authFetch, isAdmin, t]);
+
+            useEffect(() => {
+                if (currentUser && isAdmin) return;
+                setAdminUsers([]);
+                setUserQuery('');
+                setUserActionKey('');
+                setIsUserManagerOpen(false);
+                setIsCreatingUser(false);
+                setNewUserForm({ username: '', password: '', role: 'user' });
+            }, [currentUser, isAdmin]);
+
+            useEffect(() => {
+                if (!isUserManagerOpen || !isAdmin) return;
+                if (adminUsers.length > 0) return;
+                loadAdminUsers();
+            }, [isUserManagerOpen, isAdmin, adminUsers.length, loadAdminUsers]);
 
             useEffect(() => {
                 latestServersRef.current = servers;
@@ -2943,6 +3100,172 @@
                 pushToast(t('notify.nodeDeleted', { name: server.name || '-' }), 'success');
             };
 
+            const openUserManager = () => {
+                if (!isAdmin) return;
+                setIsUserManagerOpen(true);
+            };
+
+            const closeUserManager = () => {
+                setIsUserManagerOpen(false);
+                setNewUserForm({ username: '', password: '', role: 'user' });
+            };
+
+            const createAdminUser = async () => {
+                if (!isAdmin || isCreatingUser) return;
+
+                const username = (newUserForm.username || '').trim();
+                const password = newUserForm.password || '';
+                const role = String(newUserForm.role || 'user').trim().toLowerCase();
+
+                if (!username) {
+                    pushToast(t('dialog.usernameRequired'), 'warning');
+                    return;
+                }
+                if (!password) {
+                    pushToast(t('dialog.passwordRequired'), 'warning');
+                    return;
+                }
+                if (password.length < 6) {
+                    pushToast(t('dialog.passwordTooShort', { min: 6 }), 'warning');
+                    return;
+                }
+                if (role !== 'user' && role !== 'admin') {
+                    pushToast(t('dialog.invalidRole'), 'warning');
+                    return;
+                }
+
+                setIsCreatingUser(true);
+                try {
+                    const res = await authFetch('/api/admin/users', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password, role }),
+                    });
+                    if (!res.ok) {
+                        const errorCode = await readResponseError(res, 'create_user_failed');
+                        pushToast(t('notify.createUserFailed', { error: errorCode }), 'error');
+                        return;
+                    }
+
+                    const created = await res.json();
+                    setNewUserForm({ username: '', password: '', role: 'user' });
+                    await loadAdminUsers();
+                    pushToast(t('notify.userCreated', { name: created?.username || username }), 'success');
+                } catch (error) {
+                    pushToast(t('notify.loadUsersFailed'), 'error');
+                } finally {
+                    setIsCreatingUser(false);
+                }
+            };
+
+            const runUserAction = async (actionKey, task) => {
+                if (userActionKey) return;
+                setUserActionKey(actionKey);
+                try {
+                    await task();
+                } finally {
+                    setUserActionKey('');
+                }
+            };
+
+            const deleteAdminUser = async (user) => {
+                if (!isAdmin || !user) return;
+
+                const confirmed = await openConfirmDialog({
+                    title: t('dialog.deleteUserTitle'),
+                    description: t('dialog.deleteUserDescription', { name: user.username || '-' }),
+                    confirmText: t('action.deleteUser'),
+                    confirmTone: 'danger',
+                });
+                if (!confirmed) return;
+
+                await runUserAction(`delete:${user.id}`, async () => {
+                    try {
+                        const res = await authFetch(`/api/admin/users/${user.id}`, {
+                            method: 'DELETE',
+                        });
+                        if (!res.ok) {
+                            const errorCode = await readResponseError(res);
+                            pushToast(t('notify.adminUserActionFailed', { error: errorCode }), 'error');
+                            return;
+                        }
+                        await loadAdminUsers();
+                        pushToast(t('notify.userDeleted', { name: user.username || '-' }), 'success');
+                    } catch (error) {
+                        pushToast(t('notify.loadUsersFailed'), 'error');
+                    }
+                });
+            };
+
+            const updateAdminUserRole = async (user, nextRole) => {
+                if (!isAdmin || !user) return;
+                if (nextRole !== 'admin' && nextRole !== 'user') return;
+                if (user.role === nextRole) return;
+
+                await runUserAction(`role:${user.id}`, async () => {
+                    try {
+                        const res = await authFetch(`/api/admin/users/${user.id}/role`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ role: nextRole }),
+                        });
+                        if (!res.ok) {
+                            const errorCode = await readResponseError(res);
+                            pushToast(t('notify.adminUserActionFailed', { error: errorCode }), 'error');
+                            await loadAdminUsers();
+                            return;
+                        }
+
+                        const updated = await res.json();
+                        setAdminUsers((prev) => prev.map((item) => (String(item.id) === String(updated.id) ? updated : item)));
+                        if (currentUser && String(currentUser.id) === String(updated.id)) {
+                            setCurrentUser((prev) => (prev ? { ...prev, role: updated.role } : prev));
+                        }
+                        pushToast(t('notify.userRoleUpdated', { name: updated.username || user.username || '-' }), 'success');
+                    } catch (error) {
+                        pushToast(t('notify.loadUsersFailed'), 'error');
+                    }
+                });
+            };
+
+            const resetAdminUserPassword = async (user) => {
+                if (!isAdmin || !user) return;
+
+                const password = await openPromptDialog({
+                    title: t('dialog.resetPasswordTitle'),
+                    description: t('dialog.resetPasswordDescription', { name: user.username || '-' }),
+                    placeholder: '******',
+                    inputType: 'password',
+                    required: true,
+                    maxLength: 128,
+                    validate: (candidate) => {
+                        if (!candidate || candidate.length < 6) {
+                            return t('dialog.passwordTooShort', { min: 6 });
+                        }
+                        return '';
+                    },
+                });
+                if (password === null) return;
+
+                await runUserAction(`password:${user.id}`, async () => {
+                    try {
+                        const res = await authFetch(`/api/admin/users/${user.id}/password`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ password }),
+                        });
+                        if (!res.ok) {
+                            const errorCode = await readResponseError(res);
+                            pushToast(t('notify.adminUserActionFailed', { error: errorCode }), 'error');
+                            return;
+                        }
+                        pushToast(t('notify.userPasswordReset', { name: user.username || '-' }), 'success');
+                    } catch (error) {
+                        pushToast(t('notify.loadUsersFailed'), 'error');
+                    }
+                });
+            };
+
             const handleSelectGpu = (serverId, gpuIndex, gpu) => {
                 setSelectedGpuRef({
                     serverId,
@@ -2985,6 +3308,12 @@
                 });
                 return sortServersForMode(filtered, sortMode);
             }, [enrichedServers, nodeQuery, sortMode]);
+
+            const filteredAdminUsers = useMemo(() => {
+                const query = userQuery.trim().toLowerCase();
+                if (!query) return adminUsers;
+                return adminUsers.filter((user) => (user.username || '').toLowerCase().includes(query));
+            }, [adminUsers, userQuery]);
 
             useEffect(() => {
                 if (filteredServers.length === 0) {
@@ -3102,6 +3431,14 @@
                                             className="primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
                                         >
                                             <Icons.Plus className="w-4 h-4" /> {t('action.addNode')}
+                                        </button>
+                                    ) : null}
+                                    {isAdmin ? (
+                                        <button
+                                            onClick={openUserManager}
+                                            className="muted-button px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
+                                        >
+                                            <Icons.Users className="w-4 h-4" /> {t('action.manageAccounts')}
                                         </button>
                                     ) : null}
                                     <button
@@ -3268,11 +3605,160 @@
                                 )}
                             </section>
                         </div>
+
                     </div>
 
                     <ActivityDrawer isOpen={isActivityOpen} onClose={() => setIsActivityOpen(false)} processes={allProcesses} t={t} />
                     <ConfirmDialog config={dialogState && dialogState.type === 'confirm' ? dialogState : null} onResolve={resolveDialog} t={t} />
+                    <PromptDialog config={dialogState && dialogState.type === 'prompt' ? dialogState : null} onResolve={resolveDialog} t={t} />
                     <ToastStack toasts={toasts} onDismiss={dismissToast} t={t} />
+
+                    {isUserManagerOpen && isAdmin ? (
+                        <AppModal
+                            isOpen={true}
+                            onClose={closeUserManager}
+                            title={t('adminUsers.modalTitle')}
+                            eyebrow={t('adminUsers.eyebrow')}
+                            closeTitle={t('action.close')}
+                            widthClass="max-w-5xl"
+                            closeOnEsc={true}
+                            closeOnBackdrop={true}
+                        >
+                            <div className="space-y-4">
+                                <p className="text-sm text-[#6b665e]">{t('adminUsers.modalSubtitle')}</p>
+
+                                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                                    <input
+                                        type="text"
+                                        className="bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-3.5 py-2 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors sm:min-w-[260px]"
+                                        placeholder={t('adminUsers.searchPlaceholder')}
+                                        value={userQuery}
+                                        onChange={(event) => setUserQuery(event.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        className={cx('muted-button px-4 py-2 text-sm font-medium', (isLoadingAdminUsers || !!userActionKey || isCreatingUser) ? 'opacity-60 cursor-not-allowed' : '')}
+                                        onClick={loadAdminUsers}
+                                        disabled={isLoadingAdminUsers || !!userActionKey || isCreatingUser}
+                                    >
+                                        {t('action.refreshUsers')}
+                                    </button>
+                                </div>
+
+                                <section className="soft-panel-subtle p-4">
+                                    <div className="section-eyebrow mb-2">{t('adminUsers.addUserTitle')}</div>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 items-end">
+                                        <div className="md:col-span-1">
+                                            <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">{t('adminUsers.newUsername')}</label>
+                                            <input
+                                                type="text"
+                                                className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-3.5 py-2 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors"
+                                                value={newUserForm.username}
+                                                disabled={isCreatingUser}
+                                                onChange={(event) => setNewUserForm((prev) => ({ ...prev, username: event.target.value }))}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-1">
+                                            <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">{t('adminUsers.newPassword')}</label>
+                                            <input
+                                                type="password"
+                                                className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.1)] rounded-2xl px-3.5 py-2 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.22)] transition-colors"
+                                                value={newUserForm.password}
+                                                disabled={isCreatingUser}
+                                                onChange={(event) => setNewUserForm((prev) => ({ ...prev, password: event.target.value }))}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-1">
+                                            <label className="block text-[10px] uppercase tracking-[0.13em] font-semibold text-[#847c73] mb-1.5">{t('adminUsers.newRole')}</label>
+                                            <select
+                                                className="w-full bg-[#fbf8f3] border border-[rgba(60,47,35,0.12)] rounded-2xl px-3.5 py-2 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.24)] transition-colors"
+                                                value={newUserForm.role}
+                                                disabled={isCreatingUser}
+                                                onChange={(event) => setNewUserForm((prev) => ({ ...prev, role: event.target.value }))}
+                                            >
+                                                <option value="user">{t('adminUsers.roleUser')}</option>
+                                                <option value="admin">{t('adminUsers.roleAdmin')}</option>
+                                            </select>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={cx('primary-button px-4 py-2 text-sm font-medium inline-flex items-center justify-center gap-2 md:col-span-1', isCreatingUser ? 'opacity-60 cursor-not-allowed' : '')}
+                                            onClick={createAdminUser}
+                                            disabled={isCreatingUser}
+                                        >
+                                            <Icons.Plus className="w-4 h-4" />
+                                            {isCreatingUser ? t('action.submitting') : t('adminUsers.createButton')}
+                                        </button>
+                                    </div>
+                                </section>
+
+                                <section className="soft-panel-subtle p-4">
+                                    <div className="max-h-[50vh] overflow-auto custom-scrollbar">
+                                        {isLoadingAdminUsers ? (
+                                            <div className="text-sm text-[#6f685f]">{t('adminUsers.loading')}</div>
+                                        ) : filteredAdminUsers.length === 0 ? (
+                                            <div className="text-sm text-[#6f685f]">{t('adminUsers.empty')}</div>
+                                        ) : (
+                                            <table className="w-full min-w-[760px] text-sm">
+                                                <thead>
+                                                    <tr className="text-left text-[#746c62] border-b border-[rgba(60,47,35,0.08)]">
+                                                        <th className="py-2.5 pr-3 font-semibold">{t('adminUsers.id')}</th>
+                                                        <th className="py-2.5 pr-3 font-semibold">{t('adminUsers.username')}</th>
+                                                        <th className="py-2.5 pr-3 font-semibold">{t('adminUsers.role')}</th>
+                                                        <th className="py-2.5 pr-3 font-semibold">{t('adminUsers.createdAt')}</th>
+                                                        <th className="py-2.5 pr-3 font-semibold">{t('adminUsers.actions')}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {filteredAdminUsers.map((user) => {
+                                                        const rowBusy = userActionKey.endsWith(`:${user.id}`);
+                                                        return (
+                                                            <tr key={user.id} className="border-b border-[rgba(60,47,35,0.05)]">
+                                                                <td className="py-3 pr-3 font-mono text-[#3a3632]">{user.id}</td>
+                                                                <td className="py-3 pr-3 text-[#26231f]">{user.username}</td>
+                                                                <td className="py-3 pr-3">
+                                                                    <select
+                                                                        className="bg-[#fbf8f3] border border-[rgba(60,47,35,0.12)] rounded-xl px-2.5 py-1.5 text-sm text-[#25221f] outline-none focus:border-[rgba(60,47,35,0.24)] transition-colors"
+                                                                        value={user.role}
+                                                                        disabled={isLoadingAdminUsers || rowBusy || isCreatingUser}
+                                                                        onChange={(event) => updateAdminUserRole(user, event.target.value)}
+                                                                    >
+                                                                        <option value="user">{t('adminUsers.roleUser')}</option>
+                                                                        <option value="admin">{t('adminUsers.roleAdmin')}</option>
+                                                                    </select>
+                                                                </td>
+                                                                <td className="py-3 pr-3 font-mono text-xs text-[#6b665e]">{formatDateTime(user.created_at)}</td>
+                                                                <td className="py-3 pr-3">
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            className={cx('muted-button px-3 py-1.5 text-xs font-medium', rowBusy ? 'opacity-60 cursor-not-allowed' : '')}
+                                                                            disabled={isLoadingAdminUsers || rowBusy || isCreatingUser}
+                                                                            onClick={() => resetAdminUserPassword(user)}
+                                                                        >
+                                                                            {t('action.resetPassword')}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            className={cx('px-3 py-1.5 text-xs font-medium rounded-full border border-[#7f4a43] text-[#7f4a43] hover:bg-[#f2e3df] transition-colors', rowBusy ? 'opacity-60 cursor-not-allowed' : '')}
+                                                                            disabled={isLoadingAdminUsers || rowBusy || isCreatingUser}
+                                                                            onClick={() => deleteAdminUser(user)}
+                                                                        >
+                                                                            {t('action.deleteUser')}
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        )}
+                                    </div>
+                                </section>
+                            </div>
+                        </AppModal>
+                    ) : null}
 
                     {isModalOpen && isAdmin ? (
                         <div className="fixed inset-0 z-50 bg-[#2f2922]/22 backdrop-blur-[2px] p-4 flex items-center justify-center fade-enter">

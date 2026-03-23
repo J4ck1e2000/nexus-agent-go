@@ -57,6 +57,11 @@ func (h *Handler) RegisterAPIRoutes(r *gin.Engine) {
 	admin.Use(RequireAdmin())
 	admin.POST("/config", h.saveConfig)
 	admin.DELETE("/config/:id", h.deleteConfig)
+	admin.POST("/admin/users", h.createAdminUser)
+	admin.GET("/admin/users", h.listAdminUsers)
+	admin.DELETE("/admin/users/:id", h.deleteAdminUser)
+	admin.PATCH("/admin/users/:id/role", h.updateAdminUserRole)
+	admin.PATCH("/admin/users/:id/password", h.resetAdminUserPassword)
 }
 
 // RegisterStaticRoutes 注册静态资源与前端入口路由。

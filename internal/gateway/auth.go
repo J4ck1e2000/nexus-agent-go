@@ -20,21 +20,16 @@ const (
 )
 
 var (
-	// ErrInvalidCredentials 表示用户名或密码错误。
-	ErrInvalidCredentials = errors.New("invalid_credentials")
-	// ErrInvalidRegisterPayload 表示注册参数非法。
+	ErrInvalidCredentials     = errors.New("invalid_credentials")
 	ErrInvalidRegisterPayload = errors.New("invalid_register_payload")
-	// ErrInvalidUsername 表示用户名非法。
-	ErrInvalidUsername = errors.New("invalid_username")
-	// ErrPasswordTooShort 表示密码长度不足。
-	ErrPasswordTooShort = errors.New("password_too_short")
-	// ErrUserAlreadyExists 表示用户名已存在。
-	ErrUserAlreadyExists = errors.New("user_already_exists")
-	// ErrUnauthorized 表示 token 缺失或无效。
-	ErrUnauthorized = errors.New("unauthorized")
+	ErrInvalidUsername        = errors.New("invalid_username")
+	ErrPasswordTooShort       = errors.New("password_too_short")
+	ErrUserAlreadyExists      = errors.New("user_already_exists")
+	ErrInvalidRole            = errors.New("invalid_role")
+	ErrUnauthorized           = errors.New("unauthorized")
 )
 
-// AuthUser 表示认证后的最小用户信息。
+// AuthUser is the minimal authenticated user payload.
 type AuthUser struct {
 	ID       uint     `json:"id"`
 	Username string   `json:"username"`
@@ -48,14 +43,13 @@ type authClaims struct {
 	jwt.RegisteredClaims
 }
 
-// AuthService 负责登录认证与 token 签发。
+// AuthService handles login, registration, and JWT lifecycle.
 type AuthService struct {
 	db       *gorm.DB
 	secret   []byte
 	tokenTTL time.Duration
 }
 
-// NewAuthService 创建鉴权服务。
 func NewAuthService(db *gorm.DB, jwtSecret string) *AuthService {
 	trimmed := strings.TrimSpace(jwtSecret)
 	if trimmed == "" {
@@ -68,7 +62,6 @@ func NewAuthService(db *gorm.DB, jwtSecret string) *AuthService {
 	}
 }
 
-// Authenticate 使用用户名密码登录并返回 JWT。
 func (s *AuthService) Authenticate(username, password string) (string, *AuthUser, error) {
 	if s == nil || s.db == nil {
 		return "", nil, fmt.Errorf("auth service not initialized")
@@ -102,18 +95,45 @@ func (s *AuthService) Authenticate(username, password string) (string, *AuthUser
 	}, nil
 }
 
-// Register 创建普通用户账号。
+// Register always creates RoleUser.
 func (s *AuthService) Register(username, password string) (*AuthUser, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("auth service not initialized")
 	}
 
+	user, err := s.createUser(username, password, RoleUser)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AuthUser{
+		ID:       user.ID,
+		Username: user.Username,
+		Role:     user.Role,
+	}, nil
+}
+
+// CreateUserByAdmin allows admin APIs to create user/admin accounts.
+func (s *AuthService) CreateUserByAdmin(username, password string, role UserRole) (*User, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("auth service not initialized")
+	}
+	if role == "" {
+		role = RoleUser
+	}
+	return s.createUser(username, password, role)
+}
+
+func (s *AuthService) createUser(username, password string, role UserRole) (*User, error) {
 	username = strings.TrimSpace(username)
 	if !isValidRegisterUsername(username) {
 		return nil, ErrInvalidUsername
 	}
 	if len(password) < minPasswordLength {
 		return nil, ErrPasswordTooShort
+	}
+	if role != RoleUser && role != RoleAdmin {
+		return nil, ErrInvalidRole
 	}
 
 	var existing User
@@ -130,23 +150,19 @@ func (s *AuthService) Register(username, password string) (*AuthUser, error) {
 		return nil, fmt.Errorf("hash password failed: %w", err)
 	}
 
-	user := User{
+	user := &User{
 		Username:     username,
 		PasswordHash: string(hashed),
-		Role:         RoleUser,
+		Role:         role,
 	}
-	if err := s.db.Create(&user).Error; err != nil {
+	if err := s.db.Create(user).Error; err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return nil, ErrUserAlreadyExists
 		}
 		return nil, fmt.Errorf("create user failed: %w", err)
 	}
 
-	return &AuthUser{
-		ID:       user.ID,
-		Username: user.Username,
-		Role:     user.Role,
-	}, nil
+	return user, nil
 }
 
 func isValidRegisterUsername(username string) bool {
@@ -167,7 +183,6 @@ func isValidRegisterUsername(username string) bool {
 	return true
 }
 
-// ParseToken 解析 token 并返回当前用户信息。
 func (s *AuthService) ParseToken(tokenString string) (*AuthUser, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("auth service not initialized")
