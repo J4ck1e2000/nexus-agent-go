@@ -293,6 +293,76 @@
         const USER_STORAGE_KEY = 'nexus_auth_user';
         const DEFAULT_LANGUAGE = 'en';
 
+        const getSessionAuthStorage = () => {
+            try {
+                if (typeof window !== 'undefined' && window.sessionStorage) {
+                    return window.sessionStorage;
+                }
+            } catch (e) {}
+            return null;
+        };
+
+        const getLegacyAuthStorage = () => {
+            try {
+                if (typeof window !== 'undefined' && window.localStorage) {
+                    return window.localStorage;
+                }
+            } catch (e) {}
+            return null;
+        };
+
+        const migrateLegacyAuthSession = () => {
+            const session = getSessionAuthStorage();
+            const legacy = getLegacyAuthStorage();
+            if (!session || !legacy) return;
+
+            try {
+                if (session.getItem(TOKEN_STORAGE_KEY)) return;
+                const legacyToken = legacy.getItem(TOKEN_STORAGE_KEY);
+                if (!legacyToken) return;
+
+                session.setItem(TOKEN_STORAGE_KEY, legacyToken);
+                const legacyUser = legacy.getItem(USER_STORAGE_KEY);
+                if (legacyUser) {
+                    session.setItem(USER_STORAGE_KEY, legacyUser);
+                }
+                legacy.removeItem(TOKEN_STORAGE_KEY);
+                legacy.removeItem(USER_STORAGE_KEY);
+            } catch (e) {}
+        };
+
+        const getAuthStorage = () => {
+            const session = getSessionAuthStorage();
+            if (session) {
+                return session;
+            }
+            return getLegacyAuthStorage();
+        };
+
+        const readAuthToken = () => {
+            migrateLegacyAuthSession();
+            const storage = getAuthStorage();
+            if (!storage) {
+                return null;
+            }
+            try {
+                return storage.getItem(TOKEN_STORAGE_KEY);
+            } catch (e) {
+                return null;
+            }
+        };
+
+        const clearAuthSession = () => {
+            const storage = getAuthStorage();
+            if (!storage) {
+                return;
+            }
+            try {
+                storage.removeItem(TOKEN_STORAGE_KEY);
+                storage.removeItem(USER_STORAGE_KEY);
+            } catch (e) {}
+        };
+
         const translations = {
             en: {
                 app: {
@@ -1194,6 +1264,7 @@
             children,
             footer = null,
             widthClass = 'max-w-lg',
+            zIndexClass = 'z-[70]',
             closeOnEsc = true,
             closeOnBackdrop = true,
             disableClose = false,
@@ -1265,7 +1336,7 @@
             if (!isOpen) return null;
 
             return (
-                <div className="fixed inset-0 z-[70] p-4 flex items-center justify-center">
+                <div className={cx('fixed inset-0 p-4 flex items-center justify-center', zIndexClass)}>
                     <div
                         className={cx(
                             'absolute inset-0 bg-[#2f2922]/22 backdrop-blur-[2px] transition-opacity duration-200',
@@ -1372,6 +1443,7 @@
                     eyebrow={config.eyebrow || null}
                     closeTitle={t('action.close')}
                     widthClass={config.widthClass || 'max-w-md'}
+                    zIndexClass={config.zIndexClass || 'z-[95]'}
                     closeOnEsc={config.closeOnEsc !== false}
                     closeOnBackdrop={config.closeOnBackdrop !== false}
                     disableClose={isSubmitting || config.disableClose}
@@ -1461,6 +1533,7 @@
                     eyebrow={config.eyebrow || null}
                     closeTitle={t('action.close')}
                     widthClass={config.widthClass || 'max-w-md'}
+                    zIndexClass={config.zIndexClass || 'z-[95]'}
                     closeOnEsc={config.closeOnEsc !== false}
                     closeOnBackdrop={config.closeOnBackdrop !== false}
                     disableClose={isSubmitting || config.disableClose}
@@ -2754,10 +2827,7 @@
             };
 
             const clearSessionAndRedirect = useCallback(() => {
-                try {
-                    localStorage.removeItem(TOKEN_STORAGE_KEY);
-                    localStorage.removeItem(USER_STORAGE_KEY);
-                } catch (e) {}
+                clearAuthSession();
                 window.location.href = '/';
             }, []);
 
@@ -2767,7 +2837,7 @@
             }, [clearSessionAndRedirect]);
 
             const authFetch = useCallback(async (input, init = {}) => {
-                const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+                const token = readAuthToken();
                 if (!token) {
                     clearSessionAndRedirect();
                     throw new Error('unauthorized');
@@ -2837,7 +2907,7 @@
             });
 
             useEffect(() => {
-                const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+                const token = readAuthToken();
                 if (!token) {
                     clearSessionAndRedirect();
                     return undefined;
