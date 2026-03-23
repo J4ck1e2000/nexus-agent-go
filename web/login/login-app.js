@@ -8,6 +8,90 @@ const MODE_LOGIN = 'login';
 const MODE_REGISTER = 'register';
 const MIN_PASSWORD_LENGTH = 6;
 
+const getSessionAuthStorage = () => {
+    try {
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+            return window.sessionStorage;
+        }
+    } catch (e) {}
+    return null;
+};
+
+const getLegacyAuthStorage = () => {
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            return window.localStorage;
+        }
+    } catch (e) {}
+    return null;
+};
+
+const migrateLegacyAuthSession = () => {
+    const session = getSessionAuthStorage();
+    const legacy = getLegacyAuthStorage();
+    if (!session || !legacy) return;
+
+    try {
+        if (session.getItem(TOKEN_STORAGE_KEY)) return;
+        const legacyToken = legacy.getItem(TOKEN_STORAGE_KEY);
+        if (!legacyToken) return;
+
+        session.setItem(TOKEN_STORAGE_KEY, legacyToken);
+        const legacyUser = legacy.getItem(USER_STORAGE_KEY);
+        if (legacyUser) {
+            session.setItem(USER_STORAGE_KEY, legacyUser);
+        }
+        legacy.removeItem(TOKEN_STORAGE_KEY);
+        legacy.removeItem(USER_STORAGE_KEY);
+    } catch (e) {}
+};
+
+const getAuthStorage = () => {
+    const session = getSessionAuthStorage();
+    if (session) {
+        return session;
+    }
+    return getLegacyAuthStorage();
+};
+
+const readAuthToken = () => {
+    migrateLegacyAuthSession();
+    const storage = getAuthStorage();
+    if (!storage) {
+        return null;
+    }
+    try {
+        return storage.getItem(TOKEN_STORAGE_KEY);
+    } catch (e) {
+        return null;
+    }
+};
+
+const clearAuthSession = () => {
+    const storage = getAuthStorage();
+    if (!storage) {
+        return;
+    }
+    try {
+        storage.removeItem(TOKEN_STORAGE_KEY);
+        storage.removeItem(USER_STORAGE_KEY);
+    } catch (e) {}
+};
+
+const persistAuthSession = (token, user) => {
+    migrateLegacyAuthSession();
+    const storage = getAuthStorage();
+    if (!storage) {
+        return;
+    }
+    storage.setItem(TOKEN_STORAGE_KEY, token);
+    if (user) {
+        storage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    } else {
+        storage.removeItem(USER_STORAGE_KEY);
+    }
+};
+
 const messages = {
     en: {
         page: {
@@ -303,7 +387,7 @@ const LoginApp = () => {
     }, [language, mode]);
 
     useEffect(() => {
-        const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+        const token = readAuthToken();
         if (!token) return;
 
         const checkSession = async () => {
@@ -319,8 +403,7 @@ const LoginApp = () => {
                 }
             } catch (e) {}
 
-            localStorage.removeItem(TOKEN_STORAGE_KEY);
-            localStorage.removeItem(USER_STORAGE_KEY);
+            clearAuthSession();
         };
 
         checkSession();
@@ -370,12 +453,7 @@ const LoginApp = () => {
             return;
         }
 
-        localStorage.setItem(TOKEN_STORAGE_KEY, payload.token);
-        if (payload.user) {
-            localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(payload.user));
-        } else {
-            localStorage.removeItem(USER_STORAGE_KEY);
-        }
+        persistAuthSession(payload.token, payload.user);
         window.location.href = '/dashboard';
     };
 
