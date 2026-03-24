@@ -264,7 +264,14 @@ func (h *Handler) saveConfig(c *gin.Context) {
 			return
 		}
 		if err := h.store.Save(configs, currentUser.ID); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+			switch {
+			case errors.Is(err, ErrDuplicateNodeURL):
+				c.JSON(http.StatusConflict, gin.H{"error": "duplicate_node_url"})
+			case errors.Is(err, ErrInvalidNodeConfig), errors.Is(err, ErrInvalidNodeURL):
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+			default:
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+			}
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "success"})
@@ -283,7 +290,14 @@ func (h *Handler) saveConfig(c *gin.Context) {
 
 	created, err := h.store.Add(payload, currentUser.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		switch {
+		case errors.Is(err, ErrDuplicateNodeURL):
+			c.JSON(http.StatusConflict, gin.H{"error": "duplicate_node_url"})
+		case errors.Is(err, ErrInvalidNodeConfig), errors.Is(err, ErrInvalidNodeURL):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		}
 		return
 	}
 	c.JSON(http.StatusCreated, created)

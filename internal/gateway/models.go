@@ -31,7 +31,7 @@ func (User) TableName() string {
 type AgentNode struct {
 	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	Name      string    `gorm:"type:varchar(128);not null" json:"name"`
-	URL       string    `gorm:"type:varchar(255);not null" json:"url"`
+	URL       string    `gorm:"type:varchar(255);not null;uniqueIndex:uk_agent_nodes_url" json:"url"`
 	CreatedBy uint      `gorm:"column:created_by;index;not null" json:"created_by"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

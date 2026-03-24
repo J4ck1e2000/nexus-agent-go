@@ -623,6 +623,7 @@
                 },
                 notify: {
                     saveConfigFailed: 'Failed to save node configuration. Please try again.',
+                    duplicateNodeUrl: 'A node with this Agent URL already exists.',
                     nodeDeleted: 'Node "{name}" deleted.',
                     loadUsersFailed: 'Failed to load users.',
                     userDeleted: 'User "{name}" deleted.',
@@ -901,6 +902,7 @@
                 },
                 notify: {
                     saveConfigFailed: '保存节点配置失败，请重试。',
+                    duplicateNodeUrl: '该 Agent 地址已存在，不能重复添加。',
                     nodeDeleted: '已删除节点「{name}」。',
                     loadUsersFailed: '加载用户失败。',
                     userDeleted: '已删除用户「{name}」。',
@@ -1920,6 +1922,29 @@
             const rawUrl = String(server?.url || '').trim();
             if (!rawUrl) return '-';
             return rawUrl.replace(/^https?:\/\//, '').split('/')[0] || rawUrl;
+        };
+
+        const normalizeAgentURL = (rawURL) => {
+            const trimmed = String(rawURL || '').trim();
+            if (!trimmed) return null;
+
+            try {
+                const parsed = new URL(trimmed);
+                if (!parsed.protocol || !parsed.hostname) return null;
+
+                const protocol = parsed.protocol.toLowerCase();
+                const hostname = parsed.hostname.toLowerCase();
+                const isIPv6 = hostname.includes(':') && !hostname.startsWith('[');
+                const host = isIPv6 ? `[${hostname}]` : hostname;
+                const hostWithPort = parsed.port ? `${host}:${parsed.port}` : host;
+                const pathname = parsed.pathname === '/' ? '' : parsed.pathname;
+                const auth = parsed.username
+                    ? `${parsed.username}${parsed.password ? `:${parsed.password}` : ''}@`
+                    : '';
+                return `${protocol}//${auth}${hostWithPort}${pathname}${parsed.search}${parsed.hash}`;
+            } catch (error) {
+                return null;
+            }
         };
 
         const resolveProcessUser = (proc) => {
@@ -3021,7 +3046,11 @@
                 latestServersRef.current = servers;
             }, [servers]);
 
-            const showSaveConfigError = () => {
+            const showSaveConfigError = (errorCode = '') => {
+                if (errorCode === 'duplicate_node_url') {
+                    pushToast(t('notify.duplicateNodeUrl'), 'error');
+                    return;
+                }
                 pushToast(t('notify.saveConfigFailed'), 'error');
             };
 
@@ -3063,14 +3092,29 @@
                         showSaveConfigError();
                         return;
                     }
+                    const normalizedURL = normalizeAgentURL(url);
+                    if (!normalizedURL) {
+                        showSaveConfigError();
+                        return;
+                    }
+
+                    const hasDuplicateURL = latestServersRef.current.some((item) => {
+                        const existingURL = normalizeAgentURL(item?.url);
+                        return existingURL && existingURL === normalizedURL;
+                    });
+                    if (hasDuplicateURL) {
+                        showSaveConfigError('duplicate_node_url');
+                        return;
+                    }
 
                     const res = await authFetch('/api/config', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name, url }),
+                        body: JSON.stringify({ name, url: normalizedURL }),
                     });
                     if (!res.ok) {
-                        showSaveConfigError();
+                        const errorCode = await readResponseError(res, 'save_config_failed');
+                        showSaveConfigError(errorCode);
                         return;
                     }
 

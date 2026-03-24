@@ -202,3 +202,139 @@ func TestAdmin_CanCreateAndDeleteNode(t *testing.T) {
 		t.Fatalf("list after delete mismatch: got=%q", body)
 	}
 }
+
+func TestAdmin_CannotCreateDuplicateNodeURL(t *testing.T) {
+	r := setupGatewayTestRouter(t, nil)
+	adminToken := loginAndGetToken(t, r, "admin", "admin123")
+
+	firstReq := authorizedRequest(http.MethodPost, "/api/config", bytes.NewBufferString(`{"name":"node-a","url":"http://127.0.0.1:8005"}`), adminToken)
+	firstReq.Header.Set("Content-Type", "application/json")
+	firstResp := httptest.NewRecorder()
+	r.ServeHTTP(firstResp, firstReq)
+	if firstResp.Code != http.StatusCreated {
+		t.Fatalf("first create status mismatch: got=%d want=%d body=%s", firstResp.Code, http.StatusCreated, firstResp.Body.String())
+	}
+
+	var firstCreated struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(firstResp.Body.Bytes(), &firstCreated); err != nil {
+		t.Fatalf("unmarshal first create response failed: %v", err)
+	}
+	if firstCreated.URL != "http://127.0.0.1:8005" {
+		t.Fatalf("first create normalized url mismatch: got=%q want=%q", firstCreated.URL, "http://127.0.0.1:8005")
+	}
+
+	duplicateSlashReq := authorizedRequest(http.MethodPost, "/api/config", bytes.NewBufferString(`{"name":"node-b","url":"http://127.0.0.1:8005/"}`), adminToken)
+	duplicateSlashReq.Header.Set("Content-Type", "application/json")
+	duplicateSlashResp := httptest.NewRecorder()
+	r.ServeHTTP(duplicateSlashResp, duplicateSlashReq)
+	if duplicateSlashResp.Code != http.StatusConflict {
+		t.Fatalf("duplicate slash create status mismatch: got=%d want=%d body=%s", duplicateSlashResp.Code, http.StatusConflict, duplicateSlashResp.Body.String())
+	}
+	if body := duplicateSlashResp.Body.String(); body != `{"error":"duplicate_node_url"}` {
+		t.Fatalf("duplicate slash create body mismatch: got=%q", body)
+	}
+
+	duplicateExactReq := authorizedRequest(http.MethodPost, "/api/config", bytes.NewBufferString(`{"name":"node-c","url":"http://127.0.0.1:8005"}`), adminToken)
+	duplicateExactReq.Header.Set("Content-Type", "application/json")
+	duplicateExactResp := httptest.NewRecorder()
+	r.ServeHTTP(duplicateExactResp, duplicateExactReq)
+	if duplicateExactResp.Code != http.StatusConflict {
+		t.Fatalf("duplicate exact create status mismatch: got=%d want=%d body=%s", duplicateExactResp.Code, http.StatusConflict, duplicateExactResp.Body.String())
+	}
+	if body := duplicateExactResp.Body.String(); body != `{"error":"duplicate_node_url"}` {
+		t.Fatalf("duplicate exact create body mismatch: got=%q", body)
+	}
+
+	listReq := authorizedRequest(http.MethodGet, "/api/config", nil, adminToken)
+	listResp := httptest.NewRecorder()
+	r.ServeHTTP(listResp, listReq)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list status mismatch: got=%d want=%d body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
+	}
+
+	var listed []struct {
+		ID  int64  `json:"id"`
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
+		t.Fatalf("unmarshal list response failed: %v", err)
+	}
+	if len(listed) != 1 {
+		t.Fatalf("expected 1 node after duplicate attempts, got=%d nodes=%+v", len(listed), listed)
+	}
+	if listed[0].URL != "http://127.0.0.1:8005" {
+		t.Fatalf("listed normalized url mismatch: got=%q want=%q", listed[0].URL, "http://127.0.0.1:8005")
+	}
+}
+
+func TestAdmin_CanCreateDifferentNodeURLs(t *testing.T) {
+	r := setupGatewayTestRouter(t, nil)
+	adminToken := loginAndGetToken(t, r, "admin", "admin123")
+
+	createAReq := authorizedRequest(http.MethodPost, "/api/config", bytes.NewBufferString(`{"name":"node-a","url":"http://127.0.0.1:8005"}`), adminToken)
+	createAReq.Header.Set("Content-Type", "application/json")
+	createAResp := httptest.NewRecorder()
+	r.ServeHTTP(createAResp, createAReq)
+	if createAResp.Code != http.StatusCreated {
+		t.Fatalf("create node-a status mismatch: got=%d want=%d body=%s", createAResp.Code, http.StatusCreated, createAResp.Body.String())
+	}
+
+	createBReq := authorizedRequest(http.MethodPost, "/api/config", bytes.NewBufferString(`{"name":"node-b","url":"http://127.0.0.1:8006"}`), adminToken)
+	createBReq.Header.Set("Content-Type", "application/json")
+	createBResp := httptest.NewRecorder()
+	r.ServeHTTP(createBResp, createBReq)
+	if createBResp.Code != http.StatusCreated {
+		t.Fatalf("create node-b status mismatch: got=%d want=%d body=%s", createBResp.Code, http.StatusCreated, createBResp.Body.String())
+	}
+
+	listReq := authorizedRequest(http.MethodGet, "/api/config", nil, adminToken)
+	listResp := httptest.NewRecorder()
+	r.ServeHTTP(listResp, listReq)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list status mismatch: got=%d want=%d body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
+	}
+
+	var listed []struct {
+		ID  int64  `json:"id"`
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
+		t.Fatalf("unmarshal list response failed: %v", err)
+	}
+	if len(listed) != 2 {
+		t.Fatalf("expected 2 nodes, got=%d nodes=%+v", len(listed), listed)
+	}
+}
+
+func TestAdmin_SaveConfigArrayRejectsDuplicateURLs(t *testing.T) {
+	r := setupGatewayTestRouter(t, nil)
+	adminToken := loginAndGetToken(t, r, "admin", "admin123")
+
+	duplicateArrayPayload := `[
+		{"name":"node-a","url":"http://127.0.0.1:8005/"},
+		{"name":"node-b","url":"http://127.0.0.1:8005"}
+	]`
+	saveReq := authorizedRequest(http.MethodPost, "/api/config", bytes.NewBufferString(duplicateArrayPayload), adminToken)
+	saveReq.Header.Set("Content-Type", "application/json")
+	saveResp := httptest.NewRecorder()
+	r.ServeHTTP(saveResp, saveReq)
+
+	if saveResp.Code != http.StatusConflict {
+		t.Fatalf("save array status mismatch: got=%d want=%d body=%s", saveResp.Code, http.StatusConflict, saveResp.Body.String())
+	}
+	if body := saveResp.Body.String(); body != `{"error":"duplicate_node_url"}` {
+		t.Fatalf("save array response mismatch: got=%q", body)
+	}
+
+	listReq := authorizedRequest(http.MethodGet, "/api/config", nil, adminToken)
+	listResp := httptest.NewRecorder()
+	r.ServeHTTP(listResp, listReq)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list status mismatch: got=%d want=%d body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
+	}
+	if body := listResp.Body.String(); body != "[]" {
+		t.Fatalf("expected empty list after rejected save, got=%q", body)
+	}
+}
