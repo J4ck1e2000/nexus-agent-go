@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	neturl "net/url"
 	"os"
 	"strings"
 
@@ -17,9 +19,94 @@ type ConfigStore struct {
 	db *gorm.DB
 }
 
+var (
+	ErrInvalidNodeConfig = errors.New("invalid node config")
+	ErrInvalidNodeURL    = errors.New("invalid node url")
+	ErrDuplicateNodeURL  = errors.New("duplicate node url")
+)
+
 // NewConfigStore 创建配置存储实例。
 func NewConfigStore(db *gorm.DB) *ConfigStore {
 	return &ConfigStore{db: db}
+}
+
+func normalizeAgentURL(rawURL string) (string, error) {
+	trimmed := strings.TrimSpace(rawURL)
+	if trimmed == "" {
+		return "", ErrInvalidNodeURL
+	}
+
+	parsed, err := neturl.Parse(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("%w: parse failed", ErrInvalidNodeURL)
+	}
+	if strings.TrimSpace(parsed.Scheme) == "" || strings.TrimSpace(parsed.Host) == "" {
+		return "", fmt.Errorf("%w: absolute url required", ErrInvalidNodeURL)
+	}
+
+	parsed.Scheme = strings.ToLower(parsed.Scheme)
+	hostname := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	if hostname == "" {
+		return "", fmt.Errorf("%w: host is required", ErrInvalidNodeURL)
+	}
+	if port := strings.TrimSpace(parsed.Port()); port != "" {
+		parsed.Host = net.JoinHostPort(hostname, port)
+	} else {
+		parsed.Host = hostname
+	}
+
+	// Root path trailing slash has no semantic value for our agent endpoint.
+	if parsed.Path == "/" {
+		parsed.Path = ""
+		parsed.RawPath = ""
+	}
+
+	return parsed.String(), nil
+}
+
+func normalizeAgentConfig(config model.AgentConfig) (string, string, error) {
+	name := strings.TrimSpace(config.Name)
+	if name == "" {
+		return "", "", ErrInvalidNodeConfig
+	}
+
+	normalizedURL, err := normalizeAgentURL(config.URL)
+	if err != nil {
+		return "", "", err
+	}
+	return name, normalizedURL, nil
+}
+
+func isDuplicateNodeDBError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate entry") ||
+		strings.Contains(msg, "duplicate key") ||
+		strings.Contains(msg, "unique constraint")
+}
+
+func (s *ConfigStore) hasURLConflict(tx *gorm.DB, normalizedURL string) (bool, error) {
+	var nodes []AgentNode
+	if err := tx.Select("url").Find(&nodes).Error; err != nil {
+		return false, fmt.Errorf("load existing node urls failed: %w", err)
+	}
+
+	for _, node := range nodes {
+		existingURL, err := normalizeAgentURL(node.URL)
+		if err != nil {
+			continue
+		}
+		if existingURL == normalizedURL {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Load 读取节点配置列表。
@@ -50,18 +137,28 @@ func (s *ConfigStore) Add(config model.AgentConfig, createdBy uint) (model.Agent
 		return model.AgentConfig{}, errors.New("config store db is nil")
 	}
 
-	name := strings.TrimSpace(config.Name)
-	url := strings.TrimSpace(config.URL)
-	if name == "" || url == "" {
-		return model.AgentConfig{}, errors.New("name and url are required")
+	name, normalizedURL, err := normalizeAgentConfig(config)
+	if err != nil {
+		return model.AgentConfig{}, err
+	}
+
+	conflict, err := s.hasURLConflict(s.db, normalizedURL)
+	if err != nil {
+		return model.AgentConfig{}, err
+	}
+	if conflict {
+		return model.AgentConfig{}, ErrDuplicateNodeURL
 	}
 
 	node := AgentNode{
 		Name:      name,
-		URL:       url,
+		URL:       normalizedURL,
 		CreatedBy: createdBy,
 	}
 	if err := s.db.Create(&node).Error; err != nil {
+		if isDuplicateNodeDBError(err) {
+			return model.AgentConfig{}, ErrDuplicateNodeURL
+		}
 		return model.AgentConfig{}, fmt.Errorf("create node failed: %w", err)
 	}
 
@@ -83,22 +180,29 @@ func (s *ConfigStore) Save(configs []model.AgentConfig, createdBy uint) error {
 			return fmt.Errorf("clear nodes failed: %w", err)
 		}
 
+		seenURLs := make(map[string]struct{}, len(configs))
 		for _, item := range configs {
-			name := strings.TrimSpace(item.Name)
-			url := strings.TrimSpace(item.URL)
-			if name == "" || url == "" {
-				return errors.New("name and url are required")
+			name, normalizedURL, err := normalizeAgentConfig(item)
+			if err != nil {
+				return err
 			}
+			if _, exists := seenURLs[normalizedURL]; exists {
+				return ErrDuplicateNodeURL
+			}
+			seenURLs[normalizedURL] = struct{}{}
 
 			node := AgentNode{
 				Name:      name,
-				URL:       url,
+				URL:       normalizedURL,
 				CreatedBy: createdBy,
 			}
 			if item.ID > 0 {
 				node.ID = uint(item.ID)
 			}
 			if err := tx.Create(&node).Error; err != nil {
+				if isDuplicateNodeDBError(err) {
+					return ErrDuplicateNodeURL
+				}
 				return fmt.Errorf("save node failed: %w", err)
 			}
 		}

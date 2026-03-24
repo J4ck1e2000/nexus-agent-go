@@ -623,6 +623,7 @@
                 },
                 notify: {
                     saveConfigFailed: 'Failed to save node configuration. Please try again.',
+                    duplicateNodeUrl: 'A node with this Agent URL already exists.',
                     nodeDeleted: 'Node "{name}" deleted.',
                     loadUsersFailed: 'Failed to load users.',
                     userDeleted: 'User "{name}" deleted.',
@@ -901,6 +902,7 @@
                 },
                 notify: {
                     saveConfigFailed: '保存节点配置失败，请重试。',
+                    duplicateNodeUrl: '该 Agent 地址已存在，不能重复添加。',
                     nodeDeleted: '已删除节点「{name}」。',
                     loadUsersFailed: '加载用户失败。',
                     userDeleted: '已删除用户「{name}」。',
@@ -1922,6 +1924,29 @@
             return rawUrl.replace(/^https?:\/\//, '').split('/')[0] || rawUrl;
         };
 
+        const normalizeAgentURL = (rawURL) => {
+            const trimmed = String(rawURL || '').trim();
+            if (!trimmed) return null;
+
+            try {
+                const parsed = new URL(trimmed);
+                if (!parsed.protocol || !parsed.hostname) return null;
+
+                const protocol = parsed.protocol.toLowerCase();
+                const hostname = parsed.hostname.toLowerCase();
+                const isIPv6 = hostname.includes(':') && !hostname.startsWith('[');
+                const host = isIPv6 ? `[${hostname}]` : hostname;
+                const hostWithPort = parsed.port ? `${host}:${parsed.port}` : host;
+                const pathname = parsed.pathname === '/' ? '' : parsed.pathname;
+                const auth = parsed.username
+                    ? `${parsed.username}${parsed.password ? `:${parsed.password}` : ''}@`
+                    : '';
+                return `${protocol}//${auth}${hostWithPort}${pathname}${parsed.search}${parsed.hash}`;
+            } catch (error) {
+                return null;
+            }
+        };
+
         const resolveProcessUser = (proc) => {
             const raw = (proc?.user ?? proc?.username ?? '').toString().trim();
             return raw || '';
@@ -2354,7 +2379,7 @@
         };
 
         const NodeListToolbar = ({ query, onQueryChange, sortMode, onSortModeChange, t }) => (
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 shrink-0">
                 <input
                     type="text"
                     value={query}
@@ -2408,22 +2433,22 @@
             return (
                 <article
                     className={cx(
-                        'soft-panel-subtle p-3 border card-hover cursor-pointer',
+                        'soft-panel-subtle p-2.5 border card-hover cursor-pointer',
                         server.status !== 'online' ? 'opacity-80' : '',
                         isSelected ? 'border-[#5f9189] shadow-[0_8px_24px_rgba(95,145,137,0.18)]' : 'border-[rgba(60,47,35,0.1)]'
                     )}
                     onClick={() => onSelect(server)}
                 >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-1.5">
                         <div className="min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                                 <span className={cx('w-2 h-2 rounded-full', server.status === 'online' ? 'bg-[#5f9189]' : 'bg-[#a39a8f]')} />
                                 <h3 className="text-sm font-semibold text-[#221f1b] truncate">{server.name || '-'}</h3>
                             </div>
-                            <div className="text-[11px] text-[#7a7269] mt-1 truncate">{getServerHostDisplay(server)}</div>
+                            <div className="text-[11px] text-[#7a7269] mt-0.5 truncate">{getServerHostDisplay(server)}</div>
                         </div>
-                        <div className="flex items-start gap-1.5">
-                            <span className={cx('px-2 py-1 rounded-full border text-[10px] font-semibold whitespace-nowrap', tierToneMap[tier] || tierToneMap.offline)}>
+                        <div className="flex items-start gap-1">
+                            <span className={cx('px-1.5 py-0.5 rounded-full border text-[9px] leading-none font-semibold whitespace-nowrap', tierToneMap[tier] || tierToneMap.offline)}>
                                 {tierLabel}
                             </span>
                             {canManage ? (
@@ -2433,7 +2458,7 @@
                                         event.stopPropagation();
                                         onDelete(server);
                                     }}
-                                    className="muted-button p-1.5 text-[#746d64]"
+                                    className="muted-button p-1 text-[#746d64]"
                                     title={t('action.deleteNode')}
                                 >
                                     <Icons.Trash2 className="w-3.5 h-3.5" />
@@ -2442,39 +2467,39 @@
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-4 gap-1.5 mt-2.5 text-[10px] text-[#6e675e]">
-                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-lg px-2 py-1.5">
-                            <div className="uppercase tracking-[0.08em]">{t('node.users')}</div>
-                            <div className="font-semibold text-[#2d2a26] mt-0.5">{server.activeUserCount}</div>
+                    <div className="grid grid-cols-4 gap-1 mt-2 text-[9px] text-[#6e675e]">
+                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-md px-1.5 py-1">
+                            <div className="uppercase tracking-[0.06em]">{t('node.users')}</div>
+                            <div className="font-semibold text-[#2d2a26] mt-0">{server.activeUserCount}</div>
                         </div>
-                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-lg px-2 py-1.5">
-                            <div className="uppercase tracking-[0.08em]">{t('node.gpuCount')}</div>
-                            <div className="font-semibold text-[#2d2a26] mt-0.5">{server.gpuSummary.gpuCount}</div>
+                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-md px-1.5 py-1">
+                            <div className="uppercase tracking-[0.06em]">{t('node.gpuCount')}</div>
+                            <div className="font-semibold text-[#2d2a26] mt-0">{server.gpuSummary.gpuCount}</div>
                         </div>
-                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-lg px-2 py-1.5">
-                            <div className="uppercase tracking-[0.08em]">{t('node.idleGpu')}</div>
-                            <div className="font-semibold text-[#2d2a26] mt-0.5">{server.gpuSummary.idleGpuCount}</div>
+                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-md px-1.5 py-1">
+                            <div className="uppercase tracking-[0.06em]">{t('node.idleGpu')}</div>
+                            <div className="font-semibold text-[#2d2a26] mt-0">{server.gpuSummary.idleGpuCount}</div>
                         </div>
-                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-lg px-2 py-1.5">
-                            <div className="uppercase tracking-[0.08em]">{t('node.busyGpu')}</div>
-                            <div className="font-semibold text-[#2d2a26] mt-0.5">{server.gpuSummary.busyGpuCount}</div>
-                        </div>
-                    </div>
-
-                    <div className="mt-2.5 text-[11px] text-[#6f685f] space-y-1">
-                        <div className="flex items-center justify-between">
-                            <span>CPU {cpuText}</span>
-                            <span>RAM {ramText}</span>
-                            <span>{t('node.avgGpu')} {avgGpuText}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span>{t('node.vram')} {vramText}</span>
-                            <span className="font-mono">↓ {formatSpeed(server.networkDown)} / ↑ {formatSpeed(server.networkUp)}</span>
+                        <div className="soft-panel-subtle border border-[rgba(60,47,35,0.08)] rounded-md px-1.5 py-1">
+                            <div className="uppercase tracking-[0.06em]">{t('node.busyGpu')}</div>
+                            <div className="font-semibold text-[#2d2a26] mt-0">{server.gpuSummary.busyGpuCount}</div>
                         </div>
                     </div>
 
-                    <div className="mt-2.5">
-                        <div className="flex items-center justify-between text-[10px] text-[#746d64] mb-1">
+                    <div className="mt-2 text-[10px] text-[#6f685f] space-y-0.5">
+                        <div className="grid grid-cols-3 gap-1">
+                            <span className="truncate">CPU {cpuText}</span>
+                            <span className="truncate">RAM {ramText}</span>
+                            <span className="truncate">{t('node.avgGpu')} {avgGpuText}</span>
+                        </div>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1">
+                            <span className="truncate">{t('node.vram')} {vramText}</span>
+                            <span className="font-mono whitespace-nowrap text-right">↓ {formatSpeed(server.networkDown)} / ↑ {formatSpeed(server.networkUp)}</span>
+                        </div>
+                    </div>
+
+                    <div className="mt-2">
+                        <div className="flex items-center justify-between text-[9px] text-[#746d64] mb-0.5">
                             <span>{t('availability.score')}</span>
                             <span className="font-mono">{server.availabilityScore}</span>
                         </div>
@@ -2484,9 +2509,9 @@
                                 style={{ width: `${clampPercent(server.availabilityScore)}%` }}
                             />
                         </div>
-                        <div className="text-[10px] text-[#7c756c] mt-1 flex items-center justify-between">
+                        <div className="text-[9px] text-[#7c756c] mt-0.5 flex items-center justify-between gap-2">
                             <span>{t('node.lastSync')}</span>
-                            <span>{server.lastSeenAt ? formatTime(new Date(server.lastSeenAt)) : t('node.na')}</span>
+                            <span className="font-mono whitespace-nowrap">{server.lastSeenAt ? formatTime(new Date(server.lastSeenAt)) : t('node.na')}</span>
                         </div>
                     </div>
                 </article>
@@ -3021,7 +3046,11 @@
                 latestServersRef.current = servers;
             }, [servers]);
 
-            const showSaveConfigError = () => {
+            const showSaveConfigError = (errorCode = '') => {
+                if (errorCode === 'duplicate_node_url') {
+                    pushToast(t('notify.duplicateNodeUrl'), 'error');
+                    return;
+                }
                 pushToast(t('notify.saveConfigFailed'), 'error');
             };
 
@@ -3063,14 +3092,29 @@
                         showSaveConfigError();
                         return;
                     }
+                    const normalizedURL = normalizeAgentURL(url);
+                    if (!normalizedURL) {
+                        showSaveConfigError();
+                        return;
+                    }
+
+                    const hasDuplicateURL = latestServersRef.current.some((item) => {
+                        const existingURL = normalizeAgentURL(item?.url);
+                        return existingURL && existingURL === normalizedURL;
+                    });
+                    if (hasDuplicateURL) {
+                        showSaveConfigError('duplicate_node_url');
+                        return;
+                    }
 
                     const res = await authFetch('/api/config', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name, url }),
+                        body: JSON.stringify({ name, url: normalizedURL }),
                     });
                     if (!res.ok) {
-                        showSaveConfigError();
+                        const errorCode = await readResponseError(res, 'save_config_failed');
+                        showSaveConfigError(errorCode);
                         return;
                     }
 
@@ -3446,8 +3490,8 @@
 
             return (
                 <div className="min-h-screen pb-12">
-                    <div className="max-w-[1480px] mx-auto px-4 sm:px-6 py-6 md:py-8">
-                        <header className="soft-panel p-5 mb-5">
+                    <div className="max-w-[1480px] mx-auto px-4 sm:px-6 py-6 md:py-8 flex flex-col gap-5 min-h-0">
+                        <header className="soft-panel p-5">
                             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                                 <div className="min-w-0">
                                     <div className="section-eyebrow mb-1">{t('app.eyebrow')}</div>
@@ -3529,8 +3573,8 @@
                             </div>
                         </header>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-[370px_minmax(0,1fr)] gap-5">
-                            <aside className="soft-panel p-4 md:p-5">
+                        <div className="grid grid-cols-1 lg:grid-cols-[370px_minmax(0,1fr)] gap-5 min-h-0">
+                            <aside className="soft-panel p-4 md:p-5 flex flex-col min-h-0 h-full">
                                 <NodeListToolbar
                                     query={nodeQuery}
                                     onQueryChange={setNodeQuery}
@@ -3539,7 +3583,7 @@
                                     t={t}
                                 />
 
-                                <div className="mt-3 space-y-2.5 max-h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar pr-1">
+                                <div className="mt-3 flex-1 min-h-0 space-y-2 overflow-y-auto custom-scrollbar pr-1">
                                     {servers.length === 0 ? (
                                         <div className="soft-panel-subtle p-5 text-center">
                                             <div className="text-sm font-semibold text-[#2d2a27] mb-1">{t('empty.noConfiguredNodes')}</div>
@@ -3573,7 +3617,7 @@
                                 </div>
                             </aside>
 
-                            <section className="space-y-5">
+                            <section className="space-y-5 min-h-0">
                                 {!selectedServer ? (
                                     <div className="soft-panel p-8 text-center text-[#6f685f] text-sm">{t('panel.emptySelect')}</div>
                                 ) : (
