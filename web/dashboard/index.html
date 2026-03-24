@@ -2756,9 +2756,7 @@
             const [selectedServerId, setSelectedServerId] = useState(null);
             const [nodeQuery, setNodeQuery] = useState('');
             const [sortMode, setSortMode] = useState('availability');
-            const historyRef = useRef({});
             const latestServersRef = useRef([]);
-            const activeFetchIdRef = useRef(0);
             const [lastSyncedAt, setLastSyncedAt] = useState(null);
             const [selectedGpuRef, setSelectedGpuRef] = useState(null);
             const [dialogState, setDialogState] = useState(null);
@@ -2906,6 +2904,25 @@
                 lastSeenAt: null,
             });
 
+            const normalizeOverviewServer = (server) => ({
+                id: server?.id,
+                name: server?.name,
+                url: server?.url,
+                status: typeof server?.status === 'string' ? server.status : 'pending',
+                data: server?.data || null,
+                metrics: server?.metrics || null,
+                lastSeenAt: safeNumber(server?.lastSeenAt),
+                lastPolledAtUnix: safeNumber(server?.lastPolledAtUnix),
+                collectedAtUnix: safeNumber(server?.collectedAtUnix),
+                activeUsers: Array.isArray(server?.activeUsers) ? server.activeUsers : null,
+                activeUserCount: safeNumber(server?.activeUserCount),
+                gpuSummary: server?.gpuSummary || null,
+                availabilityScore: safeNumber(server?.availabilityScore),
+                availabilityTier: typeof server?.availabilityTier === 'string' ? server.availabilityTier : null,
+                dataAgeSec: safeNumber(server?.dataAgeSec),
+                error: typeof server?.error === 'string' ? server.error : null,
+            });
+
             useEffect(() => {
                 const token = readAuthToken();
                 if (!token) {
@@ -3012,79 +3029,18 @@
                 if (!currentUser) return;
 
                 let disposed = false;
-                const inFlightControllers = new Set();
-                const inFlightTimeouts = new Set();
-                const effectGeneration = ++activeFetchIdRef.current;
-                let nextRequestId = 0;
-                let latestAppliedRequestId = 0;
 
                 const fetchAll = async () => {
-                    const requestId = ++nextRequestId;
-                    const snapshot = latestServersRef.current;
-                    if (snapshot.length === 0) return;
-
-                    const promises = snapshot.map(async (server) => {
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 3000);
-                        inFlightControllers.add(controller);
-                        inFlightTimeouts.add(timeoutId);
-
-                        try {
-                            const targetUrl = `${server.url}/metrics`;
-                            const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-                            let res;
-                            try {
-                                res = await authFetch(proxyUrl, {
-                                    signal: controller.signal,
-                                });
-                                if (res.status !== 200) throw new Error('proxy_failed');
-                            } catch (proxyErr) {
-                                if (proxyErr && proxyErr.message === 'unauthorized') {
-                                    throw proxyErr;
-                                }
-                                res = await fetch(targetUrl, {
-                                    signal: controller.signal,
-                                });
-                            }
-                            if (!res.ok) throw new Error();
-
-                            const jsonData = await res.json();
-                            const currentTime = Date.now();
-                            const history = historyRef.current[server.url];
-                            let upSpeed = 0;
-                            let downSpeed = 0;
-                            if (history) {
-                                const timeDiffSec = (currentTime - history.timestamp) / 1000;
-                                if (timeDiffSec > 0) {
-                                    upSpeed = Math.max(0, jsonData.net_sent_mb - history.sent) / timeDiffSec;
-                                    downSpeed = Math.max(0, jsonData.net_recv_mb - history.recv) / timeDiffSec;
-                                }
-                            }
-                            historyRef.current[server.url] = { timestamp: currentTime, sent: jsonData.net_sent_mb, recv: jsonData.net_recv_mb };
-                            return { id: server.id, status: 'online', data: jsonData, metrics: { upSpeed, downSpeed }, lastSeenAt: currentTime };
-                        } catch {
-                            return { id: server.id, status: 'offline' };
-                        } finally {
-                            clearTimeout(timeoutId);
-                            inFlightTimeouts.delete(timeoutId);
-                            inFlightControllers.delete(controller);
-                        }
-                    });
-
-                    const results = await Promise.all(promises);
-                    if (disposed || effectGeneration !== activeFetchIdRef.current) return;
-                    if (requestId < latestAppliedRequestId) return;
-                    latestAppliedRequestId = requestId;
-
-                    setServers((prevServers) => {
-                        const resultMap = new Map(results.map((item) => [item.id, item]));
-                        return prevServers.map((server) => {
-                            const next = resultMap.get(server.id);
-                            if (!next) return server;
-                            if (next.status === 'offline') return { ...server, status: 'offline' };
-                            return { ...server, status: 'online', data: next.data, metrics: next.metrics, lastSeenAt: next.lastSeenAt };
-                        });
-                    });
+                    try {
+                        const res = await authFetch('/api/nodes/overview');
+                        if (!res.ok) throw new Error('load_overview_failed');
+                        const data = await res.json();
+                        if (disposed) return;
+                        const list = Array.isArray(data) ? data.map(normalizeOverviewServer) : [];
+                        setServers(list);
+                    } catch (error) {
+                        if (disposed) return;
+                    }
                     setLastSyncedAt(new Date());
                 };
 
@@ -3093,12 +3049,7 @@
 
                 return () => {
                     disposed = true;
-                    if (activeFetchIdRef.current === effectGeneration) {
-                        activeFetchIdRef.current += 1;
-                    }
                     clearInterval(interval);
-                    inFlightTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
-                    inFlightControllers.forEach((controller) => controller.abort());
                 };
             }, [authFetch, currentUser]);
 
@@ -3161,8 +3112,6 @@
 
                 const currentServers = latestServersRef.current;
                 const newList = currentServers.filter((item) => item.id !== server.id);
-                const removedServer = currentServers.find((item) => item.id === server.id);
-                if (removedServer) delete historyRef.current[removedServer.url];
                 setServers(newList);
                 if (selectedGpuRef && String(selectedGpuRef.serverId) === String(server.id)) {
                     setSelectedGpuRef(null);
@@ -3348,15 +3297,31 @@
             const enrichedServers = useMemo(() => {
                 const nowMs = Date.now();
                 return servers.map((server) => {
-                    const gpuSummary = getServerGpuSummary(server);
-                    const activeUsers = getServerActiveUsers(server);
-                    const availabilityScore = computeAvailabilityScore(server, nowMs);
-                    const availabilityTier = getAvailabilityTier(availabilityScore, server);
+                    const fallbackGpuSummary = getServerGpuSummary(server);
+                    const gpuSummary = server?.gpuSummary && typeof server.gpuSummary === 'object'
+                        ? {
+                            ...fallbackGpuSummary,
+                            ...server.gpuSummary,
+                            avgUtilization: safeNumber(server.gpuSummary.avgUtilization),
+                            avgMemoryPercent: safeNumber(server.gpuSummary.avgMemoryPercent),
+                        }
+                        : fallbackGpuSummary;
+                    const activeUsers = Array.isArray(server?.activeUsers) ? server.activeUsers : getServerActiveUsers(server);
+                    const activeUserCount = Number.isFinite(server?.activeUserCount) ? Number(server.activeUserCount) : activeUsers.length;
+                    const availabilityScore = Number.isFinite(server?.availabilityScore)
+                        ? Number(server.availabilityScore)
+                        : computeAvailabilityScore(server, nowMs);
+                    const availabilityTier = (typeof server?.availabilityTier === 'string' && server.availabilityTier)
+                        ? server.availabilityTier
+                        : getAvailabilityTier(availabilityScore, server);
+                    const dataAgeSec = Number.isFinite(server?.dataAgeSec)
+                        ? Number(server.dataAgeSec)
+                        : computeDataAgeSeconds(server, nowMs);
                     return {
                         ...server,
                         hostDisplay: getServerHostDisplay(server),
                         activeUsers,
-                        activeUserCount: activeUsers.length,
+                        activeUserCount,
                         gpuSummary,
                         availabilityScore,
                         availabilityTier,
@@ -3364,7 +3329,7 @@
                         ramPercent: safeNumber(server?.data?.ram_percent),
                         networkDown: safeNumber(server?.metrics?.downSpeed) || 0,
                         networkUp: safeNumber(server?.metrics?.upSpeed) || 0,
-                        dataAgeSec: computeDataAgeSeconds(server, nowMs),
+                        dataAgeSec,
                     };
                 });
             }, [servers]);

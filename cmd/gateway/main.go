@@ -18,10 +18,14 @@ import (
 
 // main 启动 Gateway：提供前端页面、配置 API 和代理 API。
 func main() {
+	runnerCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	port := envOr("PORT", "3000")
 	webDir := resolveWebDir(envOr("WEB_DIR", "web"))
 	legacyConfigFile := envOr("CONFIG_FILE", filepath.Join(webDir, "config.json"))
 	jwtSecret := envOr("JWT_SECRET", "nexus-agent-jwt-secret")
+	runtimeCfg := gateway.LoadGatewayRuntimeConfigFromEnv()
 
 	db, err := gateway.InitMySQLFromEnv()
 	if err != nil {
@@ -32,6 +36,23 @@ func main() {
 	if err := store.BootstrapFromJSONIfEmpty(legacyConfigFile); err != nil {
 		log.Printf("bootstrap from legacy config skipped: %v", err)
 	}
+
+	redisClient, err := gateway.NewRedisClient(runnerCtx, runtimeCfg.Redis)
+	if err != nil {
+		log.Fatalf("init redis failed: %v", err)
+	}
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			log.Printf("redis close error: %v", err)
+		}
+	}()
+
+	nodeStateStore := gateway.NewNodeStateStore(redisClient, runtimeCfg.Redis.KeyPrefix, runtimeCfg.NodeStateTTL)
+	nodeStateService := gateway.NewNodeStateService(store, nodeStateStore, gateway.NodeStateServiceOptions{
+		PollTimeout: runtimeCfg.PollTimeout,
+	})
+	nodePoller := gateway.NewNodePoller(nodeStateService, runtimeCfg.PollInterval)
+	go nodePoller.Start(runnerCtx)
 
 	version := gateway.VersionInfo{
 		Version:     time.Now().Unix(),
@@ -44,7 +65,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	handler := gateway.NewHandler(store, gateway.NewAuthService(db, jwtSecret), version)
+	handler := gateway.NewHandler(store, gateway.NewAuthService(db, jwtSecret), version, nodeStateService)
 	handler.RegisterAPIRoutes(r)
 	handler.RegisterStaticRoutes(r, webDir)
 
@@ -58,14 +79,14 @@ func main() {
 		log.Printf("Nexus Agent Go Gateway running at http://0.0.0.0:%s", port)
 		log.Printf("Web directory: %s", webDir)
 		log.Printf("Legacy config bootstrap file: %s", legacyConfigFile)
+		log.Printf("Redis addr: %s, key prefix: %s", runtimeCfg.Redis.Addr, runtimeCfg.Redis.KeyPrefix)
+		log.Printf("Poll interval: %s, poll timeout: %s, node state ttl: %s", runtimeCfg.PollInterval, runtimeCfg.PollTimeout, runtimeCfg.NodeStateTTL)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("gateway server failed: %v", err)
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	<-runnerCtx.Done()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
