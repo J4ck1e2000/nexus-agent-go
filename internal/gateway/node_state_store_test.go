@@ -134,6 +134,64 @@ func TestNodeStateStore_CleanupRemovedNodes(t *testing.T) {
 	if len(tracked) != 1 || tracked[0] != "1" {
 		t.Fatalf("tracked nodes mismatch: %+v", tracked)
 	}
+
+	if entries, err := redisClient.ZCard(context.Background(), store.nodeHistoryKey(2)).Result(); err != nil {
+		t.Fatalf("query node history failed: %v", err)
+	} else if entries != 0 {
+		t.Fatalf("node 2 history should be removed, got=%d", entries)
+	}
+}
+
+func TestNodeStateStore_LoadNodeHistorySince(t *testing.T) {
+	store, _, cleanup := newNodeStateStoreForTest(t)
+	defer cleanup()
+
+	state := NodeState{
+		ID:                7,
+		Name:              "server-07",
+		URL:               "http://127.0.0.1:8017",
+		Status:            NodeStatusOnline,
+		LastPolledAtUnix:  1710000200,
+		LastSeenAtUnix:    1710000200,
+		AvailabilityScore: 76,
+		AvailabilityTier:  AvailabilityTierAvailable,
+		Data: &model.SystemMetrics{
+			CPUUsage:   44,
+			RAMPercent: 55,
+		},
+		GPUSummary:      NodeGPUSummary{GPUCount: 2, IdleGpuCount: 1, BusyGpuCount: 1, GpuPressure: 42, BusyRatio: 0.5},
+		ActiveUserCount: 1,
+	}
+	if err := store.SaveNodeState(context.Background(), state); err != nil {
+		t.Fatalf("save node state failed: %v", err)
+	}
+
+	state2 := state
+	state2.LastPolledAtUnix = 1710000260
+	state2.AvailabilityScore = 60
+	state2.AvailabilityTier = AvailabilityTierBusy
+	state2.GPUSummary.GpuPressure = 70
+	state2.GPUSummary.BusyRatio = 1
+	if err := store.SaveNodeState(context.Background(), state2); err != nil {
+		t.Fatalf("save node state2 failed: %v", err)
+	}
+
+	history, err := store.LoadNodeHistorySince(context.Background(), state.ID, 1710000000)
+	if err != nil {
+		t.Fatalf("LoadNodeHistorySince failed: %v", err)
+	}
+	if len(history) != 2 {
+		t.Fatalf("history length mismatch: got=%d want=2", len(history))
+	}
+	if history[0].NodeName != "server-07" {
+		t.Fatalf("node name mismatch: got=%q", history[0].NodeName)
+	}
+	if history[1].AvailabilityTier != AvailabilityTierBusy {
+		t.Fatalf("availability tier mismatch: got=%q want=%q", history[1].AvailabilityTier, AvailabilityTierBusy)
+	}
+	if history[1].TimestampUnix != 1710000260 {
+		t.Fatalf("timestamp mismatch: got=%d want=%d", history[1].TimestampUnix, 1710000260)
+	}
 }
 
 func newNodeStateStoreForTest(t *testing.T) (*NodeStateStore, *redis.Client, func()) {

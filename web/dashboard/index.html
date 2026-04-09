@@ -2770,6 +2770,202 @@
             );
         };
 
+        const normalizeAIResponse = (payload) => {
+            const source = payload && typeof payload === 'object' ? payload : {};
+            const answer = typeof source.answer === 'string' ? source.answer : '';
+            const reasoningSummary = typeof source.reasoning_summary === 'string'
+                ? source.reasoning_summary
+                : (typeof source.reasoningSummary === 'string' ? source.reasoningSummary : '');
+            const mode = typeof source.mode === 'string' ? source.mode : '';
+            const toolCalls = Array.isArray(source.tool_calls)
+                ? source.tool_calls
+                : (Array.isArray(source.toolCalls) ? source.toolCalls : []);
+            const relatedNodes = Array.isArray(source.related_nodes)
+                ? source.related_nodes
+                : (Array.isArray(source.relatedNodes) ? source.relatedNodes : []);
+            const warnings = Array.isArray(source.warnings) ? source.warnings : [];
+            return { answer, reasoningSummary, mode, toolCalls, relatedNodes, warnings };
+        };
+
+        const AIQueryPanel = ({
+            language,
+            queryValue,
+            onQueryChange,
+            onSubmitQuery,
+            isSubmitting,
+            latestResponse,
+            queryError,
+            history,
+            selectedServerName,
+        }) => {
+            const copy = language === 'zh'
+                ? {
+                    eyebrow: 'AI Assistant',
+                    title: '智能问答 / 调度建议',
+                    subtitle: '调用 /api/ai/query，基于当前聚合节点数据给出回答。',
+                    placeholder: '例如：哪台机器最适合 16GB 显存训练任务？',
+                    ask: '提问',
+                    asking: '提问中...',
+                    answer: '回答',
+                    reasoning: '解释依据',
+                    mode: '模式',
+                    relatedNodes: '相关节点',
+                    toolCalls: '工具调用',
+                    warnings: '提示',
+                    recent: '最近提问',
+                    noData: '暂无回答',
+                    suggestionLabel: '快捷问题',
+                }
+                : {
+                    eyebrow: 'AI Assistant',
+                    title: 'Node Q&A / Scheduling',
+                    subtitle: 'Uses /api/ai/query and answers from gateway aggregate node data.',
+                    placeholder: 'Example: Which node is best for a 16GB VRAM training task?',
+                    ask: 'Ask',
+                    asking: 'Asking...',
+                    answer: 'Answer',
+                    reasoning: 'Reasoning',
+                    mode: 'Mode',
+                    relatedNodes: 'Related Nodes',
+                    toolCalls: 'Tool Calls',
+                    warnings: 'Warnings',
+                    recent: 'Recent Queries',
+                    noData: 'No response yet',
+                    suggestionLabel: 'Quick Prompts',
+                };
+
+            const suggestions = language === 'zh'
+                ? [
+                    '哪台机器 GPU 最空闲？',
+                    '推荐两台适合启动训练任务的机器',
+                    `${selectedServerName || 'server-01'} 当前资源情况怎么样？`,
+                    `${selectedServerName || 'server-01'} 为什么看起来很忙？`,
+                ]
+                : [
+                    'Which node has the most idle GPU right now?',
+                    'Recommend two nodes for starting a training job.',
+                    `How is ${selectedServerName || 'server-01'} doing now?`,
+                    `Why does ${selectedServerName || 'server-01'} look busy?`,
+                ];
+
+            const response = latestResponse || null;
+
+            return (
+                <section className="soft-panel p-5">
+                    <div className="section-eyebrow mb-1">{copy.eyebrow}</div>
+                    <div className="text-base font-semibold text-[#1e1c19]">{copy.title}</div>
+                    <div className="text-xs text-[#6e675f] mt-1">{copy.subtitle}</div>
+
+                    <div className="mt-3">
+                        <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-[#857d73] mb-2">{copy.suggestionLabel}</div>
+                        <div className="flex flex-wrap gap-2">
+                            {suggestions.map((item) => (
+                                <button
+                                    key={item}
+                                    type="button"
+                                    className="muted-button px-3 py-1.5 text-xs"
+                                    onClick={() => onSubmitQuery(item)}
+                                    disabled={isSubmitting}
+                                >
+                                    {item}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="mt-3">
+                        <textarea
+                            className="w-full min-h-[84px] bg-[#fbf8f3] border border-[rgba(60,47,35,0.12)] rounded-2xl px-3.5 py-2.5 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.28)] transition-colors resize-y"
+                            placeholder={copy.placeholder}
+                            value={queryValue}
+                            disabled={isSubmitting}
+                            onChange={(event) => onQueryChange(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' && !event.shiftKey) {
+                                    event.preventDefault();
+                                    onSubmitQuery(queryValue);
+                                }
+                            }}
+                        />
+                        <div className="mt-2 flex justify-end">
+                            <button
+                                type="button"
+                                className={`primary-button px-4 py-2 text-sm font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                onClick={() => onSubmitQuery(queryValue)}
+                                disabled={isSubmitting}
+                            >
+                                {isSubmitting ? copy.asking : copy.ask}
+                            </button>
+                        </div>
+                    </div>
+
+                    {queryError ? (
+                        <div className="mt-3 soft-panel-subtle p-3 text-xs text-[#7f4a43] border border-[#d9b0a8]">
+                            {queryError}
+                        </div>
+                    ) : null}
+
+                    <div className="mt-3 soft-panel-subtle p-3">
+                        {!response ? (
+                            <div className="text-xs text-[#6f685f]">{copy.noData}</div>
+                        ) : (
+                            <div className="space-y-2">
+                                <div>
+                                    <div className="text-[10px] uppercase tracking-[0.12em] text-[#7f776e]">{copy.answer}</div>
+                                    <div className="text-sm text-[#1f1d1b] mt-1 whitespace-pre-wrap">{response.answer || '-'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] uppercase tracking-[0.12em] text-[#7f776e]">{copy.reasoning}</div>
+                                    <div className="text-xs text-[#3d3934] mt-1 whitespace-pre-wrap">{response.reasoningSummary || '-'}</div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                    <div><span className="text-[#7f776e]">{copy.mode}:</span> <span className="font-mono">{response.mode || '-'}</span></div>
+                                    <div><span className="text-[#7f776e]">{copy.relatedNodes}:</span> {(response.relatedNodes && response.relatedNodes.length > 0) ? response.relatedNodes.join(', ') : '-'}</div>
+                                </div>
+                                <div className="text-xs">
+                                    <div className="text-[10px] uppercase tracking-[0.12em] text-[#7f776e] mb-1">{copy.toolCalls}</div>
+                                    <div className="font-mono text-[11px] text-[#3d3934] break-all">
+                                        {(response.toolCalls && response.toolCalls.length > 0)
+                                            ? response.toolCalls.map((item) => item.name || '-').join(', ')
+                                            : '-'}
+                                    </div>
+                                </div>
+                                {(response.warnings && response.warnings.length > 0) ? (
+                                    <div className="text-xs text-[#7f4a43]">
+                                        <div className="text-[10px] uppercase tracking-[0.12em] mb-1">{copy.warnings}</div>
+                                        <div className="space-y-1">
+                                            {response.warnings.map((warning, index) => (
+                                                <div key={`${warning}-${index}`}>{warning}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </div>
+                        )}
+                    </div>
+
+                    {history.length > 0 ? (
+                        <div className="mt-3">
+                            <div className="text-[10px] uppercase tracking-[0.12em] text-[#7f776e] mb-1">{copy.recent}</div>
+                            <div className="space-y-1 max-h-[120px] overflow-auto custom-scrollbar pr-1">
+                                {history.map((item) => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        className="w-full text-left soft-panel-subtle px-2.5 py-2 text-xs text-[#3d3934] hover:border-[rgba(60,47,35,0.2)] transition-colors"
+                                        onClick={() => onSubmitQuery(item.query)}
+                                        disabled={isSubmitting}
+                                    >
+                                        {item.query}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
+                </section>
+            );
+        };
+
         const App = () => {
             const [servers, setServers] = useState([]);
             const [isModalOpen, setIsModalOpen] = useState(false);
@@ -2796,6 +2992,11 @@
             const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
             const [newUserForm, setNewUserForm] = useState({ username: '', password: '', role: 'user' });
             const [isCreatingUser, setIsCreatingUser] = useState(false);
+            const [aiQueryInput, setAIQueryInput] = useState('');
+            const [isAIQuerying, setIsAIQuerying] = useState(false);
+            const [aiQueryError, setAIQueryError] = useState('');
+            const [latestAIResponse, setLatestAIResponse] = useState(null);
+            const [aiQueryHistory, setAIQueryHistory] = useState([]);
             const t = useMemo(() => createTranslator(language), [language]);
             const isAdmin = currentUser && currentUser.role === 'admin';
             const resolvedSelectedGpu = useResolvedSelectedGpu(selectedGpuRef, servers);
@@ -3329,6 +3530,45 @@
                 });
             };
 
+            const submitAIQuery = async (rawQuery) => {
+                const query = String(rawQuery || '').trim();
+                if (!query || isAIQuerying) return;
+
+                setIsAIQuerying(true);
+                setAIQueryError('');
+                try {
+                    const res = await authFetch('/api/ai/query', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query, stream: false }),
+                    });
+                    if (!res.ok) {
+                        const errorCode = await readResponseError(res, 'ai_query_failed');
+                        const message = language === 'zh'
+                            ? `AI 查询失败：${errorCode}`
+                            : `AI query failed: ${errorCode}`;
+                        setAIQueryError(message);
+                        pushToast(message, 'error');
+                        return;
+                    }
+
+                    const payload = await res.json();
+                    const normalized = normalizeAIResponse(payload);
+                    setLatestAIResponse(normalized);
+                    setAIQueryInput('');
+                    setAIQueryHistory((prev) => {
+                        const next = [{ id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, query }, ...prev];
+                        return next.slice(0, 6);
+                    });
+                } catch (error) {
+                    const message = language === 'zh' ? 'AI 查询失败，请稍后重试。' : 'AI query failed, please retry.';
+                    setAIQueryError(message);
+                    pushToast(message, 'error');
+                } finally {
+                    setIsAIQuerying(false);
+                }
+            };
+
             const handleSelectGpu = (serverId, gpuIndex, gpu) => {
                 setSelectedGpuRef({
                     serverId,
@@ -3680,6 +3920,18 @@
                                                 </section>
                                             </div>
                                         </div>
+
+                                        <AIQueryPanel
+                                            language={language}
+                                            queryValue={aiQueryInput}
+                                            onQueryChange={setAIQueryInput}
+                                            onSubmitQuery={submitAIQuery}
+                                            isSubmitting={isAIQuerying}
+                                            latestResponse={latestAIResponse}
+                                            queryError={aiQueryError}
+                                            history={aiQueryHistory}
+                                            selectedServerName={selectedServer?.name || ''}
+                                        />
                                     </>
                                 )}
                             </section>
