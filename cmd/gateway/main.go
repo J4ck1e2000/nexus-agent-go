@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"nexus-agent-go/internal/ai"
 	"nexus-agent-go/internal/gateway"
 )
 
@@ -65,7 +66,19 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
+	aiConfig := ai.LoadConfigFromEnv()
+	aiAdapter := gateway.NewAIDataAdapter(nodeStateService, nodeStateStore)
+	aiToolbox := ai.NewToolbox(ai.ToolboxOptions{
+		DataProvider:    aiAdapter,
+		HistoryProvider: aiAdapter,
+	})
+	aiService := ai.NewService(ai.ServiceOptions{
+		Config:  aiConfig,
+		Toolbox: aiToolbox,
+	})
+
 	handler := gateway.NewHandler(store, gateway.NewAuthService(db, jwtSecret), version, nodeStateService)
+	handler.SetAIQueryService(aiService)
 	handler.RegisterAPIRoutes(r)
 	handler.RegisterStaticRoutes(r, webDir)
 
@@ -81,6 +94,13 @@ func main() {
 		log.Printf("Legacy config bootstrap file: %s", legacyConfigFile)
 		log.Printf("Redis addr: %s, key prefix: %s", runtimeCfg.Redis.Addr, runtimeCfg.Redis.KeyPrefix)
 		log.Printf("Poll interval: %s, poll timeout: %s, node state ttl: %s", runtimeCfg.PollInterval, runtimeCfg.PollTimeout, runtimeCfg.NodeStateTTL)
+		log.Printf("AI enabled: %v, mode: %s, provider: %s, model configured: %v",
+			aiConfig.Enabled,
+			aiConfig.Mode,
+			aiConfig.Provider,
+			aiConfig.AgentReady(),
+		)
+		log.Printf("AI model: %s, base url: %s", aiConfig.Model, aiConfig.BaseURL)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("gateway server failed: %v", err)
 		}

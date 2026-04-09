@@ -3,3 +3,5 @@ bin/*
 docs/*
 
 /.vscode
+/.tmp
+*.go.[0-9]*

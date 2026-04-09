@@ -29,6 +29,7 @@ type Handler struct {
 	versionInfo      VersionInfo
 	proxyClient      *http.Client
 	nodeStateService *NodeStateService
+	aiQueryService   AIQueryService
 }
 
 // NewHandler 创建网关请求处理器。
@@ -60,6 +61,7 @@ func (h *Handler) RegisterAPIRoutes(r *gin.Engine) {
 	authorized.GET("/config", h.getConfig)
 	authorized.GET("/nodes/overview", h.getNodesOverview)
 	authorized.GET("/proxy", h.proxyRequest)
+	h.registerAIRoutes(authorized)
 
 	admin := authorized.Group("")
 	admin.Use(RequireAdmin())

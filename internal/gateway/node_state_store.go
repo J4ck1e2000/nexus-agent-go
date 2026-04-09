@@ -21,9 +21,10 @@ const (
 
 // NodeStateStore 负责 Redis 热状态层读写。
 type NodeStateStore struct {
-	client    redis.Cmdable
-	keyPrefix string
-	ttl       time.Duration
+	client           redis.Cmdable
+	keyPrefix        string
+	ttl              time.Duration
+	historyRetention time.Duration
 }
 
 // NewNodeStateStore 创建 Redis 热状态存储。
@@ -36,9 +37,10 @@ func NewNodeStateStore(client redis.Cmdable, keyPrefix string, ttl time.Duration
 		ttl = defaultNodeStateTTL
 	}
 	return &NodeStateStore{
-		client:    client,
-		keyPrefix: normalizedPrefix,
-		ttl:       ttl,
+		client:           client,
+		keyPrefix:        normalizedPrefix,
+		ttl:              ttl,
+		historyRetention: defaultNodeHistoryRetention,
 	}
 }
 
@@ -53,10 +55,23 @@ func (s *NodeStateStore) SaveNodeState(ctx context.Context, state NodeState) err
 	if err != nil {
 		return fmt.Errorf("marshal node state failed: %w", err)
 	}
+	historyPayload, historyTimestamp, err := marshalNodeHistorySnapshot(state)
+	if err != nil {
+		return err
+	}
 
 	pipe := s.client.TxPipeline()
 	pipe.Set(ctx, s.nodeStateKey(state.ID), payload, s.ttl)
 	pipe.SAdd(ctx, s.nodesTrackedKey(), member)
+	pipe.ZAdd(ctx, s.nodeHistoryKey(state.ID), redis.Z{
+		Score:  float64(historyTimestamp),
+		Member: historyPayload,
+	})
+	cutoffUnix := historyTimestamp - int64(s.historyRetention.Seconds())
+	if cutoffUnix > 0 {
+		pipe.ZRemRangeByScore(ctx, s.nodeHistoryKey(state.ID), "-inf", strconv.FormatInt(cutoffUnix, 10))
+	}
+	pipe.Expire(ctx, s.nodeHistoryKey(state.ID), s.historyRetention)
 
 	if state.Status == NodeStatusOnline {
 		freeVRAM := state.GPUSummary.TotalMemory - state.GPUSummary.TotalMemoryUsed
@@ -160,6 +175,7 @@ func (s *NodeStateStore) CleanupRemovedNodes(ctx context.Context, activeNodeIDs 
 
 		if nodeID, err := strconv.ParseInt(member, 10, 64); err == nil {
 			pipe.Del(ctx, s.nodeStateKey(nodeID))
+			pipe.Del(ctx, s.nodeHistoryKey(nodeID))
 		}
 	}
 
