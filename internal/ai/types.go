@@ -12,6 +12,21 @@ const (
 )
 
 const (
+	// StreamEventStart marks the beginning of one stream response.
+	StreamEventStart = "start"
+	// StreamEventStatus reports safe high-level status.
+	StreamEventStatus = "status"
+	// StreamEventDelta carries incremental answer text chunks.
+	StreamEventDelta = "delta"
+	// StreamEventMeta carries secondary metadata.
+	StreamEventMeta = "meta"
+	// StreamEventDone marks normal completion with final response.
+	StreamEventDone = "done"
+	// StreamEventError marks stream failure.
+	StreamEventError = "error"
+)
+
+const (
 	// IntentUnknown means no reliable intent was detected.
 	IntentUnknown IntentType = "unknown"
 	// IntentNodeSummary asks for one node status summary.
@@ -51,6 +66,27 @@ type AIQueryResponse struct {
 	ToolCalls        []ToolCallRecord `json:"tool_calls,omitempty"`
 	RelatedNodes     []string         `json:"related_nodes,omitempty"`
 	Warnings         []string         `json:"warnings,omitempty"`
+}
+
+// AIStreamMeta carries non-primary metadata for stream outputs.
+type AIStreamMeta struct {
+	ReasoningSummary string           `json:"reasoning_summary,omitempty"`
+	Mode             string           `json:"mode,omitempty"`
+	ToolCalls        []ToolCallRecord `json:"tool_calls,omitempty"`
+	RelatedNodes     []string         `json:"related_nodes,omitempty"`
+	Warnings         []string         `json:"warnings,omitempty"`
+}
+
+// AIStreamEvent is one stream event produced by AI query streaming.
+type AIStreamEvent struct {
+	Event   string           `json:"event"`
+	Query   string           `json:"query,omitempty"`
+	Phase   string           `json:"phase,omitempty"`
+	Message string           `json:"message,omitempty"`
+	Text    string           `json:"text,omitempty"`
+	Error   string           `json:"error,omitempty"`
+	Meta    *AIStreamMeta    `json:"meta,omitempty"`
+	Done    *AIQueryResponse `json:"done,omitempty"`
 }
 
 // QueryIntent is a structured intent recognized from user query.

@@ -3,8 +3,10 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -78,5 +80,73 @@ func TestOpenAICompatibleClient_HTTPError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatalf("expected error, got nil")
+	}
+}
+
+func TestOpenAICompatibleClient_CreateChatCompletionStream(t *testing.T) {
+	var capturedStream bool
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req ChatCompletionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			capturedStream = req.Stream
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+		_, _ = fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"}}]}\n\n")
+		_, _ = fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hello \"}}]}\n\n")
+		_, _ = fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"world\"},\"finish_reason\":\"stop\"}]}\n\n")
+		_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer server.Close()
+
+	client := NewOpenAICompatibleClient(server.URL, "test-key", 0)
+	segments := make([]string, 0, 2)
+	err := client.CreateChatCompletionStream(context.Background(), ChatCompletionRequest{
+		Model: "qwen-plus",
+		Messages: []ChatMessage{
+			{Role: "user", Content: "hello"},
+		},
+	}, func(chunk ChatCompletionStreamChunk) error {
+		for _, choice := range chunk.Choices {
+			if choice.Delta.Content != "" {
+				segments = append(segments, choice.Delta.Content)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("CreateChatCompletionStream failed: %v", err)
+	}
+	if !capturedStream {
+		t.Fatalf("expected stream=true in request payload")
+	}
+	joined := strings.Join(segments, "")
+	if joined != "hello world" {
+		t.Fatalf("stream content mismatch: got=%q want=%q", joined, "hello world")
+	}
+}
+
+func TestOpenAICompatibleClient_CreateChatCompletionStream_HTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(ChatCompletionResponse{
+			Error: &ChatCompletionError{
+				Message: "invalid api key",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewOpenAICompatibleClient(server.URL, "bad-key", 0)
+	err := client.CreateChatCompletionStream(context.Background(), ChatCompletionRequest{
+		Model:    "qwen-plus",
+		Messages: []ChatMessage{{Role: "user", Content: "hello"}},
+	}, func(chunk ChatCompletionStreamChunk) error {
+		_ = chunk
+		return nil
+	})
+	if err == nil {
+		t.Fatalf("expected stream error, got nil")
 	}
 }

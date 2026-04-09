@@ -175,6 +175,203 @@
             outline: 2px solid rgba(95, 145, 137, 0.55);
             outline-offset: 2px;
         }
+
+        .floating-ai-launcher {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            gap: 10px;
+            z-index: 80;
+        }
+
+        .floating-ai-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 999px;
+            border: 1px solid rgba(60, 47, 35, 0.2);
+            background: linear-gradient(160deg, #26231f 0%, #3b3530 45%, #5f9189 100%);
+            color: #f8f4ed;
+            box-shadow: 0 14px 28px rgba(35, 30, 25, 0.28), 0 4px 12px rgba(35, 30, 25, 0.2);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+            animation: aiFloat 3s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+
+        .floating-ai-button:hover {
+            transform: translateY(-2px) scale(1.01);
+            box-shadow: 0 16px 34px rgba(35, 30, 25, 0.32), 0 6px 16px rgba(35, 30, 25, 0.22);
+        }
+
+        .floating-ai-widget {
+            position: fixed;
+            right: 20px;
+            bottom: 92px;
+            width: min(420px, calc(100vw - 20px));
+            max-width: 420px;
+            height: min(640px, calc(100vh - 110px));
+            border-radius: 24px;
+            border: 1px solid rgba(60, 47, 35, 0.16);
+            background: #f8f5f0;
+            box-shadow: 0 20px 48px rgba(20, 18, 16, 0.22), 0 10px 20px rgba(20, 18, 16, 0.14);
+            z-index: 79;
+            overflow: hidden;
+            transform-origin: bottom right;
+            transition: opacity 180ms ease, transform 200ms ease;
+        }
+
+        .floating-ai-widget-closed {
+            opacity: 0;
+            transform: translateY(20px) scale(0.96);
+            pointer-events: none;
+        }
+
+        .floating-ai-widget-open {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+
+        .floating-ai-nudge {
+            max-width: 220px;
+            background: linear-gradient(180deg, #fffaf3 0%, #f8f0e4 100%);
+            border: 1px solid rgba(60, 47, 35, 0.22);
+            color: #2f2a25;
+            border-radius: 14px;
+            padding: 9px 11px;
+            font-size: 12px;
+            line-height: 1.35;
+            box-shadow: 0 10px 24px rgba(32, 29, 25, 0.2);
+            position: relative;
+            opacity: 0.98;
+            transform: translateY(0);
+            transition: opacity 180ms ease, transform 180ms ease;
+            pointer-events: none;
+            animation: aiNudgePulse 2.2s ease-in-out infinite;
+        }
+
+        .floating-ai-nudge-pill {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 6px;
+            padding: 1px 7px;
+            border-radius: 999px;
+            font-size: 10px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            background: rgba(95, 145, 137, 0.22);
+            border: 1px solid rgba(95, 145, 137, 0.45);
+            color: #2f4d47;
+            font-weight: 700;
+        }
+
+        .floating-ai-nudge::after {
+            content: "";
+            position: absolute;
+            right: -5px;
+            bottom: 16px;
+            width: 10px;
+            height: 10px;
+            background: #faf7f2;
+            border-top: 1px solid rgba(60, 47, 35, 0.15);
+            border-right: 1px solid rgba(60, 47, 35, 0.15);
+            transform: rotate(45deg);
+        }
+
+        .floating-ai-launcher:hover .floating-ai-nudge,
+        .floating-ai-launcher:focus-within .floating-ai-nudge {
+            opacity: 1;
+            transform: translateY(-1px);
+        }
+
+        .ai-bubble-user {
+            background: #2f2a25;
+            color: #f8f4ed;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 18px 18px 4px 18px;
+        }
+
+        .ai-bubble-assistant {
+            background: #f1ece4;
+            color: #1f1c19;
+            border: 1px solid rgba(60, 47, 35, 0.12);
+            border-radius: 18px 18px 18px 4px;
+        }
+
+        .ai-thinking-dots {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 6px;
+        }
+
+        .ai-thinking-dots span {
+            width: 5px;
+            height: 5px;
+            border-radius: 999px;
+            background: rgba(49, 74, 70, 0.75);
+            animation: aiDotPulse 1.1s ease-in-out infinite;
+        }
+
+        .ai-thinking-dots span:nth-child(2) { animation-delay: 120ms; }
+        .ai-thinking-dots span:nth-child(3) { animation-delay: 240ms; }
+
+        .ai-pulse {
+            animation: aiPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes aiDotPulse {
+            0%, 100% { transform: translateY(0); opacity: 0.45; }
+            50% { transform: translateY(-2px); opacity: 1; }
+        }
+
+        @keyframes aiPulse {
+            0%, 100% { opacity: 0.55; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes aiFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-2px); }
+        }
+
+        @keyframes aiNudgePulse {
+            0%, 100% { box-shadow: 0 8px 22px rgba(32, 29, 25, 0.16); }
+            50% { box-shadow: 0 10px 26px rgba(32, 29, 25, 0.22); }
+        }
+
+        @media (max-width: 640px) {
+            .floating-ai-launcher {
+                right: 14px;
+                bottom: 14px;
+                gap: 8px;
+            }
+
+            .floating-ai-button {
+                width: 56px;
+                height: 56px;
+            }
+
+            .floating-ai-nudge {
+                max-width: min(190px, calc(100vw - 92px));
+                padding: 8px 10px;
+                font-size: 11px;
+            }
+
+            .floating-ai-widget {
+                right: 8px;
+                bottom: 78px;
+                width: calc(100vw - 16px);
+                max-width: none;
+                height: calc(100vh - 96px);
+            }
+        }
     </style>
 </head>
 <body>
@@ -283,6 +480,31 @@
             ChevronDown: ({ className = "w-4 h-4" }) => (
                 <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="m6 9 6 6 6-6"/>
+                </svg>
+            ),
+            MessageCircle: ({ className = "w-4 h-4" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+                </svg>
+            ),
+            Sparkles: ({ className = "w-4 h-4" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m12 3 1.9 4.1L18 9l-4.1 1.9L12 15l-1.9-4.1L6 9l4.1-1.9Z" />
+                    <path d="M5 3v4" />
+                    <path d="M3 5h4" />
+                    <path d="M19 15v6" />
+                    <path d="M16 18h6" />
+                </svg>
+            ),
+            Send: ({ className = "w-4 h-4" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m22 2-7 20-4-9-9-4Z" />
+                    <path d="M22 2 11 13" />
+                </svg>
+            ),
+            Square: ({ className = "w-4 h-4" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
                 </svg>
             )
         };
@@ -2770,71 +2992,309 @@
             );
         };
 
-        const normalizeAIResponse = (payload) => {
-            const source = payload && typeof payload === 'object' ? payload : {};
-            const answer = typeof source.answer === 'string' ? source.answer : '';
-            const reasoningSummary = typeof source.reasoning_summary === 'string'
-                ? source.reasoning_summary
-                : (typeof source.reasoningSummary === 'string' ? source.reasoningSummary : '');
-            const mode = typeof source.mode === 'string' ? source.mode : '';
-            const toolCalls = Array.isArray(source.tool_calls)
-                ? source.tool_calls
-                : (Array.isArray(source.toolCalls) ? source.toolCalls : []);
-            const relatedNodes = Array.isArray(source.related_nodes)
-                ? source.related_nodes
-                : (Array.isArray(source.relatedNodes) ? source.relatedNodes : []);
-            const warnings = Array.isArray(source.warnings) ? source.warnings : [];
+        const createMessageId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+        const sanitizeAIText = (value, depth = 0) => {
+            if (depth > 4 || typeof value !== 'string') return '';
+            let text = value.trim();
+            if (!text) return '';
+
+            if (text.startsWith('```')) {
+                const lines = text.split('\n');
+                if (lines.length >= 2) {
+                    lines.shift();
+                    if (lines.length > 0 && lines[lines.length - 1].trim().startsWith('```')) {
+                        lines.pop();
+                    }
+                    text = lines.join('\n').trim();
+                }
+            }
+
+            text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+            if (!text) return '';
+
+            try {
+                const parsed = JSON.parse(text);
+                if (typeof parsed === 'string') {
+                    return sanitizeAIText(parsed, depth + 1);
+                }
+                if (parsed && typeof parsed === 'object') {
+                    const preferred = [
+                        parsed.answer,
+                        parsed.content,
+                        parsed.text,
+                        parsed.message,
+                    ].find((item) => typeof item === 'string' && item.trim());
+                    if (preferred) {
+                        return sanitizeAIText(preferred, depth + 1);
+                    }
+                    const firstString = Object.values(parsed).find((item) => typeof item === 'string' && item.trim());
+                    if (typeof firstString === 'string') {
+                        return sanitizeAIText(firstString, depth + 1);
+                    }
+                }
+            } catch (e) {}
+
+            return text;
+        };
+
+        const normalizeAIServerHint = (language, rawText) => {
+            const normalizedLanguage = language === 'zh' ? 'zh' : 'en';
+            const text = String(rawText || '').trim();
+            if (!text) return '';
+            const lower = text.toLowerCase();
+
+            if (normalizedLanguage === 'zh') {
+                if (lower.includes('agent execution failed') && lower.includes('rule mode')) {
+                    return 'AI 代理模式执行失败，已自动切换为规则模式。';
+                }
+                if (lower.includes('agent stream unavailable') && lower.includes('rule mode')) {
+                    return 'AI 流式代理暂不可用，正在切换到规则模式...';
+                }
+                if (lower.includes('agent unavailable') && lower.includes('rule mode')) {
+                    return 'AI 代理暂不可用，正在切换到规则模式...';
+                }
+                if (lower.includes('current sampled snapshot')) {
+                    return '以上结论基于当前采样快照。';
+                }
+                if (lower.includes('data age is missing')) {
+                    return '数据时间戳缺失，结论仅供参考。';
+                }
+                const staleMatch = text.match(/data is stale \(([\d.]+)s\)/i);
+                if (staleMatch && staleMatch[1]) {
+                    return `数据已过旧（${staleMatch[1]}s），建议结合下一轮采样复核。`;
+                }
+            } else {
+                if (text.includes('已自动切换为规则模式')) {
+                    return 'Agent execution failed, automatically switched to rule mode.';
+                }
+                if (text.includes('流式代理暂不可用')) {
+                    return 'Agent stream unavailable, switching to rule mode...';
+                }
+                if (text.includes('代理暂不可用')) {
+                    return 'Agent unavailable, switching to rule mode...';
+                }
+                if (text.includes('当前采样快照')) {
+                    return 'The conclusion is based on the current sampled snapshot.';
+                }
+                if (text.includes('数据时间戳缺失')) {
+                    return 'Data age is missing; conclusions are for reference only.';
+                }
+                const staleMatch = text.match(/数据已过旧（([\d.]+)s）/);
+                if (staleMatch && staleMatch[1]) {
+                    return `Data is stale (${staleMatch[1]}s); re-check with the next polling cycle.`;
+                }
+            }
+
+            return text;
+        };
+
+        const normalizeAIResponse = (payload, language = DEFAULT_LANGUAGE) => {
+            let source = payload;
+            if (typeof source === 'string') {
+                try {
+                    source = JSON.parse(source);
+                } catch (e) {}
+            }
+            const obj = source && typeof source === 'object' ? source : {};
+
+            const rawAnswer = typeof obj.answer === 'string'
+                ? obj.answer
+                : (typeof obj.content === 'string' ? obj.content : (typeof payload === 'string' ? payload : ''));
+            const answer = sanitizeAIText(rawAnswer);
+
+            const reasoningSummaryRaw = typeof obj.reasoning_summary === 'string'
+                ? obj.reasoning_summary
+                : (typeof obj.reasoningSummary === 'string' ? obj.reasoningSummary : '');
+            const reasoningSummary = normalizeAIServerHint(language, sanitizeAIText(reasoningSummaryRaw));
+
+            const mode = typeof obj.mode === 'string' ? obj.mode.trim() : '';
+            const toolCalls = Array.isArray(obj.tool_calls)
+                ? obj.tool_calls
+                : (Array.isArray(obj.toolCalls) ? obj.toolCalls : []);
+            const relatedNodes = Array.isArray(obj.related_nodes)
+                ? obj.related_nodes
+                : (Array.isArray(obj.relatedNodes) ? obj.relatedNodes : []);
+            const warnings = Array.isArray(obj.warnings)
+                ? obj.warnings
+                    .filter((item) => typeof item === 'string' && item.trim())
+                    .map((item) => normalizeAIServerHint(language, item))
+                    .filter(Boolean)
+                : [];
+
             return { answer, reasoningSummary, mode, toolCalls, relatedNodes, warnings };
         };
 
-        const AIQueryPanel = ({
+        const chunkTextForUI = (text, chunkSize = 42) => {
+            const source = sanitizeAIText(text);
+            if (!source) return [];
+            if (source.length <= chunkSize) return [source];
+
+            const chunks = [];
+            let index = 0;
+            while (index < source.length) {
+                let end = Math.min(index + chunkSize, source.length);
+                if (end < source.length) {
+                    const breakPoint = source.lastIndexOf(' ', end);
+                    if (breakPoint > index + 8) {
+                        end = breakPoint;
+                    }
+                }
+                chunks.push(source.slice(index, end));
+                index = end;
+                while (source[index] === ' ') index += 1;
+            }
+            return chunks.filter(Boolean);
+        };
+
+        const parseSSEFrame = (frame) => {
+            if (!frame) return null;
+            const lines = frame.split(/\r?\n/);
+            let event = '';
+            const dataLines = [];
+            lines.forEach((line) => {
+                if (line.startsWith('event:')) {
+                    event = line.slice(6).trim();
+                    return;
+                }
+                if (line.startsWith('data:')) {
+                    dataLines.push(line.slice(5).trimStart());
+                }
+            });
+            if (dataLines.length === 0) return null;
+            const rawData = dataLines.join('\n');
+            let data = null;
+            try {
+                data = JSON.parse(rawData);
+            } catch (e) {
+                data = { message: rawData };
+            }
+            return { event: event || 'message', data };
+        };
+
+        const localizeAIStatusText = (language, phase, rawMessage) => {
+            const normalizedLanguage = language === 'zh' ? 'zh' : 'en';
+            const normalizedPhase = String(phase || '').trim().toLowerCase();
+            const phaseMap = normalizedLanguage === 'zh'
+                ? {
+                    thinking: '正在分析节点状态...',
+                    tooling: '正在汇总 GPU / CPU / 进程信息...',
+                    generating: '正在生成调度建议...',
+                    fallback: 'AI 模式暂不可用，正在切换到规则模式...',
+                }
+                : {
+                    thinking: 'Analyzing node status...',
+                    tooling: 'Aggregating GPU / CPU / process stats...',
+                    generating: 'Generating scheduling guidance...',
+                    fallback: 'Agent mode unavailable, switching to rule mode...',
+                };
+
+            if (phaseMap[normalizedPhase]) {
+                return phaseMap[normalizedPhase];
+            }
+
+            const fallback = typeof rawMessage === 'string' ? rawMessage.trim() : '';
+            if (fallback) return normalizeAIServerHint(normalizedLanguage, fallback);
+
+            return normalizedLanguage === 'zh' ? '正在处理请求...' : 'Processing request...';
+        };
+
+        const updateMessageById = (messages, messageId, updater) => messages.map((item) => {
+            if (item.id !== messageId) return item;
+            return updater(item);
+        });
+
+        const FloatingAIChatButton = ({ isOpen, onToggle, isStreaming, language }) => {
+            const title = language === 'zh'
+                ? (isOpen ? '收起 AI 助手' : '打开 AI 助手')
+                : (isOpen ? 'Hide AI assistant' : 'Open AI assistant');
+            const nudge = language === 'zh'
+                ? '问问 AI？我该怎么分配任务？'
+                : 'Ask AI: how should I allocate workloads?';
+            const nudgeTag = language === 'zh' ? 'AI 助手' : 'AI helper';
+
+            return (
+                <div className="floating-ai-launcher">
+                    {!isOpen ? (
+                        <div className="floating-ai-nudge">
+                            <span className="floating-ai-nudge-pill">{nudgeTag}</span>
+                            <span>{nudge}</span>
+                        </div>
+                    ) : null}
+                    <button
+                        type="button"
+                        className={cx('floating-ai-button', isStreaming ? 'ai-pulse' : '')}
+                        onClick={onToggle}
+                        title={title}
+                        aria-label={title}
+                    >
+                        <Icons.Sparkles className="w-6 h-6" />
+                    </button>
+                </div>
+            );
+        };
+
+        const FloatingAIChatWidget = ({
             language,
-            queryValue,
-            onQueryChange,
-            onSubmitQuery,
-            isSubmitting,
-            latestResponse,
-            queryError,
-            history,
+            isOpen,
+            onClose,
+            messages,
+            draft,
+            onDraftChange,
+            onSubmit,
+            onStop,
+            isStreaming,
+            isThinking,
+            streamError,
             selectedServerName,
+            messageListRef,
+            onMessageListScroll,
+            sessionId,
+            thinkingLabel,
         }) => {
             const copy = language === 'zh'
                 ? {
-                    eyebrow: 'AI Assistant',
-                    title: '智能问答 / 调度建议',
-                    subtitle: '调用 /api/ai/query，基于当前聚合节点数据给出回答。',
+                    title: 'Nexus AI',
+                    subtitleIdle: '已连接网关数据',
+                    subtitleStreaming: '正在生成回复',
                     placeholder: '例如：哪台机器最适合 16GB 显存训练任务？',
-                    ask: '提问',
-                    asking: '提问中...',
-                    answer: '回答',
-                    reasoning: '解释依据',
-                    mode: '模式',
-                    relatedNodes: '相关节点',
-                    toolCalls: '工具调用',
-                    warnings: '提示',
-                    recent: '最近提问',
-                    noData: '暂无回答',
-                    suggestionLabel: '快捷问题',
+                    send: '发送',
+                    stop: '停止',
+                    thinking: '思考中',
+                    failed: '请求失败',
+                    details: '依据详情',
+                    reasoningLabel: '推理摘要',
+                    modeLabel: '模式',
+                    nodesLabel: '相关节点',
+                    toolsLabel: '工具调用',
+                    warningsLabel: '提示',
+                    quickPromptsLabel: '快捷提问',
+                    emptyTitle: '我可以帮你分析节点负载与调度建议。',
+                    close: '关闭',
+                    session: '会话',
                 }
                 : {
-                    eyebrow: 'AI Assistant',
-                    title: 'Node Q&A / Scheduling',
-                    subtitle: 'Uses /api/ai/query and answers from gateway aggregate node data.',
-                    placeholder: 'Example: Which node is best for a 16GB VRAM training task?',
-                    ask: 'Ask',
-                    asking: 'Asking...',
-                    answer: 'Answer',
-                    reasoning: 'Reasoning',
-                    mode: 'Mode',
-                    relatedNodes: 'Related Nodes',
-                    toolCalls: 'Tool Calls',
-                    warnings: 'Warnings',
-                    recent: 'Recent Queries',
-                    noData: 'No response yet',
-                    suggestionLabel: 'Quick Prompts',
+                    title: 'Nexus AI',
+                    subtitleIdle: 'Connected to gateway data',
+                    subtitleStreaming: 'Generating response',
+                    placeholder: 'Example: Which node fits a 16GB VRAM training task?',
+                    send: 'Send',
+                    stop: 'Stop',
+                    thinking: 'Thinking',
+                    failed: 'Request failed',
+                    details: 'Response Details',
+                    reasoningLabel: 'Reasoning',
+                    modeLabel: 'Mode',
+                    nodesLabel: 'Nodes',
+                    toolsLabel: 'Tools',
+                    warningsLabel: 'Warnings',
+                    quickPromptsLabel: 'Quick Prompts',
+                    emptyTitle: 'Ask me about node health, load, and scheduling suggestions.',
+                    close: 'Close',
+                    session: 'Session',
                 };
 
-            const suggestions = language === 'zh'
+            const quickPrompts = language === 'zh'
                 ? [
                     '哪台机器 GPU 最空闲？',
                     '推荐两台适合启动训练任务的机器',
@@ -2848,120 +3308,137 @@
                     `Why does ${selectedServerName || 'server-01'} look busy?`,
                 ];
 
-            const response = latestResponse || null;
-
             return (
-                <section className="soft-panel p-5">
-                    <div className="section-eyebrow mb-1">{copy.eyebrow}</div>
-                    <div className="text-base font-semibold text-[#1e1c19]">{copy.title}</div>
-                    <div className="text-xs text-[#6e675f] mt-1">{copy.subtitle}</div>
-
-                    <div className="mt-3">
-                        <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-[#857d73] mb-2">{copy.suggestionLabel}</div>
-                        <div className="flex flex-wrap gap-2">
-                            {suggestions.map((item) => (
-                                <button
-                                    key={item}
-                                    type="button"
-                                    className="muted-button px-3 py-1.5 text-xs"
-                                    onClick={() => onSubmitQuery(item)}
-                                    disabled={isSubmitting}
-                                >
-                                    {item}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="mt-3">
-                        <textarea
-                            className="w-full min-h-[84px] bg-[#fbf8f3] border border-[rgba(60,47,35,0.12)] rounded-2xl px-3.5 py-2.5 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.28)] transition-colors resize-y"
-                            placeholder={copy.placeholder}
-                            value={queryValue}
-                            disabled={isSubmitting}
-                            onChange={(event) => onQueryChange(event.target.value)}
-                            onKeyDown={(event) => {
-                                if (event.key === 'Enter' && !event.shiftKey) {
-                                    event.preventDefault();
-                                    onSubmitQuery(queryValue);
-                                }
-                            }}
-                        />
-                        <div className="mt-2 flex justify-end">
+                <section className={cx('floating-ai-widget flex flex-col', isOpen ? 'floating-ai-widget-open' : 'floating-ai-widget-closed')}>
+                    <header className="px-4 py-3 border-b border-[rgba(60,47,35,0.11)] bg-[#f4efe7]">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <Icons.MessageCircle className="w-4 h-4 text-[#42514d]" />
+                                    <div className="font-semibold text-sm text-[#24221f]">{copy.title}</div>
+                                </div>
+                                <div className="text-[11px] text-[#6d675f] mt-1">
+                                    {(isStreaming || isThinking) ? copy.subtitleStreaming : copy.subtitleIdle}
+                                </div>
+                            </div>
                             <button
                                 type="button"
-                                className={`primary-button px-4 py-2 text-sm font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : ''}`}
-                                onClick={() => onSubmitQuery(queryValue)}
-                                disabled={isSubmitting}
+                                className="muted-button px-2.5 py-1 text-xs"
+                                onClick={onClose}
+                                title={copy.close}
+                                aria-label={copy.close}
                             >
-                                {isSubmitting ? copy.asking : copy.ask}
+                                <Icons.X className="w-3.5 h-3.5" />
                             </button>
                         </div>
-                    </div>
+                    </header>
 
-                    {queryError ? (
-                        <div className="mt-3 soft-panel-subtle p-3 text-xs text-[#7f4a43] border border-[#d9b0a8]">
-                            {queryError}
-                        </div>
-                    ) : null}
-
-                    <div className="mt-3 soft-panel-subtle p-3">
-                        {!response ? (
-                            <div className="text-xs text-[#6f685f]">{copy.noData}</div>
-                        ) : (
-                            <div className="space-y-2">
+                    <div
+                        ref={messageListRef}
+                        onScroll={onMessageListScroll}
+                        className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3.5 py-3 space-y-3"
+                    >
+                        {messages.length === 0 ? (
+                            <div className="space-y-3">
+                                <div className="soft-panel-subtle p-3 text-sm text-[#3f3a34]">{copy.emptyTitle}</div>
                                 <div>
-                                    <div className="text-[10px] uppercase tracking-[0.12em] text-[#7f776e]">{copy.answer}</div>
-                                    <div className="text-sm text-[#1f1d1b] mt-1 whitespace-pre-wrap">{response.answer || '-'}</div>
-                                </div>
-                                <div>
-                                    <div className="text-[10px] uppercase tracking-[0.12em] text-[#7f776e]">{copy.reasoning}</div>
-                                    <div className="text-xs text-[#3d3934] mt-1 whitespace-pre-wrap">{response.reasoningSummary || '-'}</div>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                    <div><span className="text-[#7f776e]">{copy.mode}:</span> <span className="font-mono">{response.mode || '-'}</span></div>
-                                    <div><span className="text-[#7f776e]">{copy.relatedNodes}:</span> {(response.relatedNodes && response.relatedNodes.length > 0) ? response.relatedNodes.join(', ') : '-'}</div>
-                                </div>
-                                <div className="text-xs">
-                                    <div className="text-[10px] uppercase tracking-[0.12em] text-[#7f776e] mb-1">{copy.toolCalls}</div>
-                                    <div className="font-mono text-[11px] text-[#3d3934] break-all">
-                                        {(response.toolCalls && response.toolCalls.length > 0)
-                                            ? response.toolCalls.map((item) => item.name || '-').join(', ')
-                                            : '-'}
+                                    <div className="text-[10px] uppercase tracking-[0.12em] text-[#7f776e] mb-2">{copy.quickPromptsLabel}</div>
+                                    <div className="space-y-2">
+                                        {quickPrompts.map((item) => (
+                                            <button
+                                                key={item}
+                                                type="button"
+                                                className="w-full text-left muted-button px-3 py-2 text-xs"
+                                                onClick={() => onSubmit(item)}
+                                            >
+                                                {item}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
-                                {(response.warnings && response.warnings.length > 0) ? (
-                                    <div className="text-xs text-[#7f4a43]">
-                                        <div className="text-[10px] uppercase tracking-[0.12em] mb-1">{copy.warnings}</div>
-                                        <div className="space-y-1">
-                                            {response.warnings.map((warning, index) => (
-                                                <div key={`${warning}-${index}`}>{warning}</div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ) : null}
                             </div>
+                        ) : (
+                            messages.map((message) => {
+                                const isUser = message.role === 'user';
+                                const displayText = sanitizeAIText(message.content);
+                                const showThinking = message.role === 'assistant' && message.status === 'thinking' && !displayText;
+                                return (
+                                    <div key={message.id} className={cx('flex', isUser ? 'justify-end' : 'justify-start')}>
+                                        <article className={cx('max-w-[88%] px-3.5 py-2.5 text-sm whitespace-pre-wrap break-words', isUser ? 'ai-bubble-user' : 'ai-bubble-assistant')}>
+                                            {showThinking ? (
+                                                <div className="text-[13px] text-[#3e4f4b] ai-pulse">
+                                                    {thinkingLabel || copy.thinking}
+                                                    <span className="ai-thinking-dots"><span /><span /><span /></span>
+                                                </div>
+                                            ) : (
+                                                <div>{displayText || (message.status === 'error' ? copy.failed : '')}</div>
+                                            )}
+
+                                            {!isUser && message.status === 'error' && streamError ? (
+                                                <div className="text-[11px] text-[#8a4b42] mt-2">{streamError}</div>
+                                            ) : null}
+
+                                            {!isUser && (
+                                                message.reasoningSummary ||
+                                                (Array.isArray(message.relatedNodes) && message.relatedNodes.length > 0) ||
+                                                (Array.isArray(message.warnings) && message.warnings.length > 0) ||
+                                                (Array.isArray(message.toolCalls) && message.toolCalls.length > 0)
+                                            ) ? (
+                                                <details className="mt-2 text-[11px] text-[#5a5249]">
+                                                    <summary className="cursor-pointer select-none">{copy.details}</summary>
+                                                    <div className="mt-2 space-y-1.5">
+                                                        {message.reasoningSummary ? <div><span className="text-[#7a7269]">{copy.reasoningLabel}:</span> {message.reasoningSummary}</div> : null}
+                                                        {message.mode ? <div><span className="text-[#7a7269]">{copy.modeLabel}:</span> <span className="font-mono">{message.mode}</span></div> : null}
+                                                        {Array.isArray(message.relatedNodes) && message.relatedNodes.length > 0 ? (
+                                                            <div><span className="text-[#7a7269]">{copy.nodesLabel}:</span> {message.relatedNodes.join(', ')}</div>
+                                                        ) : null}
+                                                        {Array.isArray(message.toolCalls) && message.toolCalls.length > 0 ? (
+                                                            <div><span className="text-[#7a7269]">{copy.toolsLabel}:</span> {message.toolCalls.map((item) => item.name || '-').join(', ')}</div>
+                                                        ) : null}
+                                                        {Array.isArray(message.warnings) && message.warnings.length > 0 ? (
+                                                            <div className="text-[#8a4b42]"><span className="text-[#7a7269]">{copy.warningsLabel}:</span> {message.warnings.join(' | ')}</div>
+                                                        ) : null}
+                                                    </div>
+                                                </details>
+                                            ) : null}
+                                        </article>
+                                    </div>
+                                );
+                            })
                         )}
                     </div>
 
-                    {history.length > 0 ? (
-                        <div className="mt-3">
-                            <div className="text-[10px] uppercase tracking-[0.12em] text-[#7f776e] mb-1">{copy.recent}</div>
-                            <div className="space-y-1 max-h-[120px] overflow-auto custom-scrollbar pr-1">
-                                {history.map((item) => (
-                                    <button
-                                        key={item.id}
-                                        type="button"
-                                        className="w-full text-left soft-panel-subtle px-2.5 py-2 text-xs text-[#3d3934] hover:border-[rgba(60,47,35,0.2)] transition-colors"
-                                        onClick={() => onSubmitQuery(item.query)}
-                                        disabled={isSubmitting}
-                                    >
-                                        {item.query}
-                                    </button>
-                                ))}
+                    <footer className="border-t border-[rgba(60,47,35,0.11)] bg-[#f7f4ee] px-3 py-3">
+                        {streamError ? (
+                            <div className="mb-2 text-[11px] text-[#8b4b42] soft-panel-subtle px-2.5 py-1.5 border border-[#e0b9b2]">
+                                {streamError}
                             </div>
+                        ) : null}
+                        <textarea
+                            className="w-full min-h-[76px] max-h-[148px] bg-[#fbf8f3] border border-[rgba(60,47,35,0.12)] rounded-2xl px-3 py-2 text-sm text-[#1f1d1b] outline-none focus:border-[rgba(60,47,35,0.26)] transition-colors resize-y"
+                            value={draft}
+                            placeholder={copy.placeholder}
+                            onChange={(event) => onDraftChange(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' && !event.shiftKey) {
+                                    event.preventDefault();
+                                    onSubmit();
+                                }
+                            }}
+                        />
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                            <div className="text-[10px] uppercase tracking-[0.1em] text-[#807a72]">{copy.session}: <span className="font-mono lowercase">{sessionId}</span></div>
+                            <button
+                                type="button"
+                                className={cx('primary-button px-4 py-2 text-sm font-medium inline-flex items-center gap-1.5', isStreaming ? '' : (!draft.trim() ? 'opacity-60 cursor-not-allowed' : ''))}
+                                onClick={isStreaming ? onStop : () => onSubmit()}
+                                disabled={!isStreaming && !draft.trim()}
+                            >
+                                {isStreaming ? <Icons.Square className="w-3 h-3" /> : <Icons.Send className="w-3.5 h-3.5" />}
+                                <span>{isStreaming ? copy.stop : copy.send}</span>
+                            </button>
                         </div>
-                    ) : null}
+                    </footer>
                 </section>
             );
         };
@@ -2992,11 +3469,18 @@
             const [isUserManagerOpen, setIsUserManagerOpen] = useState(false);
             const [newUserForm, setNewUserForm] = useState({ username: '', password: '', role: 'user' });
             const [isCreatingUser, setIsCreatingUser] = useState(false);
-            const [aiQueryInput, setAIQueryInput] = useState('');
-            const [isAIQuerying, setIsAIQuerying] = useState(false);
-            const [aiQueryError, setAIQueryError] = useState('');
-            const [latestAIResponse, setLatestAIResponse] = useState(null);
-            const [aiQueryHistory, setAIQueryHistory] = useState([]);
+            const [isAIWidgetOpen, setIsAIWidgetOpen] = useState(false);
+            const [aiMessages, setAIMessages] = useState([]);
+            const [aiDraft, setAIDraft] = useState('');
+            const [isAIStreaming, setIsAIStreaming] = useState(false);
+            const [aiThinking, setAIThinking] = useState(false);
+            const [aiStreamError, setAIStreamError] = useState('');
+            const [aiSessionId] = useState(() => Math.random().toString(16).slice(2, 10));
+            const [aiThinkingLabel, setAIThinkingLabel] = useState('');
+            const abortControllerRef = useRef(null);
+            const activeAssistantIdRef = useRef('');
+            const messageListRef = useRef(null);
+            const shouldAutoScrollRef = useRef(true);
             const t = useMemo(() => createTranslator(language), [language]);
             const isAdmin = currentUser && currentUser.role === 'admin';
             const resolvedSelectedGpu = useResolvedSelectedGpu(selectedGpuRef, servers);
@@ -3030,6 +3514,49 @@
             useEffect(() => () => {
                 toastTimersRef.current.forEach((timer) => clearTimeout(timer));
                 toastTimersRef.current.clear();
+            }, []);
+
+            useEffect(() => () => {
+                if (abortControllerRef.current) {
+                    abortControllerRef.current.abort();
+                    abortControllerRef.current = null;
+                }
+            }, []);
+
+            useEffect(() => {
+                if (!aiThinking) {
+                    setAIThinkingLabel('');
+                    return undefined;
+                }
+
+                const labels = language === 'zh'
+                    ? ['正在分析节点状态...', '正在汇总 GPU / CPU / 进程信息...', '正在生成调度建议...']
+                    : ['Analyzing node status...', 'Aggregating GPU / CPU / process stats...', 'Preparing scheduling guidance...'];
+                let index = 0;
+                setAIThinkingLabel(labels[index]);
+                const timer = setInterval(() => {
+                    index = (index + 1) % labels.length;
+                    setAIThinkingLabel(labels[index]);
+                }, 1350);
+
+                return () => clearInterval(timer);
+            }, [aiThinking, language]);
+
+            useEffect(() => {
+                if (!isAIWidgetOpen) return;
+                if (!shouldAutoScrollRef.current) return;
+                const list = messageListRef.current;
+                if (!list) return;
+                requestAnimationFrame(() => {
+                    list.scrollTop = list.scrollHeight;
+                });
+            }, [aiMessages, isAIWidgetOpen]);
+
+            const handleAIMessageListScroll = useCallback(() => {
+                const list = messageListRef.current;
+                if (!list) return;
+                const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+                shouldAutoScrollRef.current = distance < 64;
             }, []);
 
             const dismissToast = (id) => {
@@ -3530,42 +4057,296 @@
                 });
             };
 
-            const submitAIQuery = async (rawQuery) => {
-                const query = String(rawQuery || '').trim();
-                if (!query || isAIQuerying) return;
+            const localizeAIError = (rawMessage) => {
+                const normalizedLanguage = language === 'zh' ? 'zh' : 'en';
+                const fallback = normalizedLanguage === 'zh' ? 'AI 查询失败，请稍后重试。' : 'AI query failed, please retry.';
+                const message = String(rawMessage || '').trim();
+                if (!message) return fallback;
 
-                setIsAIQuerying(true);
-                setAIQueryError('');
+                const code = message.toLowerCase();
+                const knownCodeMap = normalizedLanguage === 'zh'
+                    ? {
+                        ai_disabled: 'AI 功能未启用。',
+                        invalid_query: '问题不能为空，请输入后重试。',
+                        ai_query_failed: 'AI 查询失败，请稍后重试。',
+                        unauthorized: '登录状态已失效，请重新登录。',
+                    }
+                    : {
+                        ai_disabled: 'AI feature is disabled.',
+                        invalid_query: 'Query is empty. Please enter your question and retry.',
+                        ai_query_failed: 'AI query failed. Please retry shortly.',
+                        unauthorized: 'Session expired. Please sign in again.',
+                    };
+
+                if (knownCodeMap[code]) {
+                    return knownCodeMap[code];
+                }
+
+                const normalizedMessage = normalizeAIServerHint(normalizedLanguage, message);
+                return normalizedLanguage === 'zh'
+                    ? `AI 查询失败：${normalizedMessage}`
+                    : `AI query failed: ${normalizedMessage}`;
+            };
+
+            const stopAIStreaming = () => {
+                if (!abortControllerRef.current) return;
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
+                setIsAIStreaming(false);
+                setAIThinking(false);
+                const stopText = language === 'zh' ? '已停止当前回复。' : 'Stopped the current response.';
+                setAIStreamError(stopText);
+                if (activeAssistantIdRef.current) {
+                    const targetId = activeAssistantIdRef.current;
+                    setAIMessages((prev) => updateMessageById(prev, targetId, (item) => ({
+                        ...item,
+                        status: item.content ? 'done' : 'error',
+                        content: item.content || stopText,
+                    })));
+                }
+            };
+
+            const submitAIStreamQuery = async (rawQuery = aiDraft) => {
+                const query = String(rawQuery || '').trim();
+                if (!query || isAIStreaming) return;
+
+                const userMessage = {
+                    id: createMessageId(),
+                    role: 'user',
+                    content: query,
+                    status: 'done',
+                    createdAt: Date.now(),
+                };
+                const assistantMessageId = createMessageId();
+                const assistantPlaceholder = {
+                    id: assistantMessageId,
+                    role: 'assistant',
+                    content: '',
+                    status: 'thinking',
+                    reasoningSummary: '',
+                    mode: '',
+                    relatedNodes: [],
+                    toolCalls: [],
+                    warnings: [],
+                    createdAt: Date.now() + 1,
+                };
+
+                activeAssistantIdRef.current = assistantMessageId;
+                shouldAutoScrollRef.current = true;
+                setIsAIWidgetOpen(true);
+                setAIMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
+                setAIDraft('');
+                setAIStreamError('');
+                setAIThinking(true);
+                setIsAIStreaming(true);
+
+                const controller = new AbortController();
+                abortControllerRef.current = controller;
+
+                const setAssistant = (updater) => {
+                    setAIMessages((prev) => updateMessageById(prev, assistantMessageId, updater));
+                };
+
+                const applyAssistantMeta = (source = {}) => {
+                    if (!source || typeof source !== 'object') return;
+                    setAssistant((item) => ({
+                        ...item,
+                        reasoningSummary: sanitizeAIText(
+                            typeof source.reasoning_summary === 'string'
+                                ? source.reasoning_summary
+                                : (typeof source.reasoningSummary === 'string' ? source.reasoningSummary : item.reasoningSummary || '')
+                        ),
+                        mode: typeof source.mode === 'string' ? source.mode : (item.mode || ''),
+                        relatedNodes: Array.isArray(source.related_nodes)
+                            ? source.related_nodes
+                            : (Array.isArray(source.relatedNodes) ? source.relatedNodes : (item.relatedNodes || [])),
+                        toolCalls: Array.isArray(source.tool_calls)
+                            ? source.tool_calls
+                            : (Array.isArray(source.toolCalls) ? source.toolCalls : (item.toolCalls || [])),
+                        warnings: Array.isArray(source.warnings)
+                            ? source.warnings
+                                .filter((warning) => typeof warning === 'string' && warning.trim())
+                                .map((warning) => normalizeAIServerHint(language, warning))
+                                .filter(Boolean)
+                            : (item.warnings || []),
+                    }));
+                };
+
+                const streamFallbackResponse = async (normalized) => {
+                    const chunks = chunkTextForUI(normalized.answer || '', 36);
+                    setAIThinking(false);
+                    if (chunks.length === 0) {
+                        setAssistant((item) => ({
+                            ...item,
+                            status: 'done',
+                            content: sanitizeAIText(normalized.answer || '') || item.content,
+                        }));
+                        applyAssistantMeta(normalized);
+                        return;
+                    }
+
+                    setAssistant((item) => ({ ...item, status: 'streaming', content: '' }));
+                    for (const chunk of chunks) {
+                        if (controller.signal.aborted) return;
+                        setAssistant((item) => ({ ...item, status: 'streaming', content: `${item.content || ''}${chunk}` }));
+                        await new Promise((resolve) => setTimeout(resolve, 24));
+                    }
+                    setAssistant((item) => ({ ...item, status: 'done' }));
+                    applyAssistantMeta(normalized);
+                };
+
                 try {
                     const res = await authFetch('/api/ai/query', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ query, stream: false }),
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'text/event-stream, application/json',
+                        },
+                        body: JSON.stringify({ query, stream: true }),
+                        signal: controller.signal,
                     });
                     if (!res.ok) {
                         const errorCode = await readResponseError(res, 'ai_query_failed');
-                        const message = language === 'zh'
-                            ? `AI 查询失败：${errorCode}`
-                            : `AI query failed: ${errorCode}`;
-                        setAIQueryError(message);
+                        const message = localizeAIError(errorCode);
+                        setAIStreamError(message);
+                        setAssistant((item) => ({
+                            ...item,
+                            status: 'error',
+                            content: item.content || message,
+                        }));
                         pushToast(message, 'error');
                         return;
                     }
 
-                    const payload = await res.json();
-                    const normalized = normalizeAIResponse(payload);
-                    setLatestAIResponse(normalized);
-                    setAIQueryInput('');
-                    setAIQueryHistory((prev) => {
-                        const next = [{ id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, query }, ...prev];
-                        return next.slice(0, 6);
-                    });
+                    const contentType = String(res.headers.get('content-type') || '').toLowerCase();
+                    if (!contentType.includes('text/event-stream') || !res.body) {
+                        const payload = await res.json();
+                        const normalized = normalizeAIResponse(payload, language);
+                        await streamFallbackResponse(normalized);
+                        return;
+                    }
+
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder('utf-8');
+                    let buffer = '';
+                    let hasDelta = false;
+                    let hasDone = false;
+                    let donePayload = null;
+
+                    const handleFrame = (frame) => {
+                        const parsed = parseSSEFrame(frame);
+                        if (!parsed) return;
+                        const eventType = String(parsed.event || '').trim();
+                        const data = parsed.data && typeof parsed.data === 'object' ? parsed.data : {};
+
+                        if (eventType === 'status') {
+                            setAIThinking(true);
+                            const localizedStatusMessage = localizeAIStatusText(
+                                language,
+                                typeof data.phase === 'string' ? data.phase : '',
+                                typeof data.message === 'string' ? data.message : ''
+                            );
+                            setAIThinkingLabel(localizedStatusMessage);
+                            setAssistant((item) => ({
+                                ...item,
+                                status: hasDelta ? item.status : 'thinking',
+                            }));
+                            return;
+                        }
+                        if (eventType === 'delta') {
+                            const text = typeof data.text === 'string' ? data.text : '';
+                            if (!text) return;
+                            hasDelta = true;
+                            setAIThinking(false);
+                            setAssistant((item) => ({
+                                ...item,
+                                status: 'streaming',
+                                content: `${item.content || ''}${text}`,
+                            }));
+                            return;
+                        }
+                        if (eventType === 'meta') {
+                            applyAssistantMeta(data);
+                            return;
+                        }
+                        if (eventType === 'done') {
+                            hasDone = true;
+                            donePayload = data;
+                            setAIThinking(false);
+                            return;
+                        }
+                        if (eventType === 'error') {
+                            const code = typeof data.error === 'string' ? data.error : '';
+                            const message = localizeAIError(code);
+                            setAIStreamError(message);
+                            setAIThinking(false);
+                            setAssistant((item) => ({
+                                ...item,
+                                status: 'error',
+                                content: item.content || message,
+                            }));
+                        }
+                    };
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+                        buffer = buffer.replace(/\r\n/g, '\n');
+
+                        let delimiterIndex = buffer.indexOf('\n\n');
+                        while (delimiterIndex >= 0) {
+                            const frame = buffer.slice(0, delimiterIndex);
+                            buffer = buffer.slice(delimiterIndex + 2);
+                            handleFrame(frame);
+                            delimiterIndex = buffer.indexOf('\n\n');
+                        }
+                    }
+                    if (buffer.trim()) {
+                        handleFrame(buffer);
+                    }
+
+                    if (hasDone && donePayload) {
+                        const normalizedDone = normalizeAIResponse(donePayload, language);
+                        setAssistant((item) => ({
+                            ...item,
+                            status: item.status === 'error' ? 'error' : 'done',
+                            content: normalizedDone.answer || item.content,
+                            reasoningSummary: normalizedDone.reasoningSummary || item.reasoningSummary || '',
+                            mode: normalizedDone.mode || item.mode || '',
+                            relatedNodes: normalizedDone.relatedNodes.length > 0 ? normalizedDone.relatedNodes : (item.relatedNodes || []),
+                            toolCalls: normalizedDone.toolCalls.length > 0 ? normalizedDone.toolCalls : (item.toolCalls || []),
+                            warnings: normalizedDone.warnings.length > 0 ? normalizedDone.warnings : (item.warnings || []),
+                        }));
+                    } else if (!hasDelta) {
+                        const normalizedFallback = normalizeAIResponse(donePayload || {}, language);
+                        await streamFallbackResponse(normalizedFallback);
+                    } else {
+                        setAssistant((item) => ({
+                            ...item,
+                            status: item.status === 'error' ? 'error' : 'done',
+                        }));
+                    }
                 } catch (error) {
-                    const message = language === 'zh' ? 'AI 查询失败，请稍后重试。' : 'AI query failed, please retry.';
-                    setAIQueryError(message);
+                    if (error && error.name === 'AbortError') {
+                        return;
+                    }
+                    const message = localizeAIError(error && error.message ? error.message : '');
+                    setAIStreamError(message);
+                    setAIThinking(false);
+                    setAssistant((item) => ({
+                        ...item,
+                        status: 'error',
+                        content: item.content || message,
+                    }));
                     pushToast(message, 'error');
                 } finally {
-                    setIsAIQuerying(false);
+                    if (abortControllerRef.current === controller) {
+                        abortControllerRef.current = null;
+                    }
+                    activeAssistantIdRef.current = '';
+                    setIsAIStreaming(false);
+                    setAIThinking(false);
                 }
             };
 
@@ -3921,17 +4702,6 @@
                                             </div>
                                         </div>
 
-                                        <AIQueryPanel
-                                            language={language}
-                                            queryValue={aiQueryInput}
-                                            onQueryChange={setAIQueryInput}
-                                            onSubmitQuery={submitAIQuery}
-                                            isSubmitting={isAIQuerying}
-                                            latestResponse={latestAIResponse}
-                                            queryError={aiQueryError}
-                                            history={aiQueryHistory}
-                                            selectedServerName={selectedServer?.name || ''}
-                                        />
                                     </>
                                 )}
                             </section>
@@ -3943,6 +4713,33 @@
                     <ConfirmDialog config={dialogState && dialogState.type === 'confirm' ? dialogState : null} onResolve={resolveDialog} t={t} />
                     <PromptDialog config={dialogState && dialogState.type === 'prompt' ? dialogState : null} onResolve={resolveDialog} t={t} />
                     <ToastStack toasts={toasts} onDismiss={dismissToast} t={t} />
+                    <FloatingAIChatWidget
+                        language={language}
+                        isOpen={isAIWidgetOpen}
+                        onClose={() => setIsAIWidgetOpen(false)}
+                        messages={aiMessages}
+                        draft={aiDraft}
+                        onDraftChange={setAIDraft}
+                        onSubmit={submitAIStreamQuery}
+                        onStop={stopAIStreaming}
+                        isStreaming={isAIStreaming}
+                        isThinking={aiThinking}
+                        streamError={aiStreamError}
+                        selectedServerName={selectedServer?.name || ''}
+                        messageListRef={messageListRef}
+                        onMessageListScroll={handleAIMessageListScroll}
+                        sessionId={aiSessionId}
+                        thinkingLabel={aiThinkingLabel}
+                    />
+                    <FloatingAIChatButton
+                        isOpen={isAIWidgetOpen}
+                        onToggle={() => {
+                            setIsAIWidgetOpen((prev) => !prev);
+                            shouldAutoScrollRef.current = true;
+                        }}
+                        isStreaming={isAIStreaming}
+                        language={language}
+                    />
 
                     {isUserManagerOpen && isAdmin ? (
                         <AppModal

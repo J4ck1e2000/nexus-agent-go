@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -18,6 +19,7 @@ const (
 // ChatCompletionClient defines an OpenAI-compatible chat completion client.
 type ChatCompletionClient interface {
 	CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error)
+	CreateChatCompletionStream(ctx context.Context, req ChatCompletionRequest, onChunk func(ChatCompletionStreamChunk) error) error
 }
 
 // ChatCompletionRequest is the OpenAI-compatible chat completion request body.
@@ -27,6 +29,7 @@ type ChatCompletionRequest struct {
 	Tools       []ChatTool    `json:"tools,omitempty"`
 	ToolChoice  string        `json:"tool_choice,omitempty"`
 	Temperature float64       `json:"temperature,omitempty"`
+	Stream      bool          `json:"stream,omitempty"`
 }
 
 // ChatCompletionResponse is the OpenAI-compatible chat completion response body.
@@ -86,6 +89,42 @@ type ChatFunctionCall struct {
 	Arguments string `json:"arguments"`
 }
 
+// ChatCompletionStreamChunk is one incremental chunk in stream responses.
+type ChatCompletionStreamChunk struct {
+	ID      string                       `json:"id,omitempty"`
+	Model   string                       `json:"model,omitempty"`
+	Choices []ChatCompletionStreamChoice `json:"choices,omitempty"`
+	Error   *ChatCompletionError         `json:"error,omitempty"`
+}
+
+// ChatCompletionStreamChoice is one incremental completion choice.
+type ChatCompletionStreamChoice struct {
+	Index        int              `json:"index"`
+	Delta        ChatMessageDelta `json:"delta"`
+	FinishReason string           `json:"finish_reason,omitempty"`
+}
+
+// ChatMessageDelta is one incremental chat message delta.
+type ChatMessageDelta struct {
+	Role      string              `json:"role,omitempty"`
+	Content   string              `json:"content,omitempty"`
+	ToolCalls []ChatToolCallDelta `json:"tool_calls,omitempty"`
+}
+
+// ChatToolCallDelta is one incremental tool call delta.
+type ChatToolCallDelta struct {
+	Index    int                   `json:"index,omitempty"`
+	ID       string                `json:"id,omitempty"`
+	Type     string                `json:"type,omitempty"`
+	Function ChatFunctionCallDelta `json:"function,omitempty"`
+}
+
+// ChatFunctionCallDelta carries partial function-call fields.
+type ChatFunctionCallDelta struct {
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
+}
+
 type openAICompatibleClient struct {
 	baseURL    string
 	apiKey     string
@@ -107,11 +146,8 @@ func NewOpenAICompatibleClient(baseURL, apiKey string, timeout time.Duration) Ch
 }
 
 func (c *openAICompatibleClient) CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error) {
-	if strings.TrimSpace(c.baseURL) == "" {
-		return ChatCompletionResponse{}, fmt.Errorf("ai base url is empty")
-	}
-	if strings.TrimSpace(c.apiKey) == "" {
-		return ChatCompletionResponse{}, fmt.Errorf("ai api key is empty")
+	if err := c.validate(); err != nil {
+		return ChatCompletionResponse{}, err
 	}
 
 	payload, err := json.Marshal(req)
@@ -144,21 +180,195 @@ func (c *openAICompatibleClient) CreateChatCompletion(ctx context.Context, req C
 	}
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		if parsed.Error != nil && strings.TrimSpace(parsed.Error.Message) != "" {
-			return ChatCompletionResponse{}, fmt.Errorf("chat completion http %d: %s", resp.StatusCode, parsed.Error.Message)
-		}
-		message := strings.TrimSpace(string(rawBody))
-		if len(message) > 256 {
-			message = message[:256]
-		}
-		if message == "" {
-			message = "unknown error"
-		}
-		return ChatCompletionResponse{}, fmt.Errorf("chat completion http %d: %s", resp.StatusCode, message)
+		return ChatCompletionResponse{}, decodeHTTPError(resp.StatusCode, rawBody, parsed.Error)
 	}
 
 	if parsed.Error != nil && strings.TrimSpace(parsed.Error.Message) != "" {
 		return ChatCompletionResponse{}, fmt.Errorf("chat completion error: %s", parsed.Error.Message)
 	}
 	return parsed, nil
+}
+
+func (c *openAICompatibleClient) CreateChatCompletionStream(ctx context.Context, req ChatCompletionRequest, onChunk func(ChatCompletionStreamChunk) error) error {
+	if onChunk == nil {
+		return fmt.Errorf("stream callback is nil")
+	}
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	streamReq := req
+	streamReq.Stream = true
+
+	payload, err := json.Marshal(streamReq)
+	if err != nil {
+		return fmt.Errorf("marshal chat completion stream request failed: %w", err)
+	}
+
+	url := c.baseURL + "/chat/completions"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("build chat completion stream request failed: %w", err)
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "text/event-stream")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("call chat completion stream failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= http.StatusBadRequest {
+		rawBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
+		if readErr != nil {
+			return fmt.Errorf("read chat completion stream error response failed: %w", readErr)
+		}
+		var parsed ChatCompletionResponse
+		if len(rawBody) > 0 {
+			_ = json.Unmarshal(rawBody, &parsed)
+		}
+		return decodeHTTPError(resp.StatusCode, rawBody, parsed.Error)
+	}
+
+	contentType := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
+	if !strings.Contains(contentType, "text/event-stream") {
+		rawBody, err := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
+		if err != nil {
+			return fmt.Errorf("read non-stream response failed: %w", err)
+		}
+
+		var parsed ChatCompletionResponse
+		if err := json.Unmarshal(rawBody, &parsed); err != nil {
+			return fmt.Errorf("decode non-stream chat completion response failed: %w", err)
+		}
+		if parsed.Error != nil && strings.TrimSpace(parsed.Error.Message) != "" {
+			return fmt.Errorf("chat completion error: %s", parsed.Error.Message)
+		}
+
+		chunk := ChatCompletionStreamChunk{
+			ID:    parsed.ID,
+			Model: parsed.Model,
+		}
+		chunk.Choices = make([]ChatCompletionStreamChoice, 0, len(parsed.Choices))
+		for _, choice := range parsed.Choices {
+			chunk.Choices = append(chunk.Choices, ChatCompletionStreamChoice{
+				Index: choice.Index,
+				Delta: ChatMessageDelta{
+					Role:      choice.Message.Role,
+					Content:   choice.Message.Content,
+					ToolCalls: completeToolCallsToDelta(choice.Message.ToolCalls),
+				},
+				FinishReason: choice.FinishReason,
+			})
+		}
+		return onChunk(chunk)
+	}
+
+	return consumeSSEStream(ctx, resp.Body, onChunk)
+}
+
+func (c *openAICompatibleClient) validate() error {
+	if strings.TrimSpace(c.baseURL) == "" {
+		return fmt.Errorf("ai base url is empty")
+	}
+	if strings.TrimSpace(c.apiKey) == "" {
+		return fmt.Errorf("ai api key is empty")
+	}
+	return nil
+}
+
+func decodeHTTPError(statusCode int, rawBody []byte, payloadErr *ChatCompletionError) error {
+	if payloadErr != nil && strings.TrimSpace(payloadErr.Message) != "" {
+		return fmt.Errorf("chat completion http %d: %s", statusCode, payloadErr.Message)
+	}
+	message := strings.TrimSpace(string(rawBody))
+	if len(message) > 256 {
+		message = message[:256]
+	}
+	if message == "" {
+		message = "unknown error"
+	}
+	return fmt.Errorf("chat completion http %d: %s", statusCode, message)
+}
+
+func consumeSSEStream(ctx context.Context, reader io.Reader, onChunk func(ChatCompletionStreamChunk) error) error {
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
+
+	dataLines := make([]string, 0, 4)
+	flushEvent := func() (bool, error) {
+		if len(dataLines) == 0 {
+			return false, nil
+		}
+
+		payload := strings.TrimSpace(strings.Join(dataLines, "\n"))
+		dataLines = dataLines[:0]
+		if payload == "" {
+			return false, nil
+		}
+		if payload == "[DONE]" {
+			return true, nil
+		}
+
+		var chunk ChatCompletionStreamChunk
+		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+			return false, fmt.Errorf("decode stream chunk failed: %w", err)
+		}
+		if chunk.Error != nil && strings.TrimSpace(chunk.Error.Message) != "" {
+			return false, fmt.Errorf("chat completion stream error: %s", chunk.Error.Message)
+		}
+		if err := onChunk(chunk); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+	for scanner.Scan() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
+			done, err := flushEvent()
+			if err != nil {
+				return err
+			}
+			if done {
+				return nil
+			}
+			continue
+		}
+
+		if strings.HasPrefix(line, "data:") {
+			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("read stream chunk failed: %w", err)
+	}
+
+	_, err := flushEvent()
+	return err
+}
+
+func completeToolCallsToDelta(calls []ChatToolCall) []ChatToolCallDelta {
+	if len(calls) == 0 {
+		return nil
+	}
+	result := make([]ChatToolCallDelta, 0, len(calls))
+	for index, call := range calls {
+		result = append(result, ChatToolCallDelta{
+			Index: index,
+			ID:    call.ID,
+			Type:  call.Type,
+			Function: ChatFunctionCallDelta{
+				Name:      call.Function.Name,
+				Arguments: call.Function.Arguments,
+			},
+		})
+	}
+	return result
 }

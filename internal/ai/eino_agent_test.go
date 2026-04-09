@@ -2,6 +2,8 @@ package ai
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -19,6 +21,33 @@ func (c *scriptedChatClient) CreateChatCompletion(ctx context.Context, req ChatC
 	resp := c.responses[c.index]
 	c.index++
 	return resp, nil
+}
+
+func (c *scriptedChatClient) CreateChatCompletionStream(ctx context.Context, req ChatCompletionRequest, onChunk func(ChatCompletionStreamChunk) error) error {
+	resp, err := c.CreateChatCompletion(ctx, req)
+	if err != nil {
+		return err
+	}
+	if onChunk == nil {
+		return fmt.Errorf("stream callback is nil")
+	}
+
+	chunk := ChatCompletionStreamChunk{
+		ID:    resp.ID,
+		Model: resp.Model,
+	}
+	for _, choice := range resp.Choices {
+		chunk.Choices = append(chunk.Choices, ChatCompletionStreamChoice{
+			Index: choice.Index,
+			Delta: ChatMessageDelta{
+				Role:      choice.Message.Role,
+				Content:   choice.Message.Content,
+				ToolCalls: completeToolCallsToDelta(choice.Message.ToolCalls),
+			},
+			FinishReason: choice.FinishReason,
+		})
+	}
+	return onChunk(chunk)
 }
 
 func TestEinoAgentExecutor_ToolCallingLoop(t *testing.T) {
@@ -147,5 +176,76 @@ func TestEinoAgentExecutor_UnsupportedToolBecomesWarning(t *testing.T) {
 	}
 	if len(resp.Warnings) == 0 {
 		t.Fatalf("expected warning for unsupported tool, got none")
+	}
+}
+
+func TestParseAgentFinalContent_CleaningFallbacks(t *testing.T) {
+	cases := []struct {
+		name       string
+		input      string
+		wantAns    string
+		wantReason string
+	}{
+		{
+			name:       "plain json",
+			input:      `{"answer":"node-a is currently the best fit.","reasoning_summary":"based on idle gpu.","related_nodes":["node-a"]}`,
+			wantAns:    "node-a is currently the best fit.",
+			wantReason: "based on idle gpu.",
+		},
+		{
+			name:       "fenced json",
+			input:      "```json\n{\"answer\":\"node-b is idle.\",\"reasoning_summary\":\"from tool data.\"}\n```",
+			wantAns:    "node-b is idle.",
+			wantReason: "from tool data.",
+		},
+		{
+			name:       "nested answer json string",
+			input:      `{"answer":"{\"answer\":\"node-c looks best\",\"reasoning_summary\":\"nested\"}","reasoning_summary":""}`,
+			wantAns:    "node-c looks best",
+			wantReason: "nested",
+		},
+		{
+			name:       "plain text fallback",
+			input:      "node-d appears healthy and has lower pressure.",
+			wantAns:    "node-d appears healthy and has lower pressure.",
+			wantReason: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			parsed := parseAgentFinalContent(tc.input)
+			if strings.TrimSpace(parsed.Answer) != tc.wantAns {
+				t.Fatalf("answer mismatch: got=%q want=%q", parsed.Answer, tc.wantAns)
+			}
+			if tc.wantReason != "" && strings.TrimSpace(parsed.ReasoningSummary) != tc.wantReason {
+				t.Fatalf("reasoning mismatch: got=%q want=%q", parsed.ReasoningSummary, tc.wantReason)
+			}
+			if strings.Contains(parsed.Answer, "```") {
+				t.Fatalf("answer should not contain code fences: %q", parsed.Answer)
+			}
+			if strings.HasPrefix(strings.TrimSpace(parsed.Answer), "{") && strings.HasSuffix(strings.TrimSpace(parsed.Answer), "}") {
+				t.Fatalf("answer should not remain raw json object: %q", parsed.Answer)
+			}
+		})
+	}
+}
+
+func TestRewriteOperationalAnswer_ScheduleSuggestion(t *testing.T) {
+	intent := QueryIntent{
+		Type: IntentScheduleSuggestion,
+		TopK: 2,
+	}
+	answer := rewriteOperationalAnswer(intent, "raw technical answer", []string{"node-a", "node-b"}, responseLanguageZH)
+	if !strings.Contains(answer, "node-a") || !strings.Contains(answer, "node-b") {
+		t.Fatalf("rewritten answer should contain both nodes, got=%q", answer)
+	}
+	if !strings.Contains(answer, "建议优先使用") {
+		t.Fatalf("rewritten answer should use concise operational style, got=%q", answer)
+	}
+
+	reason := rewriteReasoningSummary(intent, "raw reason", []string{"node-a", "node-b"}, responseLanguageZH)
+	if !strings.Contains(reason, "依据是 CPU、内存和 GPU 余量") {
+		t.Fatalf("rewritten reasoning mismatch: %q", reason)
 	}
 }

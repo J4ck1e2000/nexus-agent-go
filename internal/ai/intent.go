@@ -9,9 +9,12 @@ import (
 )
 
 var (
-	numberGBPattern      = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*gb`)
-	gpuCountPattern      = regexp.MustCompile(`(?i)(\d+)\s*(?:gpu|gpus|卡)`)
-	genericNodeNameRegex = regexp.MustCompile(`(?i)\b(?:server|node)[-_]?[a-z0-9]+\b`)
+	numberGBPattern          = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*(?:gib|gb|g)`)
+	gpuCountPattern          = regexp.MustCompile(`(?i)(\d+)\s*(?:gpu|gpus|cards?)`)
+	chineseGPUCountPattern   = regexp.MustCompile(`(\d+)\s*(?:张卡|块卡|个gpu|卡)`)
+	genericNodeNameRegex     = regexp.MustCompile(`(?i)\b(?:server|node|host|gpu)[-_]?[a-z0-9]+\b`)
+	topKEnglishPattern       = regexp.MustCompile(`(?i)\b(\d+)\s*(?:nodes?|machines?|servers?)\b`)
+	topKChineseNumberPattern = regexp.MustCompile(`(\d+)\s*(?:台|个|套)`)
 )
 
 // IntentClassifier converts free-form user text into deterministic intent hints.
@@ -42,11 +45,26 @@ func (c *IntentClassifier) Classify(query string, knownNodes []string) QueryInte
 	intent.TopK = parseTopK(query)
 	intent.Requirement = parseJobRequirement(query)
 
-	historyLike := containsAny(lower, "最近", "历史", "趋势", "波动", "30m", "1h", "30分钟", "1小时")
-	whyLike := containsAny(lower, "为什么", "原因", "忙", "繁忙", "饱和", "异常", "解释")
-	scheduleLike := containsAny(lower, "推荐", "适合", "训练任务", "调度", "显存任务", "启动训练", "哪台机器适合")
-	idleLike := containsAny(lower, "最空闲", "最闲", "空闲", "idle", "闲")
-	summaryLike := containsAny(lower, "资源情况", "状态", "怎么样", "概览", "summary")
+	historyLike := containsAny(lower,
+		"recent", "history", "trend", "volatility", "30m", "1h",
+		"最近", "历史", "趋势", "波动", "30分钟", "1小时", "半小时",
+	)
+	whyLike := containsAny(lower,
+		"why", "reason", "busy", "saturated", "anomaly", "explain",
+		"为什么", "原因", "繁忙", "饱和", "异常", "解释",
+	)
+	scheduleLike := containsAny(lower,
+		"recommend", "suitable", "schedule", "training task", "launch training",
+		"推荐", "适合", "调度", "训练任务", "启动训练", "分配任务",
+	)
+	idleLike := containsAny(lower,
+		"most idle", "idle", "free", "available gpu",
+		"最空闲", "空闲", "空", "可用gpu", "可用 gpu",
+	)
+	summaryLike := containsAny(lower,
+		"resource", "status", "how is", "summary", "overview",
+		"资源", "状态", "怎么样", "情况", "概览", "摘要",
+	)
 
 	switch {
 	case historyLike && containsAny(lower, "异常", "告警", "offline", "离线", "最明显"):
@@ -67,7 +85,7 @@ func (c *IntentClassifier) Classify(query string, knownNodes []string) QueryInte
 		intent.Type = IntentIdleNodeRanking
 	}
 
-	if intent.Type == IntentIdleNodeRanking && intent.TopK <= 0 {
+	if intent.TopK <= 0 {
 		intent.TopK = 3
 	}
 	return intent
@@ -98,9 +116,9 @@ func extractNodeName(query string, knownNodes []string) string {
 func parseWindow(query string) time.Duration {
 	lower := strings.ToLower(query)
 	switch {
-	case containsAny(lower, "1h", "1小时", "60分钟"):
+	case containsAny(lower, "1h", "1 hour", "60 min", "60m", "1小时"):
 		return time.Hour
-	case containsAny(lower, "30m", "30分钟", "半小时"):
+	case containsAny(lower, "30m", "30 min", "30分钟", "半小时"):
 		return 30 * time.Minute
 	default:
 		return 30 * time.Minute
@@ -108,17 +126,39 @@ func parseWindow(query string) time.Duration {
 }
 
 func parseTopK(query string) int {
-	lower := strings.ToLower(query)
+	lower := strings.ToLower(strings.TrimSpace(query))
+
+	if match := topKEnglishPattern.FindStringSubmatch(lower); len(match) == 2 {
+		if parsed, err := strconv.Atoi(match[1]); err == nil {
+			return normalizeTopK(parsed)
+		}
+	}
+	if match := topKChineseNumberPattern.FindStringSubmatch(lower); len(match) == 2 {
+		if parsed, err := strconv.Atoi(match[1]); err == nil {
+			return normalizeTopK(parsed)
+		}
+	}
+
 	switch {
-	case containsAny(lower, "两台", "2台", "两个"):
+	case containsAny(lower, "两台", "俩台", "二台", "两个", "俩个", "pair", "two"):
 		return 2
-	case containsAny(lower, "三台", "3台", "三个"):
+	case containsAny(lower, "三台", "三个", "three"):
 		return 3
-	case containsAny(lower, "一台", "1台", "一个"):
+	case containsAny(lower, "一台", "一个", "single", "one"):
 		return 1
 	default:
 		return 3
 	}
+}
+
+func normalizeTopK(topK int) int {
+	if topK <= 0 {
+		return 3
+	}
+	if topK > 10 {
+		return 10
+	}
+	return topK
 }
 
 func parseJobRequirement(query string) JobRequirement {
@@ -132,16 +172,22 @@ func parseJobRequirement(query string) JobRequirement {
 			req.MinFreeVRAMGB = parsed
 		}
 	}
+
 	if match := gpuCountPattern.FindStringSubmatch(lower); len(match) == 2 {
+		if parsed, err := strconv.Atoi(match[1]); err == nil && parsed > 0 {
+			req.GPUCount = parsed
+		}
+	} else if match := chineseGPUCountPattern.FindStringSubmatch(lower); len(match) == 2 {
 		if parsed, err := strconv.Atoi(match[1]); err == nil && parsed > 0 {
 			req.GPUCount = parsed
 		}
 	}
 
-	req.PreferLowCPU = containsAny(lower, "低cpu", "cpu低", "cpu空闲")
-	req.PreferLowRAM = containsAny(lower, "低内存", "ram低", "内存空闲")
-	req.PreferFewUsers = containsAny(lower, "用户少", "人少", "更空", "少人")
-	if req.GPUCount == 0 && containsAny(lower, "训练", "任务", "显存") {
+	req.PreferLowCPU = containsAny(lower, "low cpu", "cpu low", "cpu idle", "低cpu", "cpu低", "cpu空闲")
+	req.PreferLowRAM = containsAny(lower, "low ram", "ram low", "memory idle", "低内存", "ram低", "内存空闲")
+	req.PreferFewUsers = containsAny(lower, "fewer users", "few users", "less users", "用户少", "人少", "少人")
+
+	if req.GPUCount == 0 && containsAny(lower, "训练", "任务", "显存", "training", "workload") {
 		req.GPUCount = 1
 	}
 	return req
