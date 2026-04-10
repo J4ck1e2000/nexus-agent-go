@@ -97,6 +97,94 @@ func TestAIQuery_InvalidPayload(t *testing.T) {
 	}
 }
 
+func TestAIQuery_StreamSSEHeadersAndEvents(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h := &Handler{}
+	h.SetAIQueryService(&stubAIService{
+		streamEvents: []ai.AIStreamEvent{
+			{Event: ai.StreamEventStart, Query: "哪台机器 GPU 最空闲？"},
+			{Event: ai.StreamEventStatus, Phase: "thinking", Message: "正在分析节点状态..."},
+			{Event: ai.StreamEventDelta, Text: "当前最空闲的节点是 server-01。"},
+			{
+				Event: ai.StreamEventMeta,
+				Meta: &ai.AIStreamMeta{
+					Mode:             ai.AIModeRule,
+					ReasoningSummary: "基于节点可用性和 GPU 空闲度综合判断。",
+					RelatedNodes:     []string{"server-01"},
+				},
+			},
+			{
+				Event: ai.StreamEventDone,
+				Done: &ai.AIQueryResponse{
+					Answer:           "当前最空闲的节点是 server-01。",
+					ReasoningSummary: "基于节点可用性和 GPU 空闲度综合判断。",
+					Mode:             ai.AIModeRule,
+					RelatedNodes:     []string{"server-01"},
+				},
+			},
+		},
+	})
+
+	r := gin.New()
+	authorized := r.Group("/api")
+	h.registerAIRoutes(authorized)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/query", bytes.NewBufferString(`{"query":"哪台机器 GPU 最空闲？","stream":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status mismatch: got=%d want=%d body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	if contentType := w.Header().Get("Content-Type"); !strings.Contains(contentType, "text/event-stream") {
+		t.Fatalf("content-type mismatch: got=%q", contentType)
+	}
+
+	body := w.Body.String()
+	for _, expected := range []string{
+		"event: start",
+		"event: status",
+		"event: delta",
+		"event: meta",
+		"event: done",
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("missing stream event %q in body: %s", expected, body)
+		}
+	}
+}
+
+func TestAIQuery_StreamErrorEvent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h := &Handler{}
+	h.SetAIQueryService(&stubAIService{
+		streamErr: ai.ErrServiceDisabled,
+	})
+
+	r := gin.New()
+	authorized := r.Group("/api")
+	h.registerAIRoutes(authorized)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/query", bytes.NewBufferString(`{"query":"test stream error","stream":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status mismatch: got=%d want=%d body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "event: error") {
+		t.Fatalf("expected event:error, got body=%s", body)
+	}
+	if !strings.Contains(body, `"error":"ai_disabled"`) {
+		t.Fatalf("expected ai_disabled error payload, got body=%s", body)
+	}
+}
+
 func setupAIRouter(t *testing.T) (*gin.Engine, *ConfigStore, *NodeStateStore, func()) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -148,4 +236,47 @@ func setupAIRouter(t *testing.T) (*gin.Engine, *ConfigStore, *NodeStateStore, fu
 		mr.Close()
 	}
 	return r, configStore, stateStore, cleanup
+}
+
+type stubAIService struct {
+	queryResp    ai.AIQueryResponse
+	queryErr     error
+	streamEvents []ai.AIStreamEvent
+	streamErr    error
+}
+
+func (s *stubAIService) Query(ctx context.Context, req ai.AIQueryRequest) (ai.AIQueryResponse, error) {
+	_ = ctx
+	_ = req
+	if s.queryErr != nil {
+		return ai.AIQueryResponse{}, s.queryErr
+	}
+	return s.queryResp, nil
+}
+
+func (s *stubAIService) QueryStream(ctx context.Context, req ai.AIQueryRequest, emit func(ai.AIStreamEvent) error) error {
+	_ = req
+	for _, event := range s.streamEvents {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if emit != nil {
+			if err := emit(event); err != nil {
+				return err
+			}
+		}
+	}
+	return s.streamErr
+}
+
+func (s *stubAIService) Capabilities(ctx context.Context) ai.CapabilitiesResponse {
+	_ = ctx
+	return ai.CapabilitiesResponse{Enabled: true, DefaultMode: ai.AIModeRule}
+}
+
+func (s *stubAIService) Health(ctx context.Context) ai.HealthResponse {
+	_ = ctx
+	return ai.HealthResponse{Status: "ok", Mode: ai.AIModeRule, AgentReady: true}
 }

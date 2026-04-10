@@ -118,3 +118,62 @@ func TestScheduler_BusyVsAvailable(t *testing.T) {
 		t.Fatalf("available node should rank first, got=%q", candidates[0].NodeName)
 	}
 }
+
+func TestRuleExecutor_ResponseLanguageByQuery(t *testing.T) {
+	nodes := []NodeSnapshot{
+		buildNode("server-01", "online", 88, 20, 28, 3, 2, 0, 18, 20, []GPUCard{
+			{Index: 0, MemoryTotalGB: 24, MemoryUsedGB: 6, EstimatedFreeGB: 18},
+			{Index: 1, MemoryTotalGB: 24, MemoryUsedGB: 8, EstimatedFreeGB: 16},
+		}),
+	}
+	toolbox := NewToolbox(ToolboxOptions{DataProvider: &staticProvider{nodes: nodes}})
+	executor := NewRuleExecutor(NewIntentClassifier(), toolbox)
+
+	zhResp, err := executor.Execute(context.Background(), AIQueryRequest{Query: "哪台机器最空闲？"})
+	if err != nil {
+		t.Fatalf("Execute zh query failed: %v", err)
+	}
+	if !strings.Contains(zhResp.Answer, "结论") {
+		t.Fatalf("zh answer should contain Chinese style lead, got=%q", zhResp.Answer)
+	}
+
+	enResp, err := executor.Execute(context.Background(), AIQueryRequest{Query: "Which node is the most idle right now?"})
+	if err != nil {
+		t.Fatalf("Execute en query failed: %v", err)
+	}
+	if !strings.Contains(enResp.Answer, "Conclusion:") {
+		t.Fatalf("en answer should contain English style lead, got=%q", enResp.Answer)
+	}
+}
+
+func TestRuleExecutor_ScheduleSuggestionUsesTwoNodesAndConciseTone(t *testing.T) {
+	nodes := []NodeSnapshot{
+		buildNode("node-a", "online", 88, 22, 30, 3, 2, 0, 18, 20, []GPUCard{
+			{Index: 0, MemoryTotalGB: 24, MemoryUsedGB: 7, EstimatedFreeGB: 17},
+			{Index: 1, MemoryTotalGB: 24, MemoryUsedGB: 9, EstimatedFreeGB: 15},
+		}),
+		buildNode("node-b", "online", 84, 28, 36, 4, 1, 1, 20, 24, []GPUCard{
+			{Index: 0, MemoryTotalGB: 24, MemoryUsedGB: 10, EstimatedFreeGB: 14},
+			{Index: 1, MemoryTotalGB: 24, MemoryUsedGB: 11, EstimatedFreeGB: 13},
+		}),
+		buildNode("node-c", "online", 72, 45, 48, 6, 1, 1, 12, 18, []GPUCard{
+			{Index: 0, MemoryTotalGB: 24, MemoryUsedGB: 14, EstimatedFreeGB: 10},
+		}),
+	}
+	toolbox := NewToolbox(ToolboxOptions{DataProvider: &staticProvider{nodes: nodes}})
+	executor := NewRuleExecutor(NewIntentClassifier(), toolbox)
+
+	resp, err := executor.Execute(context.Background(), AIQueryRequest{Query: "推荐两台适合启动训练任务的机器"})
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+	if len(resp.RelatedNodes) < 2 {
+		t.Fatalf("expected at least 2 related nodes, got=%v", resp.RelatedNodes)
+	}
+	if !(strings.Contains(resp.Answer, "node-a") || strings.Contains(resp.Answer, "node-b")) {
+		t.Fatalf("answer should contain recommended node names, got=%q", resp.Answer)
+	}
+	if strings.Contains(strings.ToLower(resp.Answer), "vram") || strings.Contains(resp.Answer, "可用显存") {
+		t.Fatalf("answer should stay concise for this query, got=%q", resp.Answer)
+	}
+}
