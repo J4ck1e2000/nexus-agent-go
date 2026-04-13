@@ -4,20 +4,27 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	envAIEnabled  = "AI_ENABLED"
-	envAIMode     = "AI_MODE"
-	envAIProvider = "AI_PROVIDER"
-	envAIModel    = "AI_MODEL"
-	envAIAPIKey   = "AI_API_KEY"
-	envAIBaseURL  = "AI_BASE_URL"
+	envAIEnabled         = "AI_ENABLED"
+	envAIMode            = "AI_MODE"
+	envAIProvider        = "AI_PROVIDER"
+	envAIModel           = "AI_MODEL"
+	envAIAPIKey          = "AI_API_KEY"
+	envAIBaseURL         = "AI_BASE_URL"
+	envAIRAGEnabled      = "AI_RAG_ENABLED"
+	envAIRAGKnowledgeDir = "AI_RAG_KNOWLEDGE_DIR"
+	envAIRAGTopK         = "AI_RAG_TOP_K"
+	envAIRAGMinScore     = "AI_RAG_MIN_SCORE"
+	envAIRAGMaxSnippet   = "AI_RAG_MAX_SNIPPET_CHARS"
 
 	defaultOpenAIBaseURL = "https://api.openai.com/v1"
 	defaultQwenBaseURL   = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	defaultKnowledgeDir  = "knowledge/anomalies"
 
 	defaultStreamChunkRuneSize = 64
 )
@@ -34,13 +41,18 @@ type StreamQueryExecutor interface {
 
 // Config controls runtime behavior of AI service.
 type Config struct {
-	Enabled        bool
-	Mode           string
-	Provider       string
-	Model          string
-	APIKey         string
-	BaseURL        string
-	RequestTimeout time.Duration
+	Enabled         bool
+	Mode            string
+	Provider        string
+	Model           string
+	APIKey          string
+	BaseURL         string
+	RequestTimeout  time.Duration
+	RAGEnabled      bool
+	RAGKnowledgeDir string
+	RAGTopK         int
+	RAGMinScore     float64
+	RAGMaxSnippet   int
 }
 
 // AgentReady indicates whether agent mode has enough model config.
@@ -67,13 +79,18 @@ func (c Config) normalizedMode() string {
 // LoadConfigFromEnv loads AI runtime config from environment variables.
 func LoadConfigFromEnv() Config {
 	cfg := Config{
-		Enabled:        envBool(envAIEnabled, true),
-		Mode:           strings.TrimSpace(os.Getenv(envAIMode)),
-		Provider:       strings.TrimSpace(os.Getenv(envAIProvider)),
-		Model:          strings.TrimSpace(os.Getenv(envAIModel)),
-		APIKey:         strings.TrimSpace(os.Getenv(envAIAPIKey)),
-		BaseURL:        strings.TrimSpace(os.Getenv(envAIBaseURL)),
-		RequestTimeout: defaultOpenAICompatibleTimeout,
+		Enabled:         envBool(envAIEnabled, true),
+		Mode:            strings.TrimSpace(os.Getenv(envAIMode)),
+		Provider:        strings.TrimSpace(os.Getenv(envAIProvider)),
+		Model:           strings.TrimSpace(os.Getenv(envAIModel)),
+		APIKey:          strings.TrimSpace(os.Getenv(envAIAPIKey)),
+		BaseURL:         strings.TrimSpace(os.Getenv(envAIBaseURL)),
+		RequestTimeout:  defaultOpenAICompatibleTimeout,
+		RAGEnabled:      envBool(envAIRAGEnabled, true),
+		RAGKnowledgeDir: strings.TrimSpace(os.Getenv(envAIRAGKnowledgeDir)),
+		RAGTopK:         envInt(envAIRAGTopK, defaultKnowledgeTopK),
+		RAGMinScore:     envFloat(envAIRAGMinScore, defaultKnowledgeMinScore),
+		RAGMaxSnippet:   envInt(envAIRAGMaxSnippet, defaultKnowledgeMaxSnippetLen),
 	}
 	if cfg.Mode == "" {
 		cfg.Mode = AIModeRule
@@ -86,12 +103,25 @@ func LoadConfigFromEnv() Config {
 			cfg.BaseURL = defaultOpenAIBaseURL
 		}
 	}
+	if cfg.RAGKnowledgeDir == "" {
+		cfg.RAGKnowledgeDir = defaultKnowledgeDir
+	}
+	if cfg.RAGTopK <= 0 {
+		cfg.RAGTopK = defaultKnowledgeTopK
+	}
+	if cfg.RAGMinScore <= 0 {
+		cfg.RAGMinScore = defaultKnowledgeMinScore
+	}
+	if cfg.RAGMaxSnippet <= 0 {
+		cfg.RAGMaxSnippet = defaultKnowledgeMaxSnippetLen
+	}
 	return cfg
 }
 
 // Service is the facade for AI query APIs.
 type Service struct {
 	config        Config
+	toolbox       *Toolbox
 	ruleExecutor  QueryExecutor
 	agentExecutor QueryExecutor
 }
@@ -117,10 +147,14 @@ func NewService(opts ServiceOptions) *Service {
 	if classifier == nil {
 		classifier = NewIntentClassifier()
 	}
+	toolbox := opts.Toolbox
+	if toolbox == nil {
+		toolbox = NewToolbox(ToolboxOptions{})
+	}
 
 	ruleExecutor := opts.RuleExecutor
 	if ruleExecutor == nil {
-		ruleExecutor = NewRuleExecutor(classifier, opts.Toolbox)
+		ruleExecutor = NewRuleExecutor(classifier, toolbox)
 	}
 
 	agentExecutor := opts.AgentExecutor
@@ -132,7 +166,7 @@ func NewService(opts ServiceOptions) *Service {
 		agentExecutor = NewEinoAgentExecutor(
 			EinoAgentExecutorOptions{
 				Classifier:   classifier,
-				Toolbox:      opts.Toolbox,
+				Toolbox:      toolbox,
 				SystemPrompt: opts.SystemPrompt,
 				LLMClient:    llmClient,
 				Model:        cfg.Model,
@@ -142,6 +176,7 @@ func NewService(opts ServiceOptions) *Service {
 
 	return &Service{
 		config:        cfg,
+		toolbox:       toolbox,
 		ruleExecutor:  ruleExecutor,
 		agentExecutor: agentExecutor,
 	}
@@ -247,6 +282,8 @@ func (s *Service) QueryStream(ctx context.Context, req AIQueryRequest, emit func
 		ToolCalls:        resp.ToolCalls,
 		RelatedNodes:     resp.RelatedNodes,
 		Warnings:         resp.Warnings,
+		KnowledgeHits:    resp.KnowledgeHits,
+		Retrieval:        resp.Retrieval,
 	}
 	if err := safeEmit(AIStreamEvent{
 		Event: StreamEventMeta,
@@ -268,27 +305,43 @@ func (s *Service) QueryStream(ctx context.Context, req AIQueryRequest, emit func
 // Capabilities returns supported mode/intent/tool metadata.
 func (s *Service) Capabilities(ctx context.Context) CapabilitiesResponse {
 	_ = ctx
+	tools := []string{"get_node_metrics", "list_idle_nodes", "get_gpu_processes", "get_node_summary", "get_alert_history", "recommend_nodes_for_job", "explain_node_anomaly"}
+	if s.toolbox != nil && s.toolbox.HasKnowledge() {
+		tools = append(tools, "search_knowledge_base")
+	}
 	return CapabilitiesResponse{
 		Enabled:          s.config.Enabled,
 		DefaultMode:      s.config.normalizedMode(),
 		SupportedModes:   []string{AIModeRule, AIModeAgent},
 		SupportedIntents: []string{string(IntentNodeSummary), string(IntentIdleNodeRanking), string(IntentScheduleSuggestion), string(IntentAnomalyExplanation), string(IntentAlertSummary), string(IntentHistoryAnalysis)},
-		SupportedTools:   []string{"get_node_metrics", "list_idle_nodes", "get_gpu_processes", "get_node_summary", "get_alert_history", "recommend_nodes_for_job", "explain_node_anomaly"},
+		SupportedTools:   tools,
 	}
 }
 
 // Health returns the current runtime health of AI service.
 func (s *Service) Health(ctx context.Context) HealthResponse {
-	_ = ctx
 	status := "ok"
 	if !s.config.Enabled {
 		status = "disabled"
 	}
+	stats := s.RetrievalStats(ctx)
 	return HealthResponse{
-		Status:     status,
-		Mode:       s.config.normalizedMode(),
-		AgentReady: s.config.AgentReady(),
+		Status:                 status,
+		Mode:                   s.config.normalizedMode(),
+		AgentReady:             s.config.AgentReady(),
+		KnowledgeEnabled:       stats.KnowledgeEnabled,
+		KnowledgeDocuments:     stats.LoadedDocuments,
+		KnowledgeChunks:        stats.LoadedChunks,
+		RetrievalOnlineHitRate: stats.OnlineHitRate,
 	}
+}
+
+// RetrievalStats returns online retrieval metrics snapshot.
+func (s *Service) RetrievalStats(ctx context.Context) RetrievalStats {
+	if s == nil || s.toolbox == nil {
+		return RetrievalStats{}
+	}
+	return s.toolbox.KnowledgeStats(ctx)
 }
 
 func envBool(key string, fallback bool) bool {
@@ -304,6 +357,30 @@ func envBool(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+func envInt(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func envFloat(key string, fallback float64) float64 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func appendIfMissing(values []string, value string) []string {

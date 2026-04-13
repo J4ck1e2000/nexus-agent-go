@@ -58,23 +58,35 @@ type ToolCallRecord struct {
 	Args map[string]any `json:"args"`
 }
 
+// KnowledgeHitSummary contains compact knowledge source metadata for API payloads.
+type KnowledgeHitSummary struct {
+	Title      string `json:"title"`
+	Category   string `json:"category,omitempty"`
+	Snippet    string `json:"snippet,omitempty"`
+	SourcePath string `json:"source_path,omitempty"`
+}
+
 // AIQueryResponse is the stable response schema of AI query APIs.
 type AIQueryResponse struct {
-	Answer           string           `json:"answer"`
-	ReasoningSummary string           `json:"reasoning_summary"`
-	Mode             string           `json:"mode"`
-	ToolCalls        []ToolCallRecord `json:"tool_calls,omitempty"`
-	RelatedNodes     []string         `json:"related_nodes,omitempty"`
-	Warnings         []string         `json:"warnings,omitempty"`
+	Answer           string                `json:"answer"`
+	ReasoningSummary string                `json:"reasoning_summary"`
+	Mode             string                `json:"mode"`
+	ToolCalls        []ToolCallRecord      `json:"tool_calls,omitempty"`
+	RelatedNodes     []string              `json:"related_nodes,omitempty"`
+	Warnings         []string              `json:"warnings,omitempty"`
+	KnowledgeHits    []KnowledgeHitSummary `json:"knowledge_hits,omitempty"`
+	Retrieval        *RetrievalMeta        `json:"retrieval,omitempty"`
 }
 
 // AIStreamMeta carries non-primary metadata for stream outputs.
 type AIStreamMeta struct {
-	ReasoningSummary string           `json:"reasoning_summary,omitempty"`
-	Mode             string           `json:"mode,omitempty"`
-	ToolCalls        []ToolCallRecord `json:"tool_calls,omitempty"`
-	RelatedNodes     []string         `json:"related_nodes,omitempty"`
-	Warnings         []string         `json:"warnings,omitempty"`
+	ReasoningSummary string                `json:"reasoning_summary,omitempty"`
+	Mode             string                `json:"mode,omitempty"`
+	ToolCalls        []ToolCallRecord      `json:"tool_calls,omitempty"`
+	RelatedNodes     []string              `json:"related_nodes,omitempty"`
+	Warnings         []string              `json:"warnings,omitempty"`
+	KnowledgeHits    []KnowledgeHitSummary `json:"knowledge_hits,omitempty"`
+	Retrieval        *RetrievalMeta        `json:"retrieval,omitempty"`
 }
 
 // AIStreamEvent is one stream event produced by AI query streaming.
@@ -259,7 +271,11 @@ type CapabilitiesResponse struct {
 
 // HealthResponse provides AI feature health information.
 type HealthResponse struct {
-	Status     string `json:"status"`
-	Mode       string `json:"mode"`
-	AgentReady bool   `json:"agent_ready"`
+	Status                 string  `json:"status"`
+	Mode                   string  `json:"mode"`
+	AgentReady             bool    `json:"agent_ready"`
+	KnowledgeEnabled       bool    `json:"knowledge_enabled"`
+	KnowledgeDocuments     int     `json:"knowledge_documents"`
+	KnowledgeChunks        int     `json:"knowledge_chunks"`
+	RetrievalOnlineHitRate float64 `json:"retrieval_online_hit_rate,omitempty"`
 }

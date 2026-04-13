@@ -19,6 +19,7 @@ type AIQueryService interface {
 	QueryStream(ctx context.Context, req ai.AIQueryRequest, emit func(ai.AIStreamEvent) error) error
 	Capabilities(ctx context.Context) ai.CapabilitiesResponse
 	Health(ctx context.Context) ai.HealthResponse
+	RetrievalStats(ctx context.Context) ai.RetrievalStats
 }
 
 // SetAIQueryService injects AI service dependency into gateway handler.
@@ -36,6 +37,7 @@ func (h *Handler) registerAIRoutes(authorized *gin.RouterGroup) {
 	authorized.POST("/ai/query", h.postAIQuery)
 	authorized.GET("/ai/capabilities", h.getAICapabilities)
 	authorized.GET("/ai/health", h.getAIHealth)
+	authorized.GET("/ai/retrieval/stats", h.getAIRetrievalStats)
 }
 
 func (h *Handler) postAIQuery(c *gin.Context) {
@@ -172,4 +174,12 @@ func (h *Handler) getAIHealth(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, h.aiQueryService.Health(c.Request.Context()))
+}
+
+func (h *Handler) getAIRetrievalStats(c *gin.Context) {
+	if h.aiQueryService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai_unavailable"})
+		return
+	}
+	c.JSON(http.StatusOK, h.aiQueryService.RetrievalStats(c.Request.Context()))
 }

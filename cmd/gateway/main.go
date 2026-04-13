@@ -68,9 +68,30 @@ func main() {
 
 	aiConfig := ai.LoadConfigFromEnv()
 	aiAdapter := gateway.NewAIDataAdapter(nodeStateService, nodeStateStore)
+	var knowledgeRetriever *ai.KnowledgeRetriever
+	retrievalStats := ai.NewRetrievalStatsCollector(false)
+	if aiConfig.RAGEnabled {
+		knowledgeBase, err := ai.LoadKnowledgeBase(aiConfig.RAGKnowledgeDir)
+		if err != nil {
+			log.Printf("AI RAG disabled: load knowledge failed (%s): %v", aiConfig.RAGKnowledgeDir, err)
+		} else if len(knowledgeBase.Chunks) == 0 {
+			log.Printf("AI RAG disabled: no chunks loaded from knowledge dir (%s)", aiConfig.RAGKnowledgeDir)
+		} else {
+			knowledgeRetriever = ai.NewKnowledgeRetriever(knowledgeBase, ai.KnowledgeRetrieverOptions{
+				DefaultTopK:       aiConfig.RAGTopK,
+				MinScore:          aiConfig.RAGMinScore,
+				MaxSnippetChars:   aiConfig.RAGMaxSnippet,
+				RetrievalStrategy: "hybrid-lite",
+			})
+			retrievalStats.UpdateKnowledgeState(true, len(knowledgeBase.Documents), len(knowledgeBase.Chunks), time.Now())
+		}
+	}
 	aiToolbox := ai.NewToolbox(ai.ToolboxOptions{
-		DataProvider:    aiAdapter,
-		HistoryProvider: aiAdapter,
+		DataProvider:       aiAdapter,
+		HistoryProvider:    aiAdapter,
+		KnowledgeRetriever: knowledgeRetriever,
+		RetrievalStats:     retrievalStats,
+		KnowledgeTopK:      aiConfig.RAGTopK,
 	})
 	aiService := ai.NewService(ai.ServiceOptions{
 		Config:  aiConfig,
@@ -101,6 +122,14 @@ func main() {
 			aiConfig.AgentReady(),
 		)
 		log.Printf("AI model: %s, base url: %s", aiConfig.Model, aiConfig.BaseURL)
+		knowledgeStats := aiService.RetrievalStats(context.Background())
+		log.Printf("AI RAG requested: %v, knowledge dir: %s, loaded docs: %d, loaded chunks: %d, active: %v",
+			aiConfig.RAGEnabled,
+			aiConfig.RAGKnowledgeDir,
+			knowledgeStats.LoadedDocuments,
+			knowledgeStats.LoadedChunks,
+			knowledgeStats.KnowledgeEnabled,
+		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("gateway server failed: %v", err)
 		}
