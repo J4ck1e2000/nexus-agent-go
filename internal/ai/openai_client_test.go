@@ -2,151 +2,53 @@ package ai
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
-func TestOpenAICompatibleClient_CreateChatCompletion(t *testing.T) {
-	var capturedAuth string
-	var capturedPath string
-	var capturedModel string
+func TestNewEinoChatModelFromConfig_Success(t *testing.T) {
+	cfg := Config{
+		Provider:       "openai",
+		Model:          "gpt-4o-mini",
+		APIKey:         "test-key",
+		BaseURL:        "https://api.openai.com/v1",
+		RequestTimeout: 5 * time.Second,
+	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedAuth = r.Header.Get("Authorization")
-		capturedPath = r.URL.Path
-
-		var req ChatCompletionRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-			capturedModel = req.Model
-		}
-
-		_ = json.NewEncoder(w).Encode(ChatCompletionResponse{
-			Choices: []ChatCompletionChoice{
-				{
-					Index: 0,
-					Message: ChatMessage{
-						Role:    "assistant",
-						Content: "ok",
-					},
-				},
-			},
-		})
-	}))
-	defer server.Close()
-
-	client := NewOpenAICompatibleClient(server.URL, "test-key", 0)
-	resp, err := client.CreateChatCompletion(context.Background(), ChatCompletionRequest{
-		Model: "qwen-plus",
-		Messages: []ChatMessage{
-			{Role: "user", Content: "hello"},
-		},
-	})
+	chatModel, err := NewEinoChatModelFromConfig(context.Background(), cfg)
 	if err != nil {
-		t.Fatalf("CreateChatCompletion failed: %v", err)
+		t.Fatalf("NewEinoChatModelFromConfig failed: %v", err)
 	}
-	if capturedAuth != "Bearer test-key" {
-		t.Fatalf("auth header mismatch: %q", capturedAuth)
-	}
-	if capturedPath != "/chat/completions" {
-		t.Fatalf("path mismatch: %q", capturedPath)
-	}
-	if capturedModel != "qwen-plus" {
-		t.Fatalf("model mismatch: %q", capturedModel)
-	}
-	if len(resp.Choices) != 1 || resp.Choices[0].Message.Content != "ok" {
-		t.Fatalf("response mismatch: %+v", resp)
+	if chatModel == nil {
+		t.Fatalf("chat model should not be nil")
 	}
 }
 
-func TestOpenAICompatibleClient_HTTPError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(ChatCompletionResponse{
-			Error: &ChatCompletionError{
-				Message: "invalid api key",
-			},
-		})
-	}))
-	defer server.Close()
-
-	client := NewOpenAICompatibleClient(server.URL, "bad-key", 0)
-	_, err := client.CreateChatCompletion(context.Background(), ChatCompletionRequest{
-		Model:    "qwen-plus",
-		Messages: []ChatMessage{{Role: "user", Content: "hello"}},
-	})
+func TestNewEinoChatModelFromConfig_MissingAPIKey(t *testing.T) {
+	cfg := Config{
+		Model:   "gpt-4o-mini",
+		BaseURL: "https://api.openai.com/v1",
+	}
+	_, err := NewEinoChatModelFromConfig(context.Background(), cfg)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
-}
-
-func TestOpenAICompatibleClient_CreateChatCompletionStream(t *testing.T) {
-	var capturedStream bool
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req ChatCompletionRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-			capturedStream = req.Stream
-		}
-
-		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
-		_, _ = fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"}}]}\n\n")
-		_, _ = fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hello \"}}]}\n\n")
-		_, _ = fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"world\"},\"finish_reason\":\"stop\"}]}\n\n")
-		_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
-	}))
-	defer server.Close()
-
-	client := NewOpenAICompatibleClient(server.URL, "test-key", 0)
-	segments := make([]string, 0, 2)
-	err := client.CreateChatCompletionStream(context.Background(), ChatCompletionRequest{
-		Model: "qwen-plus",
-		Messages: []ChatMessage{
-			{Role: "user", Content: "hello"},
-		},
-	}, func(chunk ChatCompletionStreamChunk) error {
-		for _, choice := range chunk.Choices {
-			if choice.Delta.Content != "" {
-				segments = append(segments, choice.Delta.Content)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("CreateChatCompletionStream failed: %v", err)
-	}
-	if !capturedStream {
-		t.Fatalf("expected stream=true in request payload")
-	}
-	joined := strings.Join(segments, "")
-	if joined != "hello world" {
-		t.Fatalf("stream content mismatch: got=%q want=%q", joined, "hello world")
+	if !strings.Contains(err.Error(), "api key") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestOpenAICompatibleClient_CreateChatCompletionStream_HTTPError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(ChatCompletionResponse{
-			Error: &ChatCompletionError{
-				Message: "invalid api key",
-			},
-		})
-	}))
-	defer server.Close()
-
-	client := NewOpenAICompatibleClient(server.URL, "bad-key", 0)
-	err := client.CreateChatCompletionStream(context.Background(), ChatCompletionRequest{
-		Model:    "qwen-plus",
-		Messages: []ChatMessage{{Role: "user", Content: "hello"}},
-	}, func(chunk ChatCompletionStreamChunk) error {
-		_ = chunk
-		return nil
-	})
+func TestNewEinoChatModelFromConfig_MissingModel(t *testing.T) {
+	cfg := Config{
+		APIKey:  "test-key",
+		BaseURL: "https://api.openai.com/v1",
+	}
+	_, err := NewEinoChatModelFromConfig(context.Background(), cfg)
 	if err == nil {
-		t.Fatalf("expected stream error, got nil")
+		t.Fatalf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "model") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

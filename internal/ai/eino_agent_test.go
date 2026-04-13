@@ -2,52 +2,44 @@ package ai
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
+
+	einomodel "github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/schema"
 )
 
-type scriptedChatClient struct {
-	responses []ChatCompletionResponse
+type scriptedToolCallingModel struct {
+	responses []*schema.Message
 	index     int
 }
 
-func (c *scriptedChatClient) CreateChatCompletion(ctx context.Context, req ChatCompletionRequest) (ChatCompletionResponse, error) {
+func (m *scriptedToolCallingModel) Generate(ctx context.Context, input []*schema.Message, opts ...einomodel.Option) (*schema.Message, error) {
 	_ = ctx
-	_ = req
-	if c.index >= len(c.responses) {
-		return ChatCompletionResponse{}, nil
+	_ = input
+	_ = opts
+	if m.index >= len(m.responses) {
+		return schema.AssistantMessage("", nil), nil
 	}
-	resp := c.responses[c.index]
-	c.index++
+	resp := m.responses[m.index]
+	m.index++
 	return resp, nil
 }
 
-func (c *scriptedChatClient) CreateChatCompletionStream(ctx context.Context, req ChatCompletionRequest, onChunk func(ChatCompletionStreamChunk) error) error {
-	resp, err := c.CreateChatCompletion(ctx, req)
+func (m *scriptedToolCallingModel) Stream(ctx context.Context, input []*schema.Message, opts ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
+	resp, err := m.Generate(ctx, input, opts...)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if onChunk == nil {
-		return fmt.Errorf("stream callback is nil")
+	if resp == nil {
+		return schema.StreamReaderFromArray([]*schema.Message{}), nil
 	}
+	return schema.StreamReaderFromArray([]*schema.Message{resp}), nil
+}
 
-	chunk := ChatCompletionStreamChunk{
-		ID:    resp.ID,
-		Model: resp.Model,
-	}
-	for _, choice := range resp.Choices {
-		chunk.Choices = append(chunk.Choices, ChatCompletionStreamChoice{
-			Index: choice.Index,
-			Delta: ChatMessageDelta{
-				Role:      choice.Message.Role,
-				Content:   choice.Message.Content,
-				ToolCalls: completeToolCallsToDelta(choice.Message.ToolCalls),
-			},
-			FinishReason: choice.FinishReason,
-		})
-	}
-	return onChunk(chunk)
+func (m *scriptedToolCallingModel) WithTools(tools []*schema.ToolInfo) (einomodel.ToolCallingChatModel, error) {
+	_ = tools
+	return m, nil
 }
 
 func TestEinoAgentExecutor_ToolCallingLoop(t *testing.T) {
@@ -59,37 +51,19 @@ func TestEinoAgentExecutor_ToolCallingLoop(t *testing.T) {
 		},
 	}
 	toolbox := NewToolbox(ToolboxOptions{DataProvider: provider, HistoryProvider: provider})
-	client := &scriptedChatClient{
-		responses: []ChatCompletionResponse{
-			{
-				Choices: []ChatCompletionChoice{
-					{
-						Message: ChatMessage{
-							Role: "assistant",
-							ToolCalls: []ChatToolCall{
-								{
-									ID:   "call_1",
-									Type: "function",
-									Function: ChatFunctionCall{
-										Name:      "get_node_summary",
-										Arguments: `{"node_name":"server-01"}`,
-									},
-								},
-							},
-						},
+	model := &scriptedToolCallingModel{
+		responses: []*schema.Message{
+			schema.AssistantMessage("", []schema.ToolCall{
+				{
+					ID:   "call_1",
+					Type: "function",
+					Function: schema.FunctionCall{
+						Name:      "get_node_summary",
+						Arguments: `{"node_name":"server-01"}`,
 					},
 				},
-			},
-			{
-				Choices: []ChatCompletionChoice{
-					{
-						Message: ChatMessage{
-							Role:    "assistant",
-							Content: `{"answer":"鎺ㄨ崘 server-01","reasoning_summary":"鍩轰簬宸ュ叿缁撴灉","related_nodes":["server-01"],"warnings":[]}`,
-						},
-					},
-				},
-			},
+			}),
+			schema.AssistantMessage(`{"answer":"推荐 server-01","reasoning_summary":"基于工具结果","related_nodes":["server-01"],"warnings":[]}`, nil),
 		},
 	}
 
@@ -97,8 +71,7 @@ func TestEinoAgentExecutor_ToolCallingLoop(t *testing.T) {
 		Classifier:   NewIntentClassifier(),
 		Toolbox:      toolbox,
 		SystemPrompt: DefaultSystemPrompt,
-		LLMClient:    client,
-		Model:        "qwen-plus",
+		ChatModel:    model,
 		MaxRounds:    4,
 	})
 
@@ -129,45 +102,27 @@ func TestEinoAgentExecutor_UnsupportedToolBecomesWarning(t *testing.T) {
 		},
 	}
 	toolbox := NewToolbox(ToolboxOptions{DataProvider: provider})
-	client := &scriptedChatClient{
-		responses: []ChatCompletionResponse{
-			{
-				Choices: []ChatCompletionChoice{
-					{
-						Message: ChatMessage{
-							Role: "assistant",
-							ToolCalls: []ChatToolCall{
-								{
-									ID:   "call_x",
-									Type: "function",
-									Function: ChatFunctionCall{
-										Name:      "unknown_tool",
-										Arguments: `{}`,
-									},
-								},
-							},
-						},
+	model := &scriptedToolCallingModel{
+		responses: []*schema.Message{
+			schema.AssistantMessage("", []schema.ToolCall{
+				{
+					ID:   "call_x",
+					Type: "function",
+					Function: schema.FunctionCall{
+						Name:      "unknown_tool",
+						Arguments: `{}`,
 					},
 				},
-			},
-			{
-				Choices: []ChatCompletionChoice{
-					{
-						Message: ChatMessage{
-							Role:    "assistant",
-							Content: `{"answer":"瀹屾垚","reasoning_summary":"鏈夊伐鍏峰け璐?,"related_nodes":[],"warnings":[]}`,
-						},
-					},
-				},
-			},
+			}),
+			schema.AssistantMessage(`{"answer":"完成","reasoning_summary":"存在未知工具调用","related_nodes":[],"warnings":[]}`, nil),
 		},
 	}
 
 	executor := NewEinoAgentExecutor(EinoAgentExecutorOptions{
 		Classifier: NewIntentClassifier(),
 		Toolbox:    toolbox,
-		LLMClient:  client,
-		Model:      "qwen-plus",
+		ChatModel:  model,
+		MaxRounds:  4,
 	})
 
 	resp, err := executor.Execute(context.Background(), AIQueryRequest{Query: "test"})

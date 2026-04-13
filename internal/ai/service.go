@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	einomodel "github.com/cloudwego/eino/components/model"
 )
 
 const (
@@ -159,17 +161,19 @@ func NewService(opts ServiceOptions) *Service {
 
 	agentExecutor := opts.AgentExecutor
 	if agentExecutor == nil {
-		var llmClient ChatCompletionClient
+		var chatModel einomodel.ToolCallingChatModel
 		if cfg.AgentReady() {
-			llmClient = NewOpenAICompatibleClient(cfg.BaseURL, cfg.APIKey, cfg.RequestTimeout)
+			model, err := NewEinoChatModelFromConfig(context.Background(), cfg)
+			if err == nil {
+				chatModel = model
+			}
 		}
 		agentExecutor = NewEinoAgentExecutor(
 			EinoAgentExecutorOptions{
 				Classifier:   classifier,
 				Toolbox:      toolbox,
 				SystemPrompt: opts.SystemPrompt,
-				LLMClient:    llmClient,
-				Model:        cfg.Model,
+				ChatModel:    chatModel,
 			},
 		)
 	}
