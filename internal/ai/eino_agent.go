@@ -7,6 +7,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/cloudwego/eino/adk"
+	einomodel "github.com/cloudwego/eino/components/model"
+	einoprompt "github.com/cloudwego/eino/components/prompt"
+	einoretriever "github.com/cloudwego/eino/components/retriever"
+	"github.com/cloudwego/eino/components/tool"
+	"github.com/cloudwego/eino/compose"
+	"github.com/cloudwego/eino/schema"
 )
 
 const defaultAgentMaxRounds = 6
@@ -16,64 +24,81 @@ type EinoAgentExecutorOptions struct {
 	Classifier   *IntentClassifier
 	Toolbox      *Toolbox
 	SystemPrompt string
-	LLMClient    ChatCompletionClient
-	Model        string
+	ChatModel    einomodel.ToolCallingChatModel
+	ChatTemplate einoprompt.ChatTemplate
+	Retriever    RetrieverWithMeta
 	MaxRounds    int
 }
 
-// EinoAgentExecutor uses OpenAI-compatible tool-calling flow.
+// EinoAgentExecutor uses Eino ADK ChatModelAgent to orchestrate tool calling.
 type EinoAgentExecutor struct {
 	classifier   *IntentClassifier
 	toolbox      *Toolbox
 	systemPrompt string
-	llmClient    ChatCompletionClient
-	model        string
+	chatModel    einomodel.ToolCallingChatModel
+	chatTemplate einoprompt.ChatTemplate
+	retriever    RetrieverWithMeta
 	maxRounds    int
 }
 
-// NewEinoAgentExecutor creates an agent executor backed by an OpenAI-compatible client.
+// NewEinoAgentExecutor creates an Eino-native agent executor.
 func NewEinoAgentExecutor(opts EinoAgentExecutorOptions) *EinoAgentExecutor {
 	classifier := opts.Classifier
 	if classifier == nil {
 		classifier = NewIntentClassifier()
 	}
+
 	toolbox := opts.Toolbox
 	if toolbox == nil {
 		toolbox = NewToolbox(ToolboxOptions{})
 	}
+
 	systemPrompt := strings.TrimSpace(opts.SystemPrompt)
 	if systemPrompt == "" {
 		systemPrompt = DefaultSystemPrompt
 	}
+
 	maxRounds := opts.MaxRounds
 	if maxRounds <= 0 {
 		maxRounds = defaultAgentMaxRounds
+	}
+
+	chatTemplate := opts.ChatTemplate
+	if chatTemplate == nil {
+		chatTemplate = NewAgentChatTemplate()
+	}
+
+	retriever := opts.Retriever
+	if retriever == nil {
+		retriever = NewToolboxKnowledgeRetriever(toolbox)
 	}
 
 	return &EinoAgentExecutor{
 		classifier:   classifier,
 		toolbox:      toolbox,
 		systemPrompt: systemPrompt,
-		llmClient:    opts.LLMClient,
-		model:        strings.TrimSpace(opts.Model),
+		chatModel:    opts.ChatModel,
+		chatTemplate: chatTemplate,
+		retriever:    retriever,
 		maxRounds:    maxRounds,
 	}
 }
 
-// Execute runs constrained tool-calling and returns a unified response.
+// Execute runs Eino ChatModelAgent and returns a unified response.
 func (e *EinoAgentExecutor) Execute(ctx context.Context, req AIQueryRequest) (AIQueryResponse, error) {
-	return e.execute(ctx, req, nil)
+	return e.execute(ctx, req, nil, false)
 }
 
-// ExecuteStream runs constrained tool-calling and emits safe status events.
+// ExecuteStream runs Eino ChatModelAgent with streaming enabled and emits safe status events.
 func (e *EinoAgentExecutor) ExecuteStream(ctx context.Context, req AIQueryRequest, emit func(AIStreamEvent) error) (AIQueryResponse, error) {
-	return e.execute(ctx, req, emit)
+	return e.execute(ctx, req, emit, true)
 }
 
-func (e *EinoAgentExecutor) execute(ctx context.Context, req AIQueryRequest, emit func(AIStreamEvent) error) (AIQueryResponse, error) {
-	if e == nil || e.llmClient == nil || strings.TrimSpace(e.model) == "" {
+func (e *EinoAgentExecutor) execute(ctx context.Context, req AIQueryRequest, emit func(AIStreamEvent) error, enableStreaming bool) (AIQueryResponse, error) {
+	if e == nil || e.chatModel == nil {
 		return AIQueryResponse{}, ErrAgentUnavailable
 	}
+
 	query := strings.TrimSpace(req.Query)
 	if query == "" {
 		return AIQueryResponse{}, ErrInvalidQuery
@@ -85,93 +110,147 @@ func (e *EinoAgentExecutor) execute(ctx context.Context, req AIQueryRequest, emi
 		return AIQueryResponse{}, err
 	}
 	intent := e.classifier.Classify(query, knownNodes)
+
 	if err := emitAgentStatus(emit, "thinking", localizedText(
 		lang,
-		"濮濓絽婀崚鍡樼€介懞鍌滃仯閻樿埖鈧礁鑻熼柅澶嬪閸氬牓鈧倸浼愰崗?..",
-		"Analyzing node status and selecting tools...",
+		"正在分析节点状态并规划工具调用...",
+		"Analyzing node status and planning tool usage...",
 	)); err != nil {
 		return AIQueryResponse{}, err
 	}
 
-	messages := []ChatMessage{
-		{Role: "system", Content: e.systemPrompt},
-		{Role: "user", Content: buildAgentUserPrompt(query, intent, knownNodes, lang)},
+	messages, err := e.chatTemplate.Format(ctx, map[string]any{
+		"system_prompt":     e.systemPrompt,
+		"agent_user_prompt": buildAgentUserPrompt(query, intent, knownNodes, lang),
+	})
+	if err != nil {
+		return AIQueryResponse{}, fmt.Errorf("format agent prompt failed: %w", err)
+	}
+
+	tools, err := e.buildTools()
+	if err != nil {
+		return AIQueryResponse{}, err
+	}
+	supportedToolNames := make(map[string]struct{}, len(tools))
+	for _, baseTool := range tools {
+		info, infoErr := baseTool.Info(ctx)
+		if infoErr != nil || info == nil {
+			continue
+		}
+		name := strings.TrimSpace(info.Name)
+		if name == "" {
+			continue
+		}
+		supportedToolNames[name] = struct{}{}
+	}
+
+	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+		Name:        "nexus-ai-agent",
+		Description: "Cluster resource assistant with deterministic gateway tools",
+		Model:       e.chatModel,
+		ToolsConfig: adk.ToolsConfig{
+			ToolsNodeConfig: compose.ToolsNodeConfig{
+				Tools:               tools,
+				ExecuteSequentially: true,
+				UnknownToolsHandler: e.handleUnknownTool,
+			},
+		},
+		MaxIterations: e.maxRounds,
+	})
+	if err != nil {
+		return AIQueryResponse{}, fmt.Errorf("create eino chat model agent failed: %w", err)
+	}
+
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{
+		Agent:           agent,
+		EnableStreaming: enableStreaming && req.Stream,
+	})
+	iter := runner.Run(ctx, messages)
+	if iter == nil {
+		return AIQueryResponse{}, fmt.Errorf("agent runner returned nil iterator")
 	}
 
 	toolCalls := make([]ToolCallRecord, 0, 8)
+	toolCallByID := make(map[string]ToolCallRecord)
 	relatedNodeSet := map[string]struct{}{}
 	warnings := make([]string, 0, 4)
 	knowledgeHits := make([]KnowledgeHitSummary, 0, 4)
 	var retrievalMeta *RetrievalMeta
 	finalContent := ""
 
-	for round := 0; round < e.maxRounds; round++ {
-		if err := emitAgentStatus(emit, "thinking", localizedText(
-			lang,
-			"濮濓絽婀Ч鍥ㄢ偓璇插讲閻劌浼愰崗鐤箲閸ョ偟娈戠拠浣瑰祦...",
-			"Gathering evidence from available tools...",
-		)); err != nil {
-			return AIQueryResponse{}, err
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
 		}
-		resp, err := e.llmClient.CreateChatCompletion(ctx, ChatCompletionRequest{
-			Model:       e.model,
-			Messages:    messages,
-			Tools:       buildAgentToolSchemas(),
-			ToolChoice:  "auto",
-			Temperature: 0.1,
-		})
+		if event == nil {
+			continue
+		}
+		if event.Err != nil {
+			return AIQueryResponse{}, event.Err
+		}
+		if event.Output == nil || event.Output.MessageOutput == nil {
+			continue
+		}
+
+		variant := event.Output.MessageOutput
+		msg, err := materializeAgentMessage(variant)
 		if err != nil {
 			return AIQueryResponse{}, err
 		}
-		if len(resp.Choices) == 0 {
-			return AIQueryResponse{}, fmt.Errorf("agent returned no choices")
+		if msg == nil {
+			continue
 		}
 
-		msg := resp.Choices[0].Message
-		if len(msg.ToolCalls) == 0 {
-			finalContent = strings.TrimSpace(msg.Content)
-			break
+		role := variant.Role
+		if role == "" {
+			role = msg.Role
 		}
 
-		messages = append(messages, ChatMessage{
-			Role:      "assistant",
-			Content:   msg.Content,
-			ToolCalls: msg.ToolCalls,
-		})
-
-		for _, call := range msg.ToolCalls {
-			if err := emitAgentStatus(emit, "tooling", toolStatusMessage(call.Function.Name, lang)); err != nil {
-				return AIQueryResponse{}, err
-			}
-			toolOutput, record, relatedNodes, callWarnings := e.executeToolCall(ctx, call)
-			if record.Name != "" {
-				toolCalls = append(toolCalls, record)
-			}
-			for _, nodeName := range relatedNodes {
-				normalized := strings.TrimSpace(nodeName)
-				if normalized == "" {
-					continue
+		switch role {
+		case schema.Assistant:
+			if len(msg.ToolCalls) > 0 {
+				for _, call := range msg.ToolCalls {
+					name := strings.TrimSpace(call.Function.Name)
+					if name == "" {
+						continue
+					}
+					args := parseToolArgs(call.Function.Arguments)
+					record := ToolCallRecord{Name: name, Args: args}
+					toolCalls = append(toolCalls, record)
+					if strings.TrimSpace(call.ID) != "" {
+						toolCallByID[call.ID] = record
+					}
+					if _, ok := supportedToolNames[name]; !ok {
+						warnings = append(warnings, fmt.Sprintf("tool %s failed: unsupported tool: %s", name, name))
+					}
+					trackRelatedNodesFromArgs(record, relatedNodeSet)
+					if err := emitAgentStatus(emit, "tooling", toolStatusMessage(name, lang)); err != nil {
+						return AIQueryResponse{}, err
+					}
 				}
-				relatedNodeSet[normalized] = struct{}{}
+				continue
 			}
-			warnings = append(warnings, callWarnings...)
 
-			messages = append(messages, ChatMessage{
-				Role:       "tool",
-				Name:       call.Function.Name,
-				ToolCallID: call.ID,
-				Content:    toolOutput,
-			})
+			if text := strings.TrimSpace(msg.Content); text != "" {
+				finalContent = text
+			}
 
-			if strings.EqualFold(strings.TrimSpace(call.Function.Name), "search_knowledge_base") {
-				hits, retrieval := parseKnowledgeToolOutput(toolOutput)
-				if len(hits) > 0 {
-					knowledgeHits = dedupeKnowledgeHitSummaries(append(knowledgeHits, hits...))
-				}
-				if retrieval != nil {
-					retrievalMeta = retrieval
+		case schema.Tool:
+			toolName := strings.TrimSpace(msg.ToolName)
+			if toolName == "" {
+				toolName = strings.TrimSpace(variant.ToolName)
+			}
+			if toolName == "" && strings.TrimSpace(msg.ToolCallID) != "" {
+				if rec, ok := toolCallByID[msg.ToolCallID]; ok {
+					toolName = rec.Name
 				}
 			}
+
+			if toolName == "" {
+				continue
+			}
+			e.collectToolEvidence(toolName, strings.TrimSpace(msg.Content), &knowledgeHits, &retrievalMeta, &warnings, relatedNodeSet)
 		}
 	}
 
@@ -226,6 +305,287 @@ func (e *EinoAgentExecutor) execute(ctx context.Context, req AIQueryRequest, emi
 		KnowledgeHits:    knowledgeHits,
 		Retrieval:        retrievalMeta,
 	}, nil
+}
+
+func materializeAgentMessage(variant *adk.MessageVariant) (*schema.Message, error) {
+	if variant == nil {
+		return nil, nil
+	}
+	if variant.IsStreaming {
+		if variant.MessageStream == nil {
+			return nil, nil
+		}
+		msg, err := schema.ConcatMessageStream(variant.MessageStream)
+		if err != nil {
+			return nil, fmt.Errorf("concat agent stream message failed: %w", err)
+		}
+		return msg, nil
+	}
+	return variant.Message, nil
+}
+
+func trackRelatedNodesFromArgs(record ToolCallRecord, relatedNodeSet map[string]struct{}) {
+	nodeName := asString(record.Args["node_name"])
+	if nodeName != "" {
+		relatedNodeSet[nodeName] = struct{}{}
+	}
+}
+
+func (e *EinoAgentExecutor) collectToolEvidence(
+	toolName string,
+	toolOutput string,
+	knowledgeHits *[]KnowledgeHitSummary,
+	retrievalMeta **RetrievalMeta,
+	warnings *[]string,
+	relatedNodeSet map[string]struct{},
+) {
+	if warning := parseToolWarning(toolName, toolOutput); warning != "" {
+		*warnings = append(*warnings, warning)
+	}
+
+	switch strings.TrimSpace(toolName) {
+	case "get_node_metrics":
+		var snapshot NodeSnapshot
+		if err := json.Unmarshal([]byte(toolOutput), &snapshot); err == nil {
+			if nodeName := strings.TrimSpace(snapshot.Name); nodeName != "" {
+				relatedNodeSet[nodeName] = struct{}{}
+			}
+		}
+	case "get_node_summary":
+		var summary NodeSummary
+		if err := json.Unmarshal([]byte(toolOutput), &summary); err == nil {
+			if nodeName := strings.TrimSpace(summary.NodeName); nodeName != "" {
+				relatedNodeSet[nodeName] = struct{}{}
+			}
+		}
+	case "explain_node_anomaly":
+		var explanation AnomalyExplanation
+		if err := json.Unmarshal([]byte(toolOutput), &explanation); err == nil {
+			if nodeName := strings.TrimSpace(explanation.NodeName); nodeName != "" {
+				relatedNodeSet[nodeName] = struct{}{}
+			}
+		}
+	case "list_idle_nodes", "recommend_nodes_for_job":
+		var candidates []NodeCandidate
+		if err := json.Unmarshal([]byte(toolOutput), &candidates); err == nil {
+			for _, nodeName := range collectNodeNames(candidates) {
+				relatedNodeSet[nodeName] = struct{}{}
+			}
+		}
+	case "get_alert_history":
+		var result AlertHistoryResult
+		if err := json.Unmarshal([]byte(toolOutput), &result); err == nil {
+			for _, nodeName := range collectAlertNodeNames(result.Summaries) {
+				relatedNodeSet[nodeName] = struct{}{}
+			}
+		}
+	case "search_knowledge_base":
+		hits, retrieval := parseKnowledgeToolOutput(toolOutput)
+		if len(hits) > 0 {
+			*knowledgeHits = dedupeKnowledgeHitSummaries(append(*knowledgeHits, hits...))
+		}
+		if retrieval != nil {
+			*retrievalMeta = retrieval
+		}
+	}
+}
+
+func parseToolWarning(toolName, output string) string {
+	if strings.TrimSpace(output) == "" {
+		return ""
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		return ""
+	}
+	message := asString(payload["error"])
+	if message == "" {
+		return ""
+	}
+	return fmt.Sprintf("tool %s failed: %s", strings.TrimSpace(toolName), message)
+}
+
+func (e *EinoAgentExecutor) buildTools() ([]tool.BaseTool, error) {
+	build := func(name, desc string, params map[string]*schema.ParameterInfo, run func(context.Context, map[string]any) (any, error)) tool.BaseTool {
+		return &einoInvokableTool{
+			info: &schema.ToolInfo{
+				Name:        name,
+				Desc:        desc,
+				ParamsOneOf: schema.NewParamsOneOfByParams(params),
+			},
+			run: run,
+		}
+	}
+
+	tools := []tool.BaseTool{
+		build("get_node_metrics", "Get full current metrics snapshot of one node from gateway aggregate view.", map[string]*schema.ParameterInfo{
+			"node_name": {Type: schema.String, Required: true, Desc: "Target node name"},
+		}, func(ctx context.Context, args map[string]any) (any, error) {
+			return e.toolbox.GetNodeMetrics(ctx, asString(args["node_name"]))
+		}),
+		build("list_idle_nodes", "List currently available nodes ranked by idle/scheduling score.", map[string]*schema.ParameterInfo{
+			"min_free_vram_gb": {Type: schema.Number, Desc: "Optional minimum free GPU memory in GB"},
+			"limit":            {Type: schema.Integer, Desc: "Candidate count limit"},
+		}, func(ctx context.Context, args map[string]any) (any, error) {
+			limit := asInt(args["limit"], 3)
+			minFree, hasMin := asFloatPtr(args["min_free_vram_gb"])
+			var ptr *float64
+			if hasMin {
+				ptr = &minFree
+			}
+			return e.toolbox.ListIdleNodes(ctx, ptr, limit)
+		}),
+		build("get_gpu_processes", "Get GPU process list of a node.", map[string]*schema.ParameterInfo{
+			"node_name": {Type: schema.String, Required: true, Desc: "Target node name"},
+		}, func(ctx context.Context, args map[string]any) (any, error) {
+			return e.toolbox.GetGPUProcesses(ctx, asString(args["node_name"]))
+		}),
+		build("get_node_summary", "Get readable node summary including health/gpu/process/risk flags.", map[string]*schema.ParameterInfo{
+			"node_name": {Type: schema.String, Required: true, Desc: "Target node name"},
+		}, func(ctx context.Context, args map[string]any) (any, error) {
+			return e.toolbox.GetNodeSummary(ctx, asString(args["node_name"]))
+		}),
+		build("get_alert_history", "Get alert/trend summary for a node or all nodes in a window like 30m/1h.", map[string]*schema.ParameterInfo{
+			"node_name": {Type: schema.String, Desc: "Optional node name"},
+			"window":    {Type: schema.String, Desc: "Window like 30m or 1h", Enum: []string{"30m", "1h"}},
+		}, func(ctx context.Context, args map[string]any) (any, error) {
+			window := asStringWithDefault(args["window"], "30m")
+			nodeNameStr := asString(args["node_name"])
+			var nodeNamePtr *string
+			if nodeNameStr != "" {
+				nodeNamePtr = &nodeNameStr
+			}
+			return e.toolbox.GetAlertHistory(ctx, nodeNamePtr, window)
+		}),
+		build("recommend_nodes_for_job", "Recommend nodes for a job requirement.", map[string]*schema.ParameterInfo{
+			"requirements": {
+				Type: schema.Object,
+				SubParams: map[string]*schema.ParameterInfo{
+					"min_free_vram_gb":   {Type: schema.Number, Desc: "Minimum free VRAM in GB"},
+					"gpu_count":          {Type: schema.Integer, Desc: "Requested GPU count"},
+					"prefer_low_cpu":     {Type: schema.Boolean, Desc: "Prefer lower CPU usage"},
+					"prefer_low_ram":     {Type: schema.Boolean, Desc: "Prefer lower RAM usage"},
+					"prefer_fewer_users": {Type: schema.Boolean, Desc: "Prefer fewer active users"},
+					"prefer_fresh_data":  {Type: schema.Boolean, Desc: "Prefer fresh data samples"},
+				},
+			},
+			"limit": {Type: schema.Integer, Desc: "Candidate count limit"},
+		}, func(ctx context.Context, args map[string]any) (any, error) {
+			requirements := parseJobRequirementArgs(args["requirements"])
+			limit := asInt(args["limit"], 3)
+			return e.toolbox.RecommendNodesForJob(ctx, requirements, limit)
+		}),
+		build("explain_node_anomaly", "Generate deterministic anomaly explanation for one node.", map[string]*schema.ParameterInfo{
+			"node_name": {Type: schema.String, Required: true, Desc: "Target node name"},
+		}, func(ctx context.Context, args map[string]any) (any, error) {
+			return e.toolbox.ExplainNodeAnomaly(ctx, asString(args["node_name"]))
+		}),
+		build("search_knowledge_base", "Search local troubleshooting knowledge for common causes and remediation steps.", map[string]*schema.ParameterInfo{
+			"query": {Type: schema.String, Required: true, Desc: "Knowledge query text"},
+			"limit": {Type: schema.Integer, Desc: "Top-K hit count"},
+		}, func(ctx context.Context, args map[string]any) (any, error) {
+			query := asString(args["query"])
+			limit := asInt(args["limit"], defaultKnowledgeTopK)
+			hits, meta, err := e.searchKnowledge(ctx, query, limit)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{
+				"hits":      hits,
+				"retrieval": meta,
+			}, nil
+		}),
+	}
+	return tools, nil
+}
+
+func (e *EinoAgentExecutor) handleUnknownTool(ctx context.Context, name, input string) (string, error) {
+	_ = ctx
+	_ = input
+	return marshalToolOutput(map[string]any{
+		"error": fmt.Sprintf("unsupported tool: %s", strings.TrimSpace(name)),
+	}), nil
+}
+
+func (e *EinoAgentExecutor) searchKnowledge(ctx context.Context, query string, limit int) ([]KnowledgeHitSummary, RetrievalMeta, error) {
+	topK := limit
+	if topK <= 0 {
+		topK = defaultKnowledgeTopK
+	}
+
+	if e != nil && e.retriever != nil {
+		docs, meta, err := e.retriever.RetrieveWithMeta(ctx, query, einoretriever.WithTopK(topK))
+		if err != nil {
+			return nil, meta, err
+		}
+		return knowledgeHitSummariesFromDocuments(docs), meta, nil
+	}
+
+	hits, meta, err := e.toolbox.SearchKnowledge(ctx, query, topK)
+	if err != nil {
+		return nil, meta, err
+	}
+	return summarizeKnowledgeHits(hits), meta, nil
+}
+
+func knowledgeHitSummariesFromDocuments(docs []*schema.Document) []KnowledgeHitSummary {
+	if len(docs) == 0 {
+		return nil
+	}
+	result := make([]KnowledgeHitSummary, 0, len(docs))
+	for _, doc := range docs {
+		if doc == nil {
+			continue
+		}
+		title := asString(doc.MetaData["title"])
+		if title == "" {
+			title = asString(doc.MetaData["document_id"])
+		}
+		if title == "" {
+			title = strings.TrimSpace(doc.ID)
+		}
+		if title == "" {
+			continue
+		}
+
+		snippet := strings.TrimSpace(doc.Content)
+		if snippet == "" {
+			snippet = asString(doc.MetaData["snippet"])
+		}
+
+		result = append(result, KnowledgeHitSummary{
+			Title:      title,
+			Category:   asString(doc.MetaData["category"]),
+			Snippet:    snippet,
+			SourcePath: asString(doc.MetaData["source_path"]),
+		})
+	}
+	return dedupeKnowledgeHitSummaries(result)
+}
+
+type einoInvokableTool struct {
+	info *schema.ToolInfo
+	run  func(ctx context.Context, args map[string]any) (any, error)
+}
+
+func (t *einoInvokableTool) Info(_ context.Context) (*schema.ToolInfo, error) {
+	if t == nil || t.info == nil {
+		return nil, fmt.Errorf("tool info is nil")
+	}
+	return t.info, nil
+}
+
+func (t *einoInvokableTool) InvokableRun(ctx context.Context, argumentsInJSON string, _ ...tool.Option) (string, error) {
+	if t == nil || t.run == nil {
+		return marshalToolOutput(map[string]any{"error": "tool executor is nil"}), nil
+	}
+
+	args := parseToolArgs(argumentsInJSON)
+	result, err := t.run(ctx, args)
+	if err != nil {
+		return marshalToolOutput(map[string]any{"error": err.Error()}), nil
+	}
+	return marshalToolOutput(result), nil
 }
 
 type parsedAgentFinal struct {
@@ -381,6 +741,7 @@ func summarizeToolCalls(toolCalls []ToolCallRecord, lang responseLanguage) strin
 		"Generated from tool evidence: "+strings.Join(names, ", ")+".",
 	)
 }
+
 func rewriteOperationalAnswer(intent QueryIntent, current string, relatedNodes []string, lang responseLanguage) string {
 	text := sanitizeFinalText(current)
 	if responseLanguageMatches(lang, text) {
@@ -454,6 +815,7 @@ func rewriteOperationalAnswer(intent QueryIntent, current string, relatedNodes [
 		return text
 	}
 }
+
 func rewriteReasoningSummary(intent QueryIntent, current string, relatedNodes []string, lang responseLanguage) string {
 	summary := sanitizeFinalText(current)
 	if responseLanguageMatches(lang, summary) {
@@ -500,6 +862,7 @@ func responseLanguageMatches(lang responseLanguage, text string) bool {
 	}
 	return !hasHan
 }
+
 func minInt(a, b int) int {
 	if a < b {
 		return a
@@ -576,102 +939,6 @@ func toolStatusMessage(toolName string, lang responseLanguage) string {
 		return localizedText(lang, "正在检索本地知识库...", "Searching local knowledge base...")
 	default:
 		return localizedText(lang, "正在汇总工具证据...", "Gathering tool evidence...")
-	}
-}
-func (e *EinoAgentExecutor) executeToolCall(ctx context.Context, call ChatToolCall) (string, ToolCallRecord, []string, []string) {
-	args := parseToolArgs(call.Function.Arguments)
-	record := ToolCallRecord{Name: call.Function.Name, Args: args}
-	warnings := make([]string, 0, 1)
-
-	fail := func(err error) (string, ToolCallRecord, []string, []string) {
-		warning := fmt.Sprintf("tool %s failed: %v", call.Function.Name, err)
-		warnings = append(warnings, warning)
-		result := map[string]any{"error": err.Error()}
-		return marshalToolOutput(result), record, nil, warnings
-	}
-
-	switch call.Function.Name {
-	case "get_node_metrics":
-		nodeName := asString(args["node_name"])
-		result, err := e.toolbox.GetNodeMetrics(ctx, nodeName)
-		if err != nil {
-			return fail(err)
-		}
-		return marshalToolOutput(result), record, []string{nodeName}, warnings
-
-	case "list_idle_nodes":
-		limit := asInt(args["limit"], 3)
-		minFree, hasMin := asFloatPtr(args["min_free_vram_gb"])
-		var ptr *float64
-		if hasMin {
-			ptr = &minFree
-		}
-		result, err := e.toolbox.ListIdleNodes(ctx, ptr, limit)
-		if err != nil {
-			return fail(err)
-		}
-		return marshalToolOutput(result), record, collectNodeNames(result), warnings
-
-	case "get_gpu_processes":
-		nodeName := asString(args["node_name"])
-		result, err := e.toolbox.GetGPUProcesses(ctx, nodeName)
-		if err != nil {
-			return fail(err)
-		}
-		return marshalToolOutput(result), record, []string{nodeName}, warnings
-
-	case "get_node_summary":
-		nodeName := asString(args["node_name"])
-		result, err := e.toolbox.GetNodeSummary(ctx, nodeName)
-		if err != nil {
-			return fail(err)
-		}
-		return marshalToolOutput(result), record, []string{nodeName}, warnings
-
-	case "get_alert_history":
-		window := asStringWithDefault(args["window"], "30m")
-		nodeNameStr := asString(args["node_name"])
-		var nodeNamePtr *string
-		if nodeNameStr != "" {
-			nodeNamePtr = &nodeNameStr
-		}
-		result, err := e.toolbox.GetAlertHistory(ctx, nodeNamePtr, window)
-		if err != nil {
-			return fail(err)
-		}
-		return marshalToolOutput(result), record, collectAlertNodeNames(result.Summaries), warnings
-
-	case "recommend_nodes_for_job":
-		requirements := parseJobRequirementArgs(args["requirements"])
-		limit := asInt(args["limit"], 3)
-		result, err := e.toolbox.RecommendNodesForJob(ctx, requirements, limit)
-		if err != nil {
-			return fail(err)
-		}
-		return marshalToolOutput(result), record, collectNodeNames(result), warnings
-
-	case "explain_node_anomaly":
-		nodeName := asString(args["node_name"])
-		result, err := e.toolbox.ExplainNodeAnomaly(ctx, nodeName)
-		if err != nil {
-			return fail(err)
-		}
-		return marshalToolOutput(result), record, []string{nodeName}, warnings
-
-	case "search_knowledge_base":
-		query := asString(args["query"])
-		limit := asInt(args["limit"], defaultKnowledgeTopK)
-		hits, meta, err := e.toolbox.SearchKnowledge(ctx, query, limit)
-		if err != nil {
-			return fail(err)
-		}
-		result := map[string]any{
-			"hits":      summarizeKnowledgeHits(hits),
-			"retrieval": meta,
-		}
-		return marshalToolOutput(result), record, nil, warnings
-	default:
-		return fail(fmt.Errorf("unsupported tool: %s", call.Function.Name))
 	}
 }
 
@@ -911,131 +1178,4 @@ func uniqueStrings(input []string) []string {
 		result = append(result, normalized)
 	}
 	return result
-}
-
-func buildAgentToolSchemas() []ChatTool {
-	return []ChatTool{
-		{
-			Type: "function",
-			Function: ChatToolFunctionSchema{
-				Name:        "get_node_metrics",
-				Description: "Get full current metrics snapshot of one node from gateway aggregate view.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"node_name": map[string]any{"type": "string"},
-					},
-					"required": []string{"node_name"},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: ChatToolFunctionSchema{
-				Name:        "list_idle_nodes",
-				Description: "List currently available nodes ranked by idle/scheduling score.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"min_free_vram_gb": map[string]any{"type": "number"},
-						"limit":            map[string]any{"type": "integer", "minimum": 1, "maximum": 10},
-					},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: ChatToolFunctionSchema{
-				Name:        "get_gpu_processes",
-				Description: "Get GPU process list of a node.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"node_name": map[string]any{"type": "string"},
-					},
-					"required": []string{"node_name"},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: ChatToolFunctionSchema{
-				Name:        "get_node_summary",
-				Description: "Get readable node summary including health/gpu/process/risk flags.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"node_name": map[string]any{"type": "string"},
-					},
-					"required": []string{"node_name"},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: ChatToolFunctionSchema{
-				Name:        "get_alert_history",
-				Description: "Get alert/trend summary for a node or all nodes in a window like 30m/1h.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"node_name": map[string]any{"type": "string"},
-						"window":    map[string]any{"type": "string", "enum": []string{"30m", "1h"}},
-					},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: ChatToolFunctionSchema{
-				Name:        "recommend_nodes_for_job",
-				Description: "Recommend nodes for a job requirement.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"requirements": map[string]any{
-							"type": "object",
-							"properties": map[string]any{
-								"min_free_vram_gb":   map[string]any{"type": "number"},
-								"gpu_count":          map[string]any{"type": "integer"},
-								"prefer_low_cpu":     map[string]any{"type": "boolean"},
-								"prefer_low_ram":     map[string]any{"type": "boolean"},
-								"prefer_fewer_users": map[string]any{"type": "boolean"},
-							},
-						},
-						"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 10},
-					},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: ChatToolFunctionSchema{
-				Name:        "explain_node_anomaly",
-				Description: "Generate deterministic anomaly explanation for one node.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"node_name": map[string]any{"type": "string"},
-					},
-					"required": []string{"node_name"},
-				},
-			},
-		},
-		{
-			Type: "function",
-			Function: ChatToolFunctionSchema{
-				Name:        "search_knowledge_base",
-				Description: "Search local troubleshooting knowledge for common causes and remediation steps.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"query": map[string]any{"type": "string"},
-						"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 10},
-					},
-					"required": []string{"query"},
-				},
-			},
-		},
-	}
 }
