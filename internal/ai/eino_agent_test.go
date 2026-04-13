@@ -85,7 +85,7 @@ func TestEinoAgentExecutor_ToolCallingLoop(t *testing.T) {
 					{
 						Message: ChatMessage{
 							Role:    "assistant",
-							Content: `{"answer":"推荐 server-01","reasoning_summary":"基于工具结果","related_nodes":["server-01"],"warnings":[]}`,
+							Content: `{"answer":"鎺ㄨ崘 server-01","reasoning_summary":"鍩轰簬宸ュ叿缁撴灉","related_nodes":["server-01"],"warnings":[]}`,
 						},
 					},
 				},
@@ -102,7 +102,7 @@ func TestEinoAgentExecutor_ToolCallingLoop(t *testing.T) {
 		MaxRounds:    4,
 	})
 
-	resp, err := executor.Execute(context.Background(), AIQueryRequest{Query: "推荐一台机器"})
+	resp, err := executor.Execute(context.Background(), AIQueryRequest{Query: "recommend one node"})
 	if err != nil {
 		t.Fatalf("Execute failed: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestEinoAgentExecutor_UnsupportedToolBecomesWarning(t *testing.T) {
 					{
 						Message: ChatMessage{
 							Role:    "assistant",
-							Content: `{"answer":"完成","reasoning_summary":"有工具失败","related_nodes":[],"warnings":[]}`,
+							Content: `{"answer":"瀹屾垚","reasoning_summary":"鏈夊伐鍏峰け璐?,"related_nodes":[],"warnings":[]}`,
 						},
 					},
 				},
@@ -245,7 +245,34 @@ func TestRewriteOperationalAnswer_ScheduleSuggestion(t *testing.T) {
 	}
 
 	reason := rewriteReasoningSummary(intent, "raw reason", []string{"node-a", "node-b"}, responseLanguageZH)
-	if !strings.Contains(reason, "依据是 CPU、内存和 GPU 余量") {
+	if !strings.Contains(reason, "判断依据") {
 		t.Fatalf("rewritten reasoning mismatch: %q", reason)
+	}
+}
+
+func TestRewriteOperationalAnswer_KeepLanguageMatchedOutput(t *testing.T) {
+	intent := QueryIntent{
+		Type: IntentIdleNodeRanking,
+		TopK: 1,
+	}
+	current := "结论：node-a 当前最空闲，建议优先放置任务。"
+	answer := rewriteOperationalAnswer(intent, current, []string{"node-a"}, responseLanguageZH)
+	if answer != current {
+		t.Fatalf("expected matched-language answer to be kept, got=%q", answer)
+	}
+}
+
+func TestRewriteOperationalAnswer_LocalizeWhenLanguageMismatch(t *testing.T) {
+	intent := QueryIntent{
+		Type: IntentIdleNodeRanking,
+		TopK: 1,
+	}
+	answer := rewriteOperationalAnswer(intent, "node-a is currently the most idle node.", []string{"node-a"}, responseLanguageZH)
+	if !strings.Contains(answer, "结论") {
+		t.Fatalf("expected chinese fallback answer, got=%q", answer)
+	}
+	reason := rewriteReasoningSummary(intent, "based on cpu/ram/gpu headroom", []string{"node-a"}, responseLanguageZH)
+	if !strings.Contains(reason, "判断依据") {
+		t.Fatalf("expected chinese fallback reasoning, got=%q", reason)
 	}
 }

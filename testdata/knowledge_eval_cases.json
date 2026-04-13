@@ -1,0 +1,52 @@
+[
+  {
+    "query": "GPU 显存爆满怎么处理",
+    "expected_doc_ids": ["gpu_oom"],
+    "expected_titles": ["GPU OOM / 显存不足"]
+  },
+  {
+    "query": "CUDA out of memory but free memory exists",
+    "expected_doc_ids": ["gpu_memory_fragmentation", "gpu_oom"],
+    "expected_titles": ["GPU 显存碎片化", "GPU OOM / 显存不足"]
+  },
+  {
+    "query": "GPU utilization is low what should I check first",
+    "expected_doc_ids": ["gpu_low_utilization"],
+    "expected_titles": ["GPU 利用率低"]
+  },
+  {
+    "query": "节点离线后先排查什么",
+    "expected_doc_ids": ["node_offline", "network_or_agent_unreachable"],
+    "expected_titles": ["节点离线", "网络或 Agent 不可达"]
+  },
+  {
+    "query": "指标太旧了会影响判断吗",
+    "expected_doc_ids": ["metrics_stale"],
+    "expected_titles": ["指标数据陈旧 / Metrics Stale"]
+  },
+  {
+    "query": "为什么 CPU 占用一直很高",
+    "expected_doc_ids": ["cpu_high_usage"],
+    "expected_titles": ["CPU 使用率过高"]
+  },
+  {
+    "query": "内存超过90%一般怎么处理",
+    "expected_doc_ids": ["memory_high_usage"],
+    "expected_titles": ["内存占用过高"]
+  },
+  {
+    "query": "调度不上去提示资源不足",
+    "expected_doc_ids": ["scheduling_resource_insufficient"],
+    "expected_titles": ["调度资源不足"]
+  },
+  {
+    "query": "活跃用户太多导致资源竞争",
+    "expected_doc_ids": ["too_many_active_users", "process_resource_contention"],
+    "expected_titles": ["活跃用户过多导致竞争", "进程资源竞争"]
+  },
+  {
+    "query": "给我一个通用排障流程",
+    "expected_doc_ids": ["general_diagnostic_flow"],
+    "expected_titles": ["通用排障流程 / General Diagnostic Flow"]
+  }
+]

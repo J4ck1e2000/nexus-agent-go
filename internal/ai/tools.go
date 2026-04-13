@@ -25,15 +25,21 @@ type Toolbox struct {
 	scheduler       *Scheduler
 	explainer       *AnomalyExplainer
 	historyAnalyzer *HistoryAnalyzer
+	knowledge       *KnowledgeRetriever
+	retrievalStats  *RetrievalStatsCollector
+	knowledgeTopK   int
 }
 
 // ToolboxOptions defines dependencies of Toolbox.
 type ToolboxOptions struct {
-	DataProvider    ClusterDataProvider
-	HistoryProvider HistoryProvider
-	Scheduler       *Scheduler
-	Explainer       *AnomalyExplainer
-	HistoryAnalyzer *HistoryAnalyzer
+	DataProvider       ClusterDataProvider
+	HistoryProvider    HistoryProvider
+	Scheduler          *Scheduler
+	Explainer          *AnomalyExplainer
+	HistoryAnalyzer    *HistoryAnalyzer
+	KnowledgeRetriever *KnowledgeRetriever
+	RetrievalStats     *RetrievalStatsCollector
+	KnowledgeTopK      int
 }
 
 // NewToolbox creates a toolbox with defaults.
@@ -50,6 +56,22 @@ func NewToolbox(opts ToolboxOptions) *Toolbox {
 	if historyAnalyzer == nil {
 		historyAnalyzer = NewHistoryAnalyzer()
 	}
+	knowledgeTopK := opts.KnowledgeTopK
+	if knowledgeTopK <= 0 {
+		knowledgeTopK = defaultKnowledgeTopK
+	}
+	retrievalStats := opts.RetrievalStats
+	if retrievalStats == nil {
+		retrievalStats = NewRetrievalStatsCollector(false)
+	}
+	knowledgeEnabled := opts.KnowledgeRetriever != nil && opts.KnowledgeRetriever.ChunkCount() > 0
+	loadedDocs := 0
+	loadedChunks := 0
+	if opts.KnowledgeRetriever != nil {
+		loadedDocs = opts.KnowledgeRetriever.DocumentCount()
+		loadedChunks = opts.KnowledgeRetriever.ChunkCount()
+	}
+	retrievalStats.UpdateKnowledgeState(knowledgeEnabled, loadedDocs, loadedChunks, time.Now())
 
 	return &Toolbox{
 		dataProvider:    opts.DataProvider,
@@ -57,6 +79,9 @@ func NewToolbox(opts ToolboxOptions) *Toolbox {
 		scheduler:       scheduler,
 		explainer:       explainer,
 		historyAnalyzer: historyAnalyzer,
+		knowledge:       opts.KnowledgeRetriever,
+		retrievalStats:  retrievalStats,
+		knowledgeTopK:   knowledgeTopK,
 	}
 }
 
@@ -240,6 +265,68 @@ func (t *Toolbox) ExplainNodeAnomaly(ctx context.Context, nodeName string) (Anom
 		return AnomalyExplanation{}, err
 	}
 	return t.explainer.Explain(node), nil
+}
+
+// SearchKnowledge runs lightweight local knowledge retrieval.
+func (t *Toolbox) SearchKnowledge(ctx context.Context, query string, limit int) ([]KnowledgeHit, RetrievalMeta, error) {
+	topK := limit
+	if topK <= 0 {
+		topK = defaultKnowledgeTopK
+	}
+	if t != nil && t.knowledgeTopK > 0 && limit <= 0 {
+		topK = t.knowledgeTopK
+	}
+	meta := RetrievalMeta{
+		Query:    strings.TrimSpace(query),
+		TopK:     topK,
+		Strategy: defaultKnowledgeStrategy,
+	}
+
+	if t == nil || t.knowledge == nil || t.knowledge.ChunkCount() == 0 {
+		if t != nil && t.retrievalStats != nil {
+			t.retrievalStats.RecordSearch(meta)
+		}
+		return nil, meta, nil
+	}
+
+	hits, searchMeta, err := t.knowledge.Search(ctx, query, topK)
+	if err != nil {
+		return nil, searchMeta, err
+	}
+	if t.retrievalStats != nil {
+		t.retrievalStats.RecordSearch(searchMeta)
+	}
+	return hits, searchMeta, nil
+}
+
+// KnowledgeStats returns current online retrieval stats snapshot.
+func (t *Toolbox) KnowledgeStats(ctx context.Context) RetrievalStats {
+	_ = ctx
+	if t == nil || t.retrievalStats == nil {
+		return RetrievalStats{}
+	}
+	return t.retrievalStats.Snapshot()
+}
+
+// HasKnowledge indicates whether the toolbox has enabled knowledge retrieval.
+func (t *Toolbox) HasKnowledge() bool {
+	return t != nil && t.knowledge != nil && t.knowledge.ChunkCount() > 0
+}
+
+func summarizeKnowledgeHits(hits []KnowledgeHit) []KnowledgeHitSummary {
+	if len(hits) == 0 {
+		return nil
+	}
+	result := make([]KnowledgeHitSummary, 0, len(hits))
+	for _, hit := range hits {
+		result = append(result, KnowledgeHitSummary{
+			Title:      hit.Title,
+			Category:   hit.Category,
+			Snippet:    hit.Snippet,
+			SourcePath: hit.SourcePath,
+		})
+	}
+	return result
 }
 
 func (t *Toolbox) findNodeByName(ctx context.Context, nodeName string) (NodeSnapshot, error) {

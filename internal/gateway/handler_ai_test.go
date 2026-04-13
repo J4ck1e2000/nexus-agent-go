@@ -185,6 +185,28 @@ func TestAIQuery_StreamErrorEvent(t *testing.T) {
 	}
 }
 
+func TestAIRetrievalStats_Returns200(t *testing.T) {
+	r, _, _, cleanup := setupAIRouter(t)
+	defer cleanup()
+
+	token := loginAndGetToken(t, r, "user", "user123")
+	req := authorizedRequest(http.MethodGet, "/api/ai/retrieval/stats", nil, token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status mismatch: got=%d want=%d body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var stats ai.RetrievalStats
+	if err := json.Unmarshal(w.Body.Bytes(), &stats); err != nil {
+		t.Fatalf("unmarshal stats failed: %v", err)
+	}
+	if stats.TotalSearches != 0 {
+		t.Fatalf("expected initial total searches to be zero, got=%d", stats.TotalSearches)
+	}
+}
+
 func setupAIRouter(t *testing.T) (*gin.Engine, *ConfigStore, *NodeStateStore, func()) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -239,10 +261,11 @@ func setupAIRouter(t *testing.T) (*gin.Engine, *ConfigStore, *NodeStateStore, fu
 }
 
 type stubAIService struct {
-	queryResp    ai.AIQueryResponse
-	queryErr     error
-	streamEvents []ai.AIStreamEvent
-	streamErr    error
+	queryResp      ai.AIQueryResponse
+	queryErr       error
+	streamEvents   []ai.AIStreamEvent
+	streamErr      error
+	retrievalStats ai.RetrievalStats
 }
 
 func (s *stubAIService) Query(ctx context.Context, req ai.AIQueryRequest) (ai.AIQueryResponse, error) {
@@ -279,4 +302,9 @@ func (s *stubAIService) Capabilities(ctx context.Context) ai.CapabilitiesRespons
 func (s *stubAIService) Health(ctx context.Context) ai.HealthResponse {
 	_ = ctx
 	return ai.HealthResponse{Status: "ok", Mode: ai.AIModeRule, AgentReady: true}
+}
+
+func (s *stubAIService) RetrievalStats(ctx context.Context) ai.RetrievalStats {
+	_ = ctx
+	return s.retrievalStats
 }

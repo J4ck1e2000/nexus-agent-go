@@ -14,7 +14,7 @@ var (
 	chineseGPUCountPattern   = regexp.MustCompile(`(\d+)\s*(?:张卡|块卡|个gpu|卡)`)
 	genericNodeNameRegex     = regexp.MustCompile(`(?i)\b(?:server|node|host|gpu)[-_]?[a-z0-9]+\b`)
 	topKEnglishPattern       = regexp.MustCompile(`(?i)\b(\d+)\s*(?:nodes?|machines?|servers?)\b`)
-	topKChineseNumberPattern = regexp.MustCompile(`(\d+)\s*(?:台|个|套)`)
+	topKChineseNumberPattern = regexp.MustCompile(`(\d+)\s*(?:台|个|名)`)
 )
 
 // IntentClassifier converts free-form user text into deterministic intent hints.
@@ -50,19 +50,19 @@ func (c *IntentClassifier) Classify(query string, knownNodes []string) QueryInte
 		"最近", "历史", "趋势", "波动", "30分钟", "1小时", "半小时",
 	)
 	whyLike := containsAny(lower,
-		"why", "reason", "busy", "saturated", "anomaly", "explain",
-		"为什么", "原因", "繁忙", "饱和", "异常", "解释",
+		"why", "reason", "busy", "saturated", "anomaly", "explain", "root cause",
+		"为什么", "原因", "异常", "解释", "怎么回事", "排查",
 	)
 	scheduleLike := containsAny(lower,
-		"recommend", "suitable", "schedule", "training task", "launch training",
-		"推荐", "适合", "调度", "训练任务", "启动训练", "分配任务",
+		"recommend", "suitable", "schedule", "training task", "launch training", "run task",
+		"推荐", "适合", "调度", "训练任务", "启动训练", "分配任务", "跑任务",
 	)
 	idleLike := containsAny(lower,
-		"most idle", "idle", "free", "available gpu",
-		"最空闲", "空闲", "空", "可用gpu", "可用 gpu",
+		"most idle", "idle", "free", "available gpu", "least busy",
+		"最空闲", "空闲", "可用gpu", "可用 gpu", "哪台机器最空闲", "哪台最空闲",
 	)
 	summaryLike := containsAny(lower,
-		"resource", "status", "how is", "summary", "overview",
+		"resource", "status", "how is", "summary", "overview", "health",
 		"资源", "状态", "怎么样", "情况", "概览", "摘要",
 	)
 
