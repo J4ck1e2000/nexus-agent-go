@@ -17,4 +17,8 @@ var (
 	ErrNoNodesAvailable = errors.New("no nodes available")
 	// ErrClusterDataProviderNil indicates toolbox data provider dependency is missing.
 	ErrClusterDataProviderNil = errors.New("cluster data provider is nil")
+	// ErrKnowledgeReloadDisabled indicates knowledge reload was requested while RAG is disabled.
+	ErrKnowledgeReloadDisabled = errors.New("knowledge reload disabled")
+	// ErrKnowledgeReloadUnavailable indicates runtime does not have a reloadable toolbox.
+	ErrKnowledgeReloadUnavailable = errors.New("knowledge reload unavailable")
 )

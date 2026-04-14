@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,12 +21,14 @@ type HistoryProvider interface {
 
 // Toolbox groups domain tools shared by rule and agent executors.
 type Toolbox struct {
+	mu              sync.RWMutex
 	dataProvider    ClusterDataProvider
 	historyProvider HistoryProvider
 	scheduler       *Scheduler
 	explainer       *AnomalyExplainer
 	historyAnalyzer *HistoryAnalyzer
-	knowledge       *KnowledgeRetriever
+	knowledge       KnowledgeSearcher
+	knowledgeReady  bool
 	retrievalStats  *RetrievalStatsCollector
 	knowledgeTopK   int
 }
@@ -38,6 +41,9 @@ type ToolboxOptions struct {
 	Explainer          *AnomalyExplainer
 	HistoryAnalyzer    *HistoryAnalyzer
 	KnowledgeRetriever *KnowledgeRetriever
+	KnowledgeSearcher  KnowledgeSearcher
+	KnowledgeDocuments int
+	KnowledgeChunks    int
 	RetrievalStats     *RetrievalStatsCollector
 	KnowledgeTopK      int
 }
@@ -64,13 +70,22 @@ func NewToolbox(opts ToolboxOptions) *Toolbox {
 	if retrievalStats == nil {
 		retrievalStats = NewRetrievalStatsCollector(false)
 	}
-	knowledgeEnabled := opts.KnowledgeRetriever != nil && opts.KnowledgeRetriever.ChunkCount() > 0
-	loadedDocs := 0
-	loadedChunks := 0
+
+	searcher := opts.KnowledgeSearcher
+	loadedDocs := opts.KnowledgeDocuments
+	loadedChunks := opts.KnowledgeChunks
 	if opts.KnowledgeRetriever != nil {
-		loadedDocs = opts.KnowledgeRetriever.DocumentCount()
-		loadedChunks = opts.KnowledgeRetriever.ChunkCount()
+		if searcher == nil {
+			searcher = NewLocalKnowledgeSearcher(opts.KnowledgeRetriever)
+		}
+		if loadedDocs <= 0 {
+			loadedDocs = opts.KnowledgeRetriever.DocumentCount()
+		}
+		if loadedChunks <= 0 {
+			loadedChunks = opts.KnowledgeRetriever.ChunkCount()
+		}
 	}
+	knowledgeEnabled := searcher != nil
 	retrievalStats.UpdateKnowledgeState(knowledgeEnabled, loadedDocs, loadedChunks, time.Now())
 
 	return &Toolbox{
@@ -79,7 +94,8 @@ func NewToolbox(opts ToolboxOptions) *Toolbox {
 		scheduler:       scheduler,
 		explainer:       explainer,
 		historyAnalyzer: historyAnalyzer,
-		knowledge:       opts.KnowledgeRetriever,
+		knowledge:       searcher,
+		knowledgeReady:  knowledgeEnabled,
 		retrievalStats:  retrievalStats,
 		knowledgeTopK:   knowledgeTopK,
 	}
@@ -267,34 +283,52 @@ func (t *Toolbox) ExplainNodeAnomaly(ctx context.Context, nodeName string) (Anom
 	return t.explainer.Explain(node), nil
 }
 
-// SearchKnowledge runs lightweight local knowledge retrieval.
+// SearchKnowledge runs pluggable knowledge retrieval (local/qdrant/auto).
 func (t *Toolbox) SearchKnowledge(ctx context.Context, query string, limit int) ([]KnowledgeHit, RetrievalMeta, error) {
-	topK := limit
-	if topK <= 0 {
-		topK = defaultKnowledgeTopK
-	}
-	if t != nil && t.knowledgeTopK > 0 && limit <= 0 {
-		topK = t.knowledgeTopK
-	}
-	meta := RetrievalMeta{
-		Query:    strings.TrimSpace(query),
-		TopK:     topK,
-		Strategy: defaultKnowledgeStrategy,
-	}
-
-	if t == nil || t.knowledge == nil || t.knowledge.ChunkCount() == 0 {
-		if t != nil && t.retrievalStats != nil {
-			t.retrievalStats.RecordSearch(meta)
+	if t == nil {
+		meta := RetrievalMeta{
+			Query:    strings.TrimSpace(query),
+			TopK:     normalizeKnowledgeTopK(limit),
+			Strategy: localKnowledgeStrategy,
 		}
 		return nil, meta, nil
 	}
 
-	hits, searchMeta, err := t.knowledge.Search(ctx, query, topK)
+	t.mu.RLock()
+	searcher := t.knowledge
+	topKDefault := t.knowledgeTopK
+	stats := t.retrievalStats
+	t.mu.RUnlock()
+
+	topK := limit
+	if topK <= 0 {
+		topK = defaultKnowledgeTopK
+	}
+	if topKDefault > 0 && limit <= 0 {
+		topK = topKDefault
+	}
+	meta := RetrievalMeta{
+		Query:    strings.TrimSpace(query),
+		TopK:     topK,
+		Strategy: localKnowledgeStrategy,
+	}
+	if searcher != nil && strings.TrimSpace(searcher.StrategyName()) != "" {
+		meta.Strategy = searcher.StrategyName()
+	}
+
+	if searcher == nil {
+		if stats != nil {
+			stats.RecordSearch(meta)
+		}
+		return nil, meta, nil
+	}
+
+	hits, searchMeta, err := searcher.Search(ctx, query, topK)
 	if err != nil {
 		return nil, searchMeta, err
 	}
-	if t.retrievalStats != nil {
-		t.retrievalStats.RecordSearch(searchMeta)
+	if stats != nil {
+		stats.RecordSearch(searchMeta)
 	}
 	return hits, searchMeta, nil
 }
@@ -310,7 +344,31 @@ func (t *Toolbox) KnowledgeStats(ctx context.Context) RetrievalStats {
 
 // HasKnowledge indicates whether the toolbox has enabled knowledge retrieval.
 func (t *Toolbox) HasKnowledge() bool {
-	return t != nil && t.knowledge != nil && t.knowledge.ChunkCount() > 0
+	if t == nil {
+		return false
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.knowledgeReady
+}
+
+// ReplaceKnowledgeSearcher hot-swaps runtime knowledge backend and updates online stats state.
+func (t *Toolbox) ReplaceKnowledgeSearcher(searcher KnowledgeSearcher, loadedDocuments, loadedChunks, topK int) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	t.knowledge = searcher
+	t.knowledgeReady = searcher != nil
+	if topK > 0 {
+		t.knowledgeTopK = topK
+	}
+	stats := t.retrievalStats
+	t.mu.Unlock()
+
+	if stats != nil {
+		stats.UpdateKnowledgeState(searcher != nil, loadedDocuments, loadedChunks, time.Now())
+	}
 }
 
 func summarizeKnowledgeHits(hits []KnowledgeHit) []KnowledgeHitSummary {

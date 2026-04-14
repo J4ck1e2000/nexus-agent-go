@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -207,6 +209,47 @@ func TestAIRetrievalStats_Returns200(t *testing.T) {
 	}
 }
 
+func TestAIKnowledgeReload_RequiresAdmin(t *testing.T) {
+	r, _, _, cleanup := setupAIRouter(t)
+	defer cleanup()
+
+	token := loginAndGetToken(t, r, "user", "user123")
+	req := authorizedRequest(http.MethodPost, "/api/ai/knowledge/reload", bytes.NewBufferString(`{}`), token)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status mismatch: got=%d want=%d body=%s", w.Code, http.StatusForbidden, w.Body.String())
+	}
+}
+
+func TestAIKnowledgeReload_AdminSuccess(t *testing.T) {
+	r, _, _, cleanup := setupAIRouter(t)
+	defer cleanup()
+
+	token := loginAndGetToken(t, r, "admin", "admin123")
+	req := authorizedRequest(http.MethodPost, "/api/ai/knowledge/reload", bytes.NewBufferString(`{}`), token)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status mismatch: got=%d want=%d body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var result ai.KnowledgeReloadResult
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatalf("unmarshal response failed: %v", err)
+	}
+	if !result.KnowledgeEnabled {
+		t.Fatalf("expected knowledge enabled after reload")
+	}
+	if result.LoadedDocuments <= 0 || result.LoadedChunks <= 0 {
+		t.Fatalf("invalid reload counts: %+v", result)
+	}
+}
+
 func setupAIRouter(t *testing.T) (*gin.Engine, *ConfigStore, *NodeStateStore, func()) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -235,6 +278,17 @@ func setupAIRouter(t *testing.T) (*gin.Engine, *ConfigStore, *NodeStateStore, fu
 			return time.Unix(1710000000, 0)
 		},
 	})
+	knowledgeDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(knowledgeDir, "GPU_OOM.md"), []byte(`# GPU OOM
+Category: gpu_memory
+Tags: gpu, oom, cuda
+## Symptoms
+CUDA out of memory.
+## Actions
+Reduce batch size and release orphan processes.`), 0o644); err != nil {
+		t.Fatalf("write test knowledge failed: %v", err)
+	}
+
 	adapter := NewAIDataAdapter(nodeService, stateStore)
 	toolbox := ai.NewToolbox(ai.ToolboxOptions{
 		DataProvider:    adapter,
@@ -242,8 +296,19 @@ func setupAIRouter(t *testing.T) (*gin.Engine, *ConfigStore, *NodeStateStore, fu
 	})
 	aiService := ai.NewService(ai.ServiceOptions{
 		Config: ai.Config{
-			Enabled: true,
-			Mode:    ai.AIModeRule,
+			Enabled:         true,
+			Mode:            ai.AIModeRule,
+			RAGEnabled:      true,
+			RAGKnowledgeDir: knowledgeDir,
+			RAGTopK:         3,
+			RAGMinScore:     0.3,
+			RAGMaxSnippet:   180,
+			KnowledgeRetrieval: ai.KnowledgeRetrievalConfig{
+				Backend:       ai.KnowledgeBackendLocal,
+				TopK:          3,
+				MinScore:      0.3,
+				SyncBatchSize: 32,
+			},
 		},
 		Toolbox: toolbox,
 	})
@@ -266,6 +331,8 @@ type stubAIService struct {
 	streamEvents   []ai.AIStreamEvent
 	streamErr      error
 	retrievalStats ai.RetrievalStats
+	reloadResult   ai.KnowledgeReloadResult
+	reloadErr      error
 }
 
 func (s *stubAIService) Query(ctx context.Context, req ai.AIQueryRequest) (ai.AIQueryResponse, error) {
@@ -307,4 +374,12 @@ func (s *stubAIService) Health(ctx context.Context) ai.HealthResponse {
 func (s *stubAIService) RetrievalStats(ctx context.Context) ai.RetrievalStats {
 	_ = ctx
 	return s.retrievalStats
+}
+
+func (s *stubAIService) ReloadKnowledge(ctx context.Context) (ai.KnowledgeReloadResult, error) {
+	_ = ctx
+	if s.reloadErr != nil {
+		return ai.KnowledgeReloadResult{}, s.reloadErr
+	}
+	return s.reloadResult, nil
 }

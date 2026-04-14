@@ -279,3 +279,14 @@ type HealthResponse struct {
 	KnowledgeChunks        int     `json:"knowledge_chunks"`
 	RetrievalOnlineHitRate float64 `json:"retrieval_online_hit_rate,omitempty"`
 }
+
+// KnowledgeReloadResult describes one runtime knowledge reload outcome.
+type KnowledgeReloadResult struct {
+	KnowledgeEnabled bool   `json:"knowledge_enabled"`
+	LoadedDocuments  int    `json:"loaded_documents"`
+	LoadedChunks     int    `json:"loaded_chunks"`
+	Backend          string `json:"backend"`
+	Strategy         string `json:"strategy,omitempty"`
+	KnowledgeDir     string `json:"knowledge_dir"`
+	ReloadedAtUnix   int64  `json:"reloaded_at_unix"`
+}
