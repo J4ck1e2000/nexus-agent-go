@@ -43,18 +43,20 @@ type StreamQueryExecutor interface {
 
 // Config controls runtime behavior of AI service.
 type Config struct {
-	Enabled         bool
-	Mode            string
-	Provider        string
-	Model           string
-	APIKey          string
-	BaseURL         string
-	RequestTimeout  time.Duration
-	RAGEnabled      bool
-	RAGKnowledgeDir string
-	RAGTopK         int
-	RAGMinScore     float64
-	RAGMaxSnippet   int
+	Enabled            bool
+	Mode               string
+	Provider           string
+	Model              string
+	APIKey             string
+	BaseURL            string
+	RequestTimeout     time.Duration
+	RAGEnabled         bool
+	RAGKnowledgeDir    string
+	RAGTopK            int
+	RAGMinScore        float64
+	RAGMaxSnippet      int
+	KnowledgeRetrieval KnowledgeRetrievalConfig
+	KnowledgeConfigErr string
 }
 
 // AgentReady indicates whether agent mode has enough model config.
@@ -80,19 +82,29 @@ func (c Config) normalizedMode() string {
 
 // LoadConfigFromEnv loads AI runtime config from environment variables.
 func LoadConfigFromEnv() Config {
+	knowledgeCfg, err := LoadKnowledgeRetrievalConfigFromEnv()
+	knowledgeConfigErr := ""
+	if err != nil {
+		// Keep service startup resilient: qdrant/vector can degrade to local in auto mode.
+		knowledgeCfg.Backend = KnowledgeBackendAuto
+		knowledgeConfigErr = err.Error()
+	}
+
 	cfg := Config{
-		Enabled:         envBool(envAIEnabled, true),
-		Mode:            strings.TrimSpace(os.Getenv(envAIMode)),
-		Provider:        strings.TrimSpace(os.Getenv(envAIProvider)),
-		Model:           strings.TrimSpace(os.Getenv(envAIModel)),
-		APIKey:          strings.TrimSpace(os.Getenv(envAIAPIKey)),
-		BaseURL:         strings.TrimSpace(os.Getenv(envAIBaseURL)),
-		RequestTimeout:  defaultOpenAICompatibleTimeout,
-		RAGEnabled:      envBool(envAIRAGEnabled, true),
-		RAGKnowledgeDir: strings.TrimSpace(os.Getenv(envAIRAGKnowledgeDir)),
-		RAGTopK:         envInt(envAIRAGTopK, defaultKnowledgeTopK),
-		RAGMinScore:     envFloat(envAIRAGMinScore, defaultKnowledgeMinScore),
-		RAGMaxSnippet:   envInt(envAIRAGMaxSnippet, defaultKnowledgeMaxSnippetLen),
+		Enabled:            envBool(envAIEnabled, true),
+		Mode:               strings.TrimSpace(os.Getenv(envAIMode)),
+		Provider:           strings.TrimSpace(os.Getenv(envAIProvider)),
+		Model:              strings.TrimSpace(os.Getenv(envAIModel)),
+		APIKey:             strings.TrimSpace(os.Getenv(envAIAPIKey)),
+		BaseURL:            strings.TrimSpace(os.Getenv(envAIBaseURL)),
+		RequestTimeout:     defaultOpenAICompatibleTimeout,
+		RAGEnabled:         envBool(envAIRAGEnabled, true),
+		RAGKnowledgeDir:    strings.TrimSpace(os.Getenv(envAIRAGKnowledgeDir)),
+		RAGTopK:            envInt(envAIRAGTopK, defaultKnowledgeTopK),
+		RAGMinScore:        envFloat(envAIRAGMinScore, defaultKnowledgeMinScore),
+		RAGMaxSnippet:      envInt(envAIRAGMaxSnippet, defaultKnowledgeMaxSnippetLen),
+		KnowledgeRetrieval: knowledgeCfg,
+		KnowledgeConfigErr: knowledgeConfigErr,
 	}
 	if cfg.Mode == "" {
 		cfg.Mode = AIModeRule
@@ -346,6 +358,60 @@ func (s *Service) RetrievalStats(ctx context.Context) RetrievalStats {
 		return RetrievalStats{}
 	}
 	return s.toolbox.KnowledgeStats(ctx)
+}
+
+// ReloadKnowledge hot-reloads local/qdrant knowledge retrieval backend without restarting the service.
+func (s *Service) ReloadKnowledge(ctx context.Context) (KnowledgeReloadResult, error) {
+	if s == nil || s.toolbox == nil {
+		return KnowledgeReloadResult{}, ErrKnowledgeReloadUnavailable
+	}
+	if !s.config.RAGEnabled {
+		return KnowledgeReloadResult{}, ErrKnowledgeReloadDisabled
+	}
+
+	localOpts := KnowledgeRetrieverOptions{
+		DefaultTopK:       s.config.RAGTopK,
+		MinScore:          s.config.RAGMinScore,
+		MaxSnippetChars:   s.config.RAGMaxSnippet,
+		RetrievalStrategy: localKnowledgeStrategy,
+	}
+
+	buildResult, err := BuildKnowledgeSearcher(
+		ctx,
+		s.config.RAGKnowledgeDir,
+		localOpts,
+		s.config.KnowledgeRetrieval,
+		nil,
+	)
+	if err != nil {
+		return KnowledgeReloadResult{}, err
+	}
+
+	topK := s.config.KnowledgeRetrieval.TopK
+	if topK <= 0 {
+		topK = s.config.RAGTopK
+	}
+	if topK <= 0 {
+		topK = defaultKnowledgeTopK
+	}
+
+	s.toolbox.ReplaceKnowledgeSearcher(buildResult.Searcher, buildResult.Documents, buildResult.Chunks, topK)
+
+	backend := s.config.KnowledgeRetrieval.NormalizedBackend()
+	strategy := backend
+	if buildResult.Searcher != nil && strings.TrimSpace(buildResult.Searcher.StrategyName()) != "" {
+		strategy = strings.TrimSpace(buildResult.Searcher.StrategyName())
+	}
+
+	return KnowledgeReloadResult{
+		KnowledgeEnabled: buildResult.Searcher != nil,
+		LoadedDocuments:  buildResult.Documents,
+		LoadedChunks:     buildResult.Chunks,
+		Backend:          backend,
+		Strategy:         strategy,
+		KnowledgeDir:     strings.TrimSpace(s.config.RAGKnowledgeDir),
+		ReloadedAtUnix:   time.Now().Unix(),
+	}, nil
 }
 
 func envBool(key string, fallback bool) bool {

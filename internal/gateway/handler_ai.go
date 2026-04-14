@@ -20,6 +20,7 @@ type AIQueryService interface {
 	Capabilities(ctx context.Context) ai.CapabilitiesResponse
 	Health(ctx context.Context) ai.HealthResponse
 	RetrievalStats(ctx context.Context) ai.RetrievalStats
+	ReloadKnowledge(ctx context.Context) (ai.KnowledgeReloadResult, error)
 }
 
 // SetAIQueryService injects AI service dependency into gateway handler.
@@ -35,6 +36,7 @@ func (h *Handler) registerAIRoutes(authorized *gin.RouterGroup) {
 		return
 	}
 	authorized.POST("/ai/query", h.postAIQuery)
+	authorized.POST("/ai/knowledge/reload", h.postAIKnowledgeReload)
 	authorized.GET("/ai/capabilities", h.getAICapabilities)
 	authorized.GET("/ai/health", h.getAIHealth)
 	authorized.GET("/ai/retrieval/stats", h.getAIRetrievalStats)
@@ -182,4 +184,35 @@ func (h *Handler) getAIRetrievalStats(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, h.aiQueryService.RetrievalStats(c.Request.Context()))
+}
+
+func (h *Handler) postAIKnowledgeReload(c *gin.Context) {
+	if h.aiQueryService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai_unavailable"})
+		return
+	}
+
+	user, ok := currentAuthUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	if user.Role != RoleAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	result, err := h.aiQueryService.ReloadKnowledge(c.Request.Context())
+	if err != nil {
+		switch {
+		case errors.Is(err, ai.ErrKnowledgeReloadDisabled):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "knowledge_reload_disabled"})
+		case errors.Is(err, ai.ErrKnowledgeReloadUnavailable):
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "knowledge_reload_unavailable"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "knowledge_reload_failed"})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }

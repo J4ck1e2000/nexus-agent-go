@@ -3,6 +3,8 @@ package ai
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -267,5 +269,75 @@ func TestService_AgentFallbackWarningLocalizedByQueryLanguage(t *testing.T) {
 	}
 	if len(enResp.Warnings) == 0 || !strings.Contains(strings.Join(enResp.Warnings, " "), "switched to rule mode") {
 		t.Fatalf("en fallback warning mismatch: %+v", enResp.Warnings)
+	}
+}
+
+func TestService_ReloadKnowledge(t *testing.T) {
+	knowledgeDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(knowledgeDir, "GPU_OOM.md"), []byte(`# GPU OOM
+Category: gpu_memory
+Tags: gpu, oom
+## Symptoms
+CUDA out of memory.
+## Actions
+Reduce batch size.`), 0o644); err != nil {
+		t.Fatalf("write knowledge file failed: %v", err)
+	}
+
+	provider := &staticProvider{
+		nodes: []NodeSnapshot{
+			buildNode("server-01", "online", 80, 30, 40, 4, 1, 1, 35, 30, []GPUCard{
+				{Index: 0, MemoryTotalGB: 24, MemoryUsedGB: 8, EstimatedFreeGB: 16},
+			}),
+		},
+	}
+	toolbox := NewToolbox(ToolboxOptions{
+		DataProvider:    provider,
+		HistoryProvider: provider,
+	})
+	service := NewService(ServiceOptions{
+		Config: Config{
+			Enabled:         true,
+			Mode:            AIModeRule,
+			RAGEnabled:      true,
+			RAGKnowledgeDir: knowledgeDir,
+			RAGTopK:         3,
+			RAGMinScore:     0.3,
+			RAGMaxSnippet:   180,
+			KnowledgeRetrieval: KnowledgeRetrievalConfig{
+				Backend:       KnowledgeBackendLocal,
+				TopK:          3,
+				MinScore:      0.3,
+				SyncBatchSize: 32,
+			},
+		},
+		Toolbox: toolbox,
+	})
+
+	result, err := service.ReloadKnowledge(context.Background())
+	if err != nil {
+		t.Fatalf("ReloadKnowledge failed: %v", err)
+	}
+	if !result.KnowledgeEnabled {
+		t.Fatalf("knowledge should be enabled after reload")
+	}
+	if result.LoadedDocuments <= 0 || result.LoadedChunks <= 0 {
+		t.Fatalf("invalid reload result: %+v", result)
+	}
+}
+
+func TestService_ReloadKnowledge_Disabled(t *testing.T) {
+	service := NewService(ServiceOptions{
+		Config: Config{
+			Enabled:    true,
+			Mode:       AIModeRule,
+			RAGEnabled: false,
+		},
+		Toolbox: NewToolbox(ToolboxOptions{}),
+	})
+
+	_, err := service.ReloadKnowledge(context.Background())
+	if !errors.Is(err, ErrKnowledgeReloadDisabled) {
+		t.Fatalf("expected ErrKnowledgeReloadDisabled, got=%v", err)
 	}
 }

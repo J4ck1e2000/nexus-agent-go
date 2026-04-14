@@ -17,13 +17,18 @@ type RetrievalEvalCase struct {
 
 // RetrievalEvalReport stores offline HitRate@K metrics.
 type RetrievalEvalReport struct {
-	TotalCases int     `json:"total_cases"`
-	HitsAt1    int     `json:"hits_at_1"`
-	HitsAt3    int     `json:"hits_at_3"`
-	HitsAt5    int     `json:"hits_at_5"`
-	HitRateAt1 float64 `json:"hit_rate_at_1"`
-	HitRateAt3 float64 `json:"hit_rate_at_3"`
-	HitRateAt5 float64 `json:"hit_rate_at_5"`
+	TotalCases      int     `json:"total_cases"`
+	HitsAt1         int     `json:"hits_at_1"`
+	HitsAt3         int     `json:"hits_at_3"`
+	HitsAt5         int     `json:"hits_at_5"`
+	HitRateAt1      float64 `json:"hit_rate_at_1"`
+	HitRateAt3      float64 `json:"hit_rate_at_3"`
+	HitRateAt5      float64 `json:"hit_rate_at_5"`
+	Backend         string  `json:"backend,omitempty"`
+	Strategy        string  `json:"strategy,omitempty"`
+	AvgDurationMs   float64 `json:"avg_duration_ms,omitempty"`
+	TotalQueries    int     `json:"total_queries"`
+	AccumDurationMs int64   `json:"-"`
 }
 
 // LoadRetrievalEvalCases reads evaluation cases from local JSON file.
@@ -39,26 +44,35 @@ func LoadRetrievalEvalCases(path string) ([]RetrievalEvalCase, error) {
 	return cases, nil
 }
 
-// EvaluateRetrievalHitRate computes offline HitRate@1/3/5.
-func EvaluateRetrievalHitRate(ctx context.Context, retriever *KnowledgeRetriever, cases []RetrievalEvalCase) (RetrievalEvalReport, error) {
+// EvaluateRetrievalHitRate computes offline HitRate@1/3/5 for any search backend.
+func EvaluateRetrievalHitRate(ctx context.Context, searcher KnowledgeSearcher, cases []RetrievalEvalCase, topK int, backend string) (RetrievalEvalReport, error) {
 	report := RetrievalEvalReport{
-		TotalCases: len(cases),
+		TotalCases:   len(cases),
+		Backend:      strings.TrimSpace(backend),
+		TotalQueries: len(cases),
 	}
-	if retriever == nil {
-		return report, fmt.Errorf("retriever is nil")
+	if searcher == nil {
+		return report, fmt.Errorf("searcher is nil")
 	}
 	if len(cases) == 0 {
 		return report, nil
+	}
+	if topK <= 0 {
+		topK = 5
 	}
 
 	for _, testCase := range cases {
 		if err := ctx.Err(); err != nil {
 			return RetrievalEvalReport{}, err
 		}
-		hits, _, err := retriever.Search(ctx, testCase.Query, 5)
+		hits, meta, err := searcher.Search(ctx, testCase.Query, topK)
 		if err != nil {
 			return RetrievalEvalReport{}, err
 		}
+		if strings.TrimSpace(meta.Strategy) != "" {
+			report.Strategy = meta.Strategy
+		}
+		report.AccumDurationMs += meta.DurationMs
 
 		if hitWithinTopK(hits, testCase, 1) {
 			report.HitsAt1++
@@ -76,6 +90,7 @@ func EvaluateRetrievalHitRate(ctx context.Context, retriever *KnowledgeRetriever
 		report.HitRateAt1 = float64(report.HitsAt1) / total
 		report.HitRateAt3 = float64(report.HitsAt3) / total
 		report.HitRateAt5 = float64(report.HitsAt5) / total
+		report.AvgDurationMs = float64(report.AccumDurationMs) / total
 	}
 	return report, nil
 }

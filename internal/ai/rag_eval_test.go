@@ -7,6 +7,7 @@ import (
 
 func TestEvaluateRetrievalHitRate(t *testing.T) {
 	retriever := buildTestRetriever(t)
+	searcher := NewLocalKnowledgeSearcher(retriever)
 	cases := []RetrievalEvalCase{
 		{Query: "GPU 显存爆满怎么处理", ExpectedDocIDs: []string{"gpu_oom"}},
 		{Query: "节点离线后先排查什么", ExpectedDocIDs: []string{"node_offline"}},
@@ -14,7 +15,7 @@ func TestEvaluateRetrievalHitRate(t *testing.T) {
 		{Query: "完全无关的问题", ExpectedDocIDs: []string{"gpu_oom"}},
 	}
 
-	report, err := EvaluateRetrievalHitRate(context.Background(), retriever, cases)
+	report, err := EvaluateRetrievalHitRate(context.Background(), searcher, cases, 5, KnowledgeBackendLocal)
 	if err != nil {
 		t.Fatalf("EvaluateRetrievalHitRate failed: %v", err)
 	}
@@ -26,5 +27,11 @@ func TestEvaluateRetrievalHitRate(t *testing.T) {
 	}
 	if report.HitRateAt3 < report.HitRateAt1 {
 		t.Fatalf("HitRate@3 should be >= HitRate@1, got %.3f < %.3f", report.HitRateAt3, report.HitRateAt1)
+	}
+	if report.Backend != KnowledgeBackendLocal {
+		t.Fatalf("backend mismatch: got=%s want=%s", report.Backend, KnowledgeBackendLocal)
+	}
+	if report.Strategy == "" {
+		t.Fatalf("strategy should not be empty")
 	}
 }

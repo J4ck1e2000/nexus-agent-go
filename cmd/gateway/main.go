@@ -67,31 +67,46 @@ func main() {
 	r.Use(gin.Logger(), gin.Recovery())
 
 	aiConfig := ai.LoadConfigFromEnv()
+	if strings.TrimSpace(aiConfig.KnowledgeConfigErr) != "" {
+		log.Printf("Knowledge retrieval config warning: %s", aiConfig.KnowledgeConfigErr)
+	}
 	aiAdapter := gateway.NewAIDataAdapter(nodeStateService, nodeStateStore)
-	var knowledgeRetriever *ai.KnowledgeRetriever
+	var knowledgeSearcher ai.KnowledgeSearcher
+	loadedKnowledgeDocs := 0
+	loadedKnowledgeChunks := 0
 	retrievalStats := ai.NewRetrievalStatsCollector(false)
 	if aiConfig.RAGEnabled {
-		knowledgeBase, err := ai.LoadKnowledgeBase(aiConfig.RAGKnowledgeDir)
-		if err != nil {
-			log.Printf("AI RAG disabled: load knowledge failed (%s): %v", aiConfig.RAGKnowledgeDir, err)
-		} else if len(knowledgeBase.Chunks) == 0 {
-			log.Printf("AI RAG disabled: no chunks loaded from knowledge dir (%s)", aiConfig.RAGKnowledgeDir)
-		} else {
-			knowledgeRetriever = ai.NewKnowledgeRetriever(knowledgeBase, ai.KnowledgeRetrieverOptions{
+		buildResult, err := ai.BuildKnowledgeSearcher(
+			runnerCtx,
+			aiConfig.RAGKnowledgeDir,
+			ai.KnowledgeRetrieverOptions{
 				DefaultTopK:       aiConfig.RAGTopK,
 				MinScore:          aiConfig.RAGMinScore,
 				MaxSnippetChars:   aiConfig.RAGMaxSnippet,
-				RetrievalStrategy: "hybrid-lite",
-			})
-			retrievalStats.UpdateKnowledgeState(true, len(knowledgeBase.Documents), len(knowledgeBase.Chunks), time.Now())
+				RetrievalStrategy: "local-lexical",
+			},
+			aiConfig.KnowledgeRetrieval,
+			log.Printf,
+		)
+		if err != nil {
+			log.Printf("AI knowledge retrieval disabled: %v", err)
+		} else {
+			knowledgeSearcher = buildResult.Searcher
+			loadedKnowledgeDocs = buildResult.Documents
+			loadedKnowledgeChunks = buildResult.Chunks
+			if knowledgeSearcher != nil {
+				retrievalStats.UpdateKnowledgeState(true, loadedKnowledgeDocs, loadedKnowledgeChunks, time.Now())
+			}
 		}
 	}
 	aiToolbox := ai.NewToolbox(ai.ToolboxOptions{
 		DataProvider:       aiAdapter,
 		HistoryProvider:    aiAdapter,
-		KnowledgeRetriever: knowledgeRetriever,
+		KnowledgeSearcher:  knowledgeSearcher,
+		KnowledgeDocuments: loadedKnowledgeDocs,
+		KnowledgeChunks:    loadedKnowledgeChunks,
 		RetrievalStats:     retrievalStats,
-		KnowledgeTopK:      aiConfig.RAGTopK,
+		KnowledgeTopK:      aiConfig.KnowledgeRetrieval.TopK,
 	})
 	aiService := ai.NewService(ai.ServiceOptions{
 		Config:  aiConfig,
@@ -122,6 +137,7 @@ func main() {
 			aiConfig.AgentReady(),
 		)
 		log.Printf("AI model: %s, base url: %s", aiConfig.Model, aiConfig.BaseURL)
+		log.Printf("Knowledge retrieval config: %s", aiConfig.KnowledgeRetrieval.SafeSummary())
 		knowledgeStats := aiService.RetrievalStats(context.Background())
 		log.Printf("AI RAG requested: %v, knowledge dir: %s, loaded docs: %d, loaded chunks: %d, active: %v",
 			aiConfig.RAGEnabled,
