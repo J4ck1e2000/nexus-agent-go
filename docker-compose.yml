@@ -1,0 +1,127 @@
+services:
+  mysql:
+    image: ${MYSQL_IMAGE:-docker.m.daocloud.io/library/mysql:8.0}
+    container_name: nexus-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: nexus_agent
+    ports:
+      - "${MYSQL_HOST_PORT:-3307}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: ${REDIS_IMAGE:-docker.m.daocloud.io/library/redis:7-alpine}
+    container_name: nexus-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  qdrant:
+    image: ${QDRANT_IMAGE:-docker.m.daocloud.io/qdrant/qdrant:latest}
+    container_name: nexus-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_HTTP_HOST_PORT:-6335}:6333"
+      - "${QDRANT_GRPC_HOST_PORT:-6336}:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+  gateway:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.gateway
+      args:
+        GO_BASE_IMAGE: ${GO_BASE_IMAGE:-docker.m.daocloud.io/library/golang:1.23-alpine}
+        RUNTIME_BASE_IMAGE: ${RUNTIME_BASE_IMAGE:-docker.m.daocloud.io/library/alpine:3.20}
+        GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
+    container_name: nexus-gateway
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./knowledge:/app/knowledge:ro
+    environment:
+      PORT: "3000"
+      WEB_DIR: "/app/web"
+      CONFIG_FILE: "/app/web/config.json"
+
+      MYSQL_DSN: "root:${MYSQL_ROOT_PASSWORD}@tcp(mysql:3306)/nexus_agent?charset=utf8mb4&parseTime=True&loc=Local"
+      JWT_SECRET: "${JWT_SECRET}"
+      INIT_ADMIN_USERNAME: "${INIT_ADMIN_USERNAME}"
+      INIT_ADMIN_PASSWORD: "${INIT_ADMIN_PASSWORD}"
+
+      REDIS_ADDR: "redis:6379"
+      REDIS_DB: "0"
+      REDIS_KEY_PREFIX: "nexus"
+      GATEWAY_POLL_INTERVAL: "2s"
+      GATEWAY_POLL_TIMEOUT: "3s"
+      NODE_STATE_TTL: "10m"
+
+      AI_ENABLED: "${AI_ENABLED}"
+      AI_MODE: "${AI_MODE}"
+      AI_PROVIDER: "${AI_PROVIDER}"
+      AI_MODEL: "${AI_MODEL}"
+      AI_BASE_URL: "${AI_BASE_URL}"
+      AI_API_KEY: "${AI_API_KEY}"
+
+      AI_RAG_ENABLED: "true"
+      AI_RAG_KNOWLEDGE_DIR: "/app/knowledge/anomalies"
+      KNOWLEDGE_RETRIEVAL_BACKEND: "${KNOWLEDGE_RETRIEVAL_BACKEND:-auto}"
+      KNOWLEDGE_QDRANT_ENABLED: "true"
+      KNOWLEDGE_QDRANT_HOST: "qdrant"
+      KNOWLEDGE_QDRANT_PORT: "6333"
+      KNOWLEDGE_QDRANT_USE_TLS: "false"
+      KNOWLEDGE_QDRANT_COLLECTION: "knowledge_chunks"
+      KNOWLEDGE_QDRANT_TIMEOUT_SEC: "5"
+
+      KNOWLEDGE_EMBEDDING_ENABLED: "true"
+      KNOWLEDGE_EMBEDDING_PROVIDER: "openai_compatible"
+      KNOWLEDGE_EMBEDDING_MODEL: "${KNOWLEDGE_EMBEDDING_MODEL:-text-embedding-v3}"
+      KNOWLEDGE_EMBEDDING_BASE_URL: "${AI_BASE_URL}"
+      KNOWLEDGE_EMBEDDING_API_KEY: "${AI_API_KEY}"
+      KNOWLEDGE_EMBEDDING_DIM: "1024"
+      KNOWLEDGE_TOPK: "3"
+      KNOWLEDGE_MIN_SCORE: "0.35"
+      KNOWLEDGE_SYNC_BATCH_SIZE: "10"
+
+  agent:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.agent
+      args:
+        GO_BASE_IMAGE: ${GO_BASE_IMAGE:-docker.m.daocloud.io/library/golang:1.23-alpine}
+        RUNTIME_BASE_IMAGE: ${RUNTIME_BASE_IMAGE:-docker.m.daocloud.io/library/alpine:3.20}
+        GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
+    container_name: nexus-agent
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      PORT: "8005"
+      METRICS_INTERVAL: "2s"
+
+volumes:
+  mysql-data:
+  redis-data:
+  qdrant-data:

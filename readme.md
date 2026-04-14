@@ -2,6 +2,49 @@
 
 这个项目推荐用 `scripts/knowledge-run` 启动，默认就把 AI + RAG 常用配置准备好。
 
+## Docker 部署（推荐）
+
+### 1. 复制环境变量模板
+
+```cmd
+copy .env.example .env
+```
+
+或 PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+### 2. 修改 `.env`
+
+至少修改这些项：
+
+- `MYSQL_ROOT_PASSWORD`
+- `JWT_SECRET`
+- `AI_API_KEY`
+
+### 3. 一键启动
+
+```cmd
+docker compose up -d --build
+```
+
+查看状态和日志：
+
+```cmd
+docker compose ps
+docker compose logs -f gateway
+```
+
+启动后访问：`http://127.0.0.1:3000`
+
+### 4. 知识库改动后同步（可选）
+
+```cmd
+scripts\knowledge-run.cmd -Task sync-reload -Backend qdrant -GatewayURL http://127.0.0.1:3000 -Username admin -Password admin123
+```
+
 ## 快速启动（推荐）
 
 ### 1. 准备最少环境变量（CMD）
