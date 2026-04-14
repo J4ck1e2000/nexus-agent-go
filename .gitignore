@@ -5,3 +5,5 @@ docs/*
 /.vscode
 /.tmp
 *.go.[0-9]*
+.env
+.env.local

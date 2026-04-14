@@ -1,32 +1,36 @@
-# 构建阶段：编译 Gateway 二进制。
-FROM golang:1.22-alpine AS builder
+﻿# Build args available to all FROM statements.
+ARG GO_BASE_IMAGE=docker.m.daocloud.io/library/golang:1.23-alpine
+ARG RUNTIME_BASE_IMAGE=docker.m.daocloud.io/library/alpine:3.20
+ARG GOPROXY=https://goproxy.cn,direct
 
-# 设置构建目录。
+# Build stage: compile Gateway binary.
+FROM ${GO_BASE_IMAGE} AS builder
+
 WORKDIR /src
 
-# 先下载依赖提升缓存命中率。
-COPY go.mod ./
+# Re-declare in stage scope for ENV/RUN usage.
+ARG GOPROXY
+ENV GOPROXY=${GOPROXY}
+
+# Copy module files first for better cache hit.
+COPY go.mod go.sum ./
 RUN go mod download
 
-# 拷贝代码并编译网关。
+# Build static linux binary.
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/nexus-agent-go-gateway ./cmd/gateway
 
-# 运行阶段：仅保留运行必需文件。
-FROM alpine:3.20
+# Runtime stage.
+FROM ${RUNTIME_BASE_IMAGE}
 WORKDIR /app
 
-# 拷贝网关可执行文件和前端静态资源。
 COPY --from=builder /out/nexus-agent-go-gateway /usr/local/bin/nexus-agent-go-gateway
 COPY web ./web
 
-# 暴露网关端口。
 EXPOSE 3000
 
-# 网关默认环境变量。
 ENV PORT=3000
 ENV WEB_DIR=/app/web
 ENV CONFIG_FILE=/app/web/config.json
 
-# 容器入口命令。
 CMD ["nexus-agent-go-gateway"]
