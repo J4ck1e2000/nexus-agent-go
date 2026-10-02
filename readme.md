@@ -136,3 +136,21 @@ node src/server.ts
 ~~~
 
 Gateway 启动时必须设置 PI_RUNTIME_URL，例如 http://127.0.0.1:8010。Docker Compose 会默认启动 Pi Runtime 服务。
+
+## Desktop Client(Electron)
+
+除了浏览器访问 `http://127.0.0.1:3000`,仓库还提供正式的桌面客户端,位于 [`desktop/`](desktop/README.md):
+
+- 技术栈:Electron + React + TypeScript + Vite + Tailwind CSS,使用 Electron Forge 打包
+- 与 Web 前端功能对齐:节点监控(2s 轮询)、GPU 详情、Availability、用户/节点管理、中英文、AI 流式问答(SSE 经主进程转发,支持 Stop)
+- JWT 保存在主进程(safeStorage 加密),Renderer 不持有 token;`nodeIntegration=false`、`contextIsolation=true`、`sandbox=true`
+- Gateway 地址可在登录页/设置页配置并测试连接,默认 `http://127.0.0.1:3000`
+
+```bash
+cd desktop
+npm install
+npm run dev      # 开发:同时启动 Vite 与 Electron
+npm run package  # 打包
+```
+
+详见 [desktop/README.md](desktop/README.md)。旧 Web 前端(`web/`)保留不变。
