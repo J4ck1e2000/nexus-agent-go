@@ -1,6 +1,6 @@
 # AGENTS.md
 
-面向 AI 编码代理(及新成员)的工程指南。项目全貌见 [readme.md](readme.md);桌面客户端细节见 [desktop/README.md](desktop/README.md)。
+面向 AI 编码代理(及新成员)的工程指南。项目全貌见 [README.md](README.md);桌面客户端细节见 [desktop/README.md](desktop/README.md)。
 
 ## 项目是什么
 
