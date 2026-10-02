@@ -13,6 +13,7 @@ import ActivityDrawer from '../components/nodes/ActivityDrawer';
 import AddNodeDialog from '../components/admin/AddNodeDialog';
 import UserManager from '../components/admin/UserManager';
 import ConfirmDialog from '../components/common/ConfirmDialog';
+import AIAssistant from '../components/ai/AIAssistant';
 import { formatTime } from '../lib/format';
 
 export default function DashboardPage() {
@@ -152,6 +153,8 @@ export default function DashboardPage() {
       </div>
 
       <ActivityDrawer open={drawerOpen} groups={drawerGroups} onClose={() => setDrawerOpen(false)} />
+
+      <AIAssistant selectedNodeName={selectedNode?.name ?? null} />
 
       {isAdmin && (
         <AddNodeDialog
