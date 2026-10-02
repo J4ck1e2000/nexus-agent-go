@@ -104,8 +104,8 @@ export interface ProcessInfo {
   command: string;
   cpu_percent: number;
   memory_percent: number;
-  gpu_index?: number;
-  vram_used_mb?: number;
+  gpu_index?: number | null;
+  vram_used_mb?: number | null;
 }
 
 export interface SystemMetrics {
@@ -154,8 +154,9 @@ export interface NodeOverview {
   lastSeenAt?: number | null;
   lastPolledAtUnix: number;
   collectedAtUnix: number;
-  activeUsers: string[];
-  activeUserCount: number;
+  /** Go marshals nil slices as null, so both fields are nullable in practice. */
+  activeUsers: string[] | null;
+  activeUserCount: number | null;
   gpuSummary: NodeGPUSummary;
   availabilityScore: number;
   availabilityTier: AvailabilityTier;
