@@ -33,6 +33,9 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         saved: 'Gateway URL saved.',
       },
     },
+    status: {
+      online: 'Online',
+    },
     errors: {
       fallback: 'Something went wrong. Please try again.',
       network: 'Cannot reach the Gateway. Check your connection and Gateway URL.',
@@ -119,6 +122,9 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         hint: '桌面客户端通过 HTTP 访问 Nexus Gateway。默认地址:http://127.0.0.1:3000。',
         saved: '网关地址已保存。',
       },
+    },
+    status: {
+      online: '在线',
     },
     errors: {
       fallback: '出错了,请稍后再试。',

@@ -32,6 +32,17 @@
 }
 
 @layer base {
+  @keyframes drawerIn {
+    from {
+      transform: translateX(24px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
   body {
     margin: 0;
     font-family: var(--font-sans);
