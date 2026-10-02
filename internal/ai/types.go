@@ -273,6 +273,7 @@ type CapabilitiesResponse struct {
 type HealthResponse struct {
 	Status                 string  `json:"status"`
 	Mode                   string  `json:"mode"`
+	Executor               string  `json:"executor,omitempty"`
 	AgentReady             bool    `json:"agent_ready"`
 	KnowledgeEnabled       bool    `json:"knowledge_enabled"`
 	KnowledgeDocuments     int     `json:"knowledge_documents"`

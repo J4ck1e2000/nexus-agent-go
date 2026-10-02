@@ -17,7 +17,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"nexus-agent-go/internal/ai"
 	"nexus-agent-go/internal/model"
+	"nexus-agent-go/internal/runtime"
 )
 
 const authUserContextKey = "auth_user"
@@ -30,6 +32,10 @@ type Handler struct {
 	proxyClient      *http.Client
 	nodeStateService *NodeStateService
 	aiQueryService   AIQueryService
+	toolDispatcher   *ai.ToolDispatcher
+	runManager       *runtime.Manager
+	toolGatewayToken string
+	runTokenSecret   string
 }
 
 // NewHandler 创建网关请求处理器。

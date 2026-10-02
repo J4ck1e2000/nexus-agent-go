@@ -126,3 +126,47 @@ go run .\cmd\gateway\
 ```
 
 但你需要自己维护 `KNOWLEDGE_*` 等环境变量；脚本版更省心。
+
+## 可选：Pi Runtime 执行器（AI_EXECUTOR=pi）
+
+AI 问答支持两种执行器，通过 `AI_EXECUTOR` 切换：
+
+- `legacy`（默认）：进程内 Eino ChatModelAgent，行为与历史版本一致。
+- `pi`：把模型 Loop 委托给独立的 TypeScript Pi Runtime（`pi-runtime/`，基于 `@earendil-works/pi-coding-agent`），Go 侧只保留认证、Run 生命周期、工具网关与 SSE。Runtime 不可达时自动回退 legacy。
+
+详细设计见 `pi-runtime/DESIGN.md`。
+
+### Docker 启动（compose profiles: pi）
+
+```cmd
+docker compose --profile pi up -d --build
+```
+
+compose 会额外启动 `pi-runtime` 服务，gateway 通过内部工具网关 `/internal/api/tools/*` 供其回调（共享密钥 + Run 凭证双向鉴权）。
+
+### 本地手动启动 Runtime
+
+```cmd
+cd pi-runtime
+npm install
+set PI_RUNTIME_PORT=8010
+set PI_RUNTIME_TOKEN=nexus-pi-internal-token
+set GATEWAY_TOOL_URL=http://127.0.0.1:3000
+set GATEWAY_INTERNAL_TOKEN=nexus-pi-internal-token
+set AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+set AI_API_KEY=your-api-key
+set AI_MODEL=qwen3.5-122b-a10b
+node src/server.ts
+```
+
+再以 `AI_EXECUTOR=pi`、`PI_RUNTIME_URL=http://127.0.0.1:8010` 启动 gateway 即可。前端与 `/api/ai/query` 的 SSE 契约完全不变。
+
+### 验证（无需真实模型 Key）
+
+```cmd
+cd pi-runtime
+npm run test:e2e
+go test ./...
+```
+
+`npm run test:e2e` 用脚本化 mock 模型服务器驱动真实 Pi SDK 完整跑通「模型 → 工具回调 → 结果反馈 → JSON 终稿」链路；`go test ./internal/gateway -run TestPiRuntimeFullStack` 验证 Go ↔ Runtime 全链路。

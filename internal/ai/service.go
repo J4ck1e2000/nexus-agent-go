@@ -198,6 +198,11 @@ func NewService(opts ServiceOptions) *Service {
 	}
 }
 
+// Enabled reports whether the AI feature is switched on.
+func (s *Service) Enabled() bool {
+	return s != nil && s.config.Enabled
+}
+
 // Query executes one AI request with rule/agent mode and fallback behavior.
 func (s *Service) Query(ctx context.Context, req AIQueryRequest) (AIQueryResponse, error) {
 	if !s.config.Enabled {

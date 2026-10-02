@@ -15,6 +15,7 @@ import (
 
 	"nexus-agent-go/internal/ai"
 	"nexus-agent-go/internal/gateway"
+	"nexus-agent-go/internal/runtime"
 )
 
 // main 启动 Gateway：提供前端页面、配置 API 和代理 API。
@@ -114,7 +115,37 @@ func main() {
 	})
 
 	handler := gateway.NewHandler(store, gateway.NewAuthService(db, jwtSecret), version, nodeStateService)
-	handler.SetAIQueryService(aiService)
+
+	// Pi runtime executor (optional): selected by AI_EXECUTOR=pi + PI_RUNTIME_URL.
+	runtimeConfig := runtime.LoadConfigFromEnv()
+	if runtimeConfig.Enabled {
+		toolDispatcher := ai.NewToolDispatcher(aiToolbox)
+		runManager := runtime.NewManager()
+		defer runManager.Close()
+		runtimeClient := runtime.NewClient(runtimeConfig.RuntimeURL, runtimeConfig.RuntimeToken)
+		piExecutor := ai.NewPiRuntimeExecutor(ai.PiRuntimeExecutorOptions{
+			Client:       runtimeClient,
+			Manager:      runManager,
+			Config:       runtimeConfig,
+			Toolbox:      aiToolbox,
+			AllowedTools: toolDispatcher.ToolNames(),
+			ModelID:      aiConfig.Model,
+		})
+		handler.SetAIQueryService(ai.NewPiQueryService(aiService, piExecutor))
+		handler.SetToolGateway(gateway.ToolGatewayDeps{
+			Dispatcher:     toolDispatcher,
+			Manager:        runManager,
+			InternalToken:  runtimeConfig.RuntimeToken,
+			RunTokenSecret: runtimeConfig.RunTokenSecret,
+		})
+		handler.RegisterInternalToolRoutes(r)
+		log.Printf("AI executor: pi (runtime %s, run timeout %s, max tool calls %d)",
+			runtimeConfig.RuntimeURL, runtimeConfig.RunTimeout, runtimeConfig.MaxToolCalls)
+	} else {
+		handler.SetAIQueryService(aiService)
+		log.Printf("AI executor: legacy")
+	}
+
 	handler.RegisterAPIRoutes(r)
 	handler.RegisterStaticRoutes(r, webDir)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"nexus-agent-go/internal/ai"
+	"nexus-agent-go/internal/runtime"
 )
 
 // AIQueryService defines the gateway-facing AI query service contract.
@@ -62,7 +63,7 @@ func (h *Handler) postAIQuery(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.aiQueryService.Query(c.Request.Context(), req)
+	resp, err := h.aiQueryService.Query(aiRequestContext(c), req)
 	if err != nil {
 		status, code := mapAIServiceError(err)
 		c.JSON(status, gin.H{"error": code})
@@ -91,7 +92,7 @@ func (h *Handler) postAIQueryStream(c *gin.Context, req ai.AIQueryRequest) {
 		return nil
 	}
 
-	if err := h.aiQueryService.QueryStream(c.Request.Context(), req, writeEvent); err != nil {
+	if err := h.aiQueryService.QueryStream(aiRequestContext(c), req, writeEvent); err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return
 		}
@@ -102,6 +103,20 @@ func (h *Handler) postAIQueryStream(c *gin.Context, req ai.AIQueryRequest) {
 			Error: code,
 		})
 	}
+}
+
+// aiRequestContext attaches the authenticated principal to the request
+// context so executors can sign run credentials without gin dependencies.
+func aiRequestContext(c *gin.Context) context.Context {
+	ctx := c.Request.Context()
+	if user, ok := currentAuthUser(c); ok {
+		ctx = runtime.WithPrincipal(ctx, runtime.RunPrincipal{
+			UserID:   int64(user.ID),
+			Username: user.Username,
+			Role:     string(user.Role),
+		})
+	}
+	return ctx
 }
 
 func marshalAIStreamPayload(event ai.AIStreamEvent) (string, error) {

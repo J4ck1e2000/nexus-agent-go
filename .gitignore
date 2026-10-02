@@ -7,3 +7,6 @@ docs/*
 *.go.[0-9]*
 .env
 .env.local
+
+pi-runtime/node_modules/
+pi-runtime/.cache/
