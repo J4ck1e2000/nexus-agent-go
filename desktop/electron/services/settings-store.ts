@@ -32,12 +32,11 @@ export class SettingsStore {
   }
 
   save(settings: DesktopSettingsFile): DesktopSettingsFile {
-    const sanitized = this.sanitize(settings);
-    if (sanitized.gatewayUrl !== settings.gatewayUrl) {
-      // sanitize() only rewrites the URL when it is invalid; surface that as an error
-      // so the settings UI can tell the user instead of silently persisting garbage.
+    const normalized = normalizeGatewayUrl(settings.gatewayUrl);
+    if (!normalized) {
       throw new Error('invalid gateway url');
     }
+    const sanitized: DesktopSettingsFile = { gatewayUrl: normalized };
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     const tmpPath = `${this.filePath}.tmp-${process.pid}`;
     fs.writeFileSync(tmpPath, `${JSON.stringify(sanitized, null, 2)}\n`, 'utf8');
