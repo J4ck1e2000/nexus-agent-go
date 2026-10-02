@@ -36,6 +36,30 @@ export function hostFromUrl(rawUrl: string): string {
   }
 }
 
+/**
+ * Normalize an Agent URL for duplicate detection (web parity): lowercase
+ * protocol + host, re-bracket IPv6 hosts, drop a bare root path.
+ */
+export function normalizeAgentUrl(raw: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw.trim());
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  if (!parsed.hostname) return null;
+
+  const host = parsed.hostname.toLowerCase();
+  const displayHost = host.includes(':') ? `[${host}]` : host;
+  const userInfo = parsed.username
+    ? `${encodeURIComponent(parsed.username)}${parsed.password ? `:${encodeURIComponent(parsed.password)}` : ''}@`
+    : '';
+  const path = parsed.pathname === '/' ? '' : parsed.pathname;
+
+  return `${parsed.protocol}//${userInfo}${displayHost}${parsed.port ? `:${parsed.port}` : ''}${path}${parsed.search}${parsed.hash}`;
+}
+
 export function gpuVramPercent(gpu: GpuInfo): number {
   if (gpu.memory_total > 0) {
     return Math.min(100, Math.max(0, (gpu.memory_used / gpu.memory_total) * 100));

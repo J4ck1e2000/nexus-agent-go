@@ -12,6 +12,7 @@ import type {
   NexusResult,
   NexusUser,
   RegisterPayload,
+  UserRole,
 } from '../../electron/types/ipc';
 
 type AuthStatus = 'loading' | 'authenticated' | 'guest';
@@ -22,6 +23,8 @@ interface AuthContextValue {
   login: (payload: LoginPayload) => Promise<NexusResult<NexusUser>>;
   register: (payload: RegisterPayload) => Promise<NexusResult<NexusUser>>;
   logout: () => Promise<void>;
+  /** Reflect a self role change (admin demotes/promotes own account) instantly. */
+  applyRoleChange: (userId: number, role: UserRole) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -73,9 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('guest');
   }, []);
 
+  const applyRoleChange = useCallback((userId: number, role: UserRole) => {
+    setUser((current) => (current && current.id === userId ? { ...current, role } : current));
+  }, []);
+
   const value = useMemo(
-    () => ({ user, status, login, register, logout }),
-    [user, status, login, register, logout],
+    () => ({ user, status, login, register, logout, applyRoleChange }),
+    [user, status, login, register, logout, applyRoleChange],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
