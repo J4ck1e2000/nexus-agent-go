@@ -2,6 +2,65 @@
 
 AI 问答固定由 Pi Runtime 执行；Docker Compose 会启动 Gateway、Pi Runtime 和后端依赖。
 
+## 项目简介
+
+Nexus 是一套分布式 GPU 集群监控与调度辅助平台:
+
+- **Go Agent** 部署在每台 GPU 节点上,采集 CPU / 内存 / GPU(利用率、显存、温度、功耗、进程)指标并上报;
+- **Go Gateway** 是控制面:认证(JWT)、节点配置与聚合状态(Redis 热状态 + MySQL 持久化)、管理 API、AI 问答入口(SSE 流式),并对外提供 Web Dashboard;
+- **Pi Runtime**(TypeScript)是唯一的 AI 执行器,经工具网关回调 Gateway 读取集群快照,流式生成回答;
+- **Qdrant** 提供知识库向量检索(可回退本地 markdown 检索);
+- **Web Dashboard**(`web/`,CDN React 单文件)与 **Desktop Client**(`desktop/`,Electron + React + TS)是两个并存的客户端,功能对齐。
+
+## 整体架构
+
+```text
+Browser (web/)            Electron (desktop/)
+       │ REST / SSE / JWT        │ preload IPC → Main
+       └──────────┬──────────────┘
+                  ▼
+            Go Gateway  ──── Redis(节点热状态)
+                  │         MySQL(用户/节点配置)
+                  │         Qdrant(知识向量)
+                  ▼
+            Pi Runtime(AI 执行器,SSE 透传)
+                  ▲
+        Go Agent(每台 GPU 节点,指标上报)
+```
+
+## 仓库结构
+
+```text
+├── cmd/                  # Go 入口:gateway / agent / knowledge-sync / rag-eval
+├── internal/
+│   ├── gateway/          # HTTP API、认证、节点状态、AI 适配层
+│   ├── ai/               # 意图识别、检索(RAG)、工具、知识同步
+│   ├── runtime/          # Pi Runtime 客户端与运行凭据
+│   ├── agent/            # 节点采集 agent
+│   ├── model/            # 数据模型(AgentConfig、SystemMetrics...)
+│   └── tools/            # 通用工具
+├── pi-runtime/           # TypeScript AI 执行器(Node 24 原生 TS 运行)
+├── web/                  # 旧 Web 前端(CDN React,保留作行为基准)
+├── desktop/              # Electron 桌面客户端(见 desktop/README.md)
+├── knowledge/            # 知识库 markdown(可同步到 Qdrant)
+├── deploy/               # Dockerfile 与 systemd 单元
+├── scripts/              # knowledge-run 等运维脚本
+└── docker-compose.yml    # 一键启动 Gateway / Pi Runtime / MySQL / Redis / Qdrant
+```
+
+## 组件速览与本地启动
+
+| 组件 | 目录 | 本地启动 | 说明 |
+| --- | --- | --- | --- |
+| Gateway | `cmd/gateway` | `go run ./cmd/gateway`(需先起 Pi Runtime 并设 `PI_RUNTIME_URL`) | 默认 `:3000`,同时服务 `web/` 静态页 |
+| Agent | `cmd/agent` | `go run ./cmd/agent` | 需要 GPU 节点环境 |
+| Pi Runtime | `pi-runtime/` | `npm install && npm start` | 需要 `AI_API_KEY` 等,见下文 |
+| 知识同步 | `cmd/knowledge-sync` | `go run ./cmd/knowledge-sync` 或 `scripts/knowledge-run.cmd` | markdown → Qdrant |
+| Web 前端 | `web/` | 由 Gateway 静态托管,无需单独构建 | 保留不删 |
+| 桌面客户端 | `desktop/` | `npm install && npm run dev` | 见 [desktop/README.md](desktop/README.md) |
+
+`AGENTS.md` 面向 AI 编码代理,汇总了各组件的构建/测试命令与工程约定。
+
 ## Docker 部署（推荐）
 
 ### 1. 复制环境变量模板
