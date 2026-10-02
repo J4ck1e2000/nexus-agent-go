@@ -191,7 +191,7 @@ export function createRuntimeServer(overrides: Partial<RuntimeConfig> = {}): Run
 		},
 		async start() {
 			await new Promise<void>((resolve) => {
-				server.listen(config.port, "127.0.0.1", () => {
+				server.listen(config.port, config.host, () => {
 					const address = server.address();
 					if (address && typeof address === "object") {
 						actualPort = address.port;

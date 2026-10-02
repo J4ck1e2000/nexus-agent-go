@@ -32,7 +32,7 @@ export class GatewayToolClient {
 		toolCallID: string,
 		args: Record<string, unknown>,
 		timeoutSec: number,
-	): Promise<Record<string, unknown>> {
+	): Promise<ToolCallResponse> {
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), timeoutSec * 1000);
 		try {
@@ -75,7 +75,7 @@ export class GatewayToolClient {
 				const error = payload.error ?? { code: "TOOL_INTERNAL", message: "tool failed" };
 				throw new ToolExecutionError(error.code, error.message, error.retryable ?? false);
 			}
-			return payload.data ?? {};
+			return payload;
 		} finally {
 			clearTimeout(timer);
 		}

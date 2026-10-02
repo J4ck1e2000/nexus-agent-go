@@ -196,7 +196,9 @@ func (m *Manager) AuthorizeTool(runID, toolName string) error {
 	if !ok {
 		return ErrRunNotFound
 	}
-	switch record.State() {
+	record.mu.Lock()
+	defer record.mu.Unlock()
+	switch record.state {
 	case RunStateRunning:
 	case RunStateCreated:
 		return ErrRunNotActive
@@ -208,9 +210,6 @@ func (m *Manager) AuthorizeTool(runID, toolName string) error {
 	if _, allowed := record.AllowedTools[toolName]; !allowed {
 		return ErrToolNotAllowed
 	}
-
-	record.mu.Lock()
-	defer record.mu.Unlock()
 	if record.ToolCallBudget <= 0 {
 		return ErrToolNotAllowed
 	}

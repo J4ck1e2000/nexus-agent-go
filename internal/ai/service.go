@@ -13,7 +13,6 @@ import (
 
 const (
 	envAIEnabled         = "AI_ENABLED"
-	envAIMode            = "AI_MODE"
 	envAIProvider        = "AI_PROVIDER"
 	envAIModel           = "AI_MODEL"
 	envAIAPIKey          = "AI_API_KEY"
@@ -92,7 +91,7 @@ func LoadConfigFromEnv() Config {
 
 	cfg := Config{
 		Enabled:            envBool(envAIEnabled, true),
-		Mode:               strings.TrimSpace(os.Getenv(envAIMode)),
+		Mode:               AIModeAgent,
 		Provider:           strings.TrimSpace(os.Getenv(envAIProvider)),
 		Model:              strings.TrimSpace(os.Getenv(envAIModel)),
 		APIKey:             strings.TrimSpace(os.Getenv(envAIAPIKey)),
@@ -105,9 +104,6 @@ func LoadConfigFromEnv() Config {
 		RAGMaxSnippet:      envInt(envAIRAGMaxSnippet, defaultKnowledgeMaxSnippetLen),
 		KnowledgeRetrieval: knowledgeCfg,
 		KnowledgeConfigErr: knowledgeConfigErr,
-	}
-	if cfg.Mode == "" {
-		cfg.Mode = AIModeRule
 	}
 	if cfg.BaseURL == "" {
 		switch strings.ToLower(strings.TrimSpace(cfg.Provider)) {
@@ -195,6 +191,18 @@ func NewService(opts ServiceOptions) *Service {
 		toolbox:       toolbox,
 		ruleExecutor:  ruleExecutor,
 		agentExecutor: agentExecutor,
+	}
+}
+
+// NewSupportService creates the shared AI support facade without legacy query executors.
+func NewSupportService(opts ServiceOptions) *Service {
+	toolbox := opts.Toolbox
+	if toolbox == nil {
+		toolbox = NewToolbox(ToolboxOptions{})
+	}
+	return &Service{
+		config:  opts.Config,
+		toolbox: toolbox,
 	}
 }
 

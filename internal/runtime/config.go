@@ -11,8 +11,6 @@ import (
 )
 
 const (
-	// EnvExecutor selects the AI executor: "legacy" (Eino, default) or "pi".
-	EnvExecutor = "AI_EXECUTOR"
 	// EnvRuntimeURL is the base URL of the Pi Runtime service.
 	EnvRuntimeURL = "PI_RUNTIME_URL"
 	// EnvRuntimeToken is the shared secret between gateway and runtime.
@@ -25,12 +23,6 @@ const (
 	EnvToolTimeoutSec = "PI_TOOL_TIMEOUT_SEC"
 	// EnvMaxToolCalls bounds tool invocations per run.
 	EnvMaxToolCalls = "PI_MAX_TOOL_CALLS"
-)
-
-// ExecutorPi and ExecutorLegacy name the supported AI executors.
-const (
-	ExecutorPi     = "pi"
-	ExecutorLegacy = "legacy"
 )
 
 // Default limits for gateway-side run handling.
@@ -56,17 +48,8 @@ type Config struct {
 	MaxToolCalls   int
 }
 
-// ExecutorMode returns the normalized AI executor selection.
-func ExecutorMode() string {
-	mode := strings.ToLower(strings.TrimSpace(os.Getenv(EnvExecutor)))
-	if mode == ExecutorPi {
-		return ExecutorPi
-	}
-	return ExecutorLegacy
-}
-
 // LoadConfigFromEnv builds the gateway-side runtime config.
-// Enabled is only true when the executor selects Pi and a runtime URL is set.
+// Enabled is true when the required Pi Runtime URL is configured.
 func LoadConfigFromEnv() Config {
 	cfg := Config{
 		RuntimeURL:     strings.TrimRight(strings.TrimSpace(os.Getenv(EnvRuntimeURL)), "/"),
@@ -91,7 +74,7 @@ func LoadConfigFromEnv() Config {
 	if cfg.MaxToolCalls <= 0 {
 		cfg.MaxToolCalls = DefaultMaxToolCalls
 	}
-	cfg.Enabled = ExecutorMode() == ExecutorPi && cfg.RuntimeURL != ""
+	cfg.Enabled = cfg.RuntimeURL != ""
 	return cfg
 }
 

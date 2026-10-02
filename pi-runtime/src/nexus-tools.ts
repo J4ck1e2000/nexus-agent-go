@@ -28,7 +28,7 @@ function nexusTool(
 		parameters,
 		async execute(toolCallID, params, _signal, _onUpdate, _toolCtx) {
 			try {
-				const data = await ctx.client.call(
+				const response = await ctx.client.call(
 					ctx.runID,
 					ctx.credential,
 					name,
@@ -36,9 +36,10 @@ function nexusTool(
 					(params ?? {}) as Record<string, unknown>,
 					ctx.toolTimeoutSec,
 				);
+				const data = response.data ?? {};
 				return {
-					content: [{ type: "text", text: JSON.stringify({ ok: true, data }) }],
-					details: { ok: true },
+					content: [{ type: "text", text: JSON.stringify({ ok: true, data, meta: response.meta }) }],
+					details: { ok: true, data, meta: response.meta },
 				};
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);

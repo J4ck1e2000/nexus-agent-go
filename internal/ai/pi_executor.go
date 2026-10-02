@@ -57,6 +57,14 @@ func (e *PiRuntimeExecutor) Execute(ctx context.Context, req AIQueryRequest) (AI
 	return e.ExecuteStream(ctx, req, nil)
 }
 
+// Health probes the configured Pi Runtime.
+func (e *PiRuntimeExecutor) Health(ctx context.Context) error {
+	if e == nil || e.client == nil {
+		return fmt.Errorf("%w: runtime client not configured", runtime.ErrRuntimeUnavailable)
+	}
+	return e.client.Health(ctx)
+}
+
 // ExecuteStream runs one query on the Pi runtime, emitting gateway events.
 // A runtime-unreachable failure before the first event maps to
 // runtime.ErrRuntimeUnavailable so callers can fall back to the legacy path.
@@ -326,6 +334,12 @@ func (c *piRunCollector) recordToolStarted(payload runtime.ToolStartedPayload) {
 
 func (c *piRunCollector) recordToolCompleted(payload runtime.ToolCompletedPayload) {
 	name := strings.TrimSpace(payload.ToolName)
+	if payload.Meta != nil && payload.Meta.Stale {
+		c.warnings = append(c.warnings, fmt.Sprintf("tool %s returned stale data", name))
+	}
+	if payload.Meta != nil && payload.Meta.Truncated {
+		c.warnings = append(c.warnings, fmt.Sprintf("tool %s returned truncated data", name))
+	}
 	if !payload.OK {
 		message := strings.TrimSpace(payload.Error)
 		if message == "" {

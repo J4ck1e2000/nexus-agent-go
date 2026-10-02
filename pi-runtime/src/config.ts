@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 export interface RuntimeConfig {
 	port: number;
+	host: string;
 	token: string;
 	gatewayToolURL: string;
 	gatewayToken: string;
@@ -36,6 +37,7 @@ function requiredEnv(name: string, fallback: string): string {
 
 export function loadConfig(): RuntimeConfig {
 	const port = intEnv("PI_RUNTIME_PORT", 8010);
+	const host = process.env.PI_RUNTIME_HOST?.trim() || "127.0.0.1";
 	const token = requiredEnv("PI_RUNTIME_TOKEN", "nexus-pi-internal-token");
 	const gatewayToolURL = requiredEnv("GATEWAY_TOOL_URL", "http://127.0.0.1:3000").replace(/\/+$/, "");
 	const gatewayToken = requiredEnv("GATEWAY_INTERNAL_TOKEN", token);
@@ -52,6 +54,7 @@ export function loadConfig(): RuntimeConfig {
 	fs.mkdirSync(stateDir, { recursive: true });
 	return {
 		port,
+		host,
 		token,
 		gatewayToolURL,
 		gatewayToken,

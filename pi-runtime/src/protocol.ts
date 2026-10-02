@@ -65,6 +65,7 @@ export interface ToolCompletedPayload {
 	tool_name: string;
 	ok: boolean;
 	result?: Record<string, unknown>;
+	meta?: ToolCallMeta;
 	error?: string;
 }
 

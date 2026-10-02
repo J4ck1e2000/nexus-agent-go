@@ -39,13 +39,22 @@ type ToolStartedPayload struct {
 	Arguments  map[string]any `json:"arguments,omitempty"`
 }
 
+// ToolResultMeta carries gateway freshness and truncation facts into the run stream.
+type ToolResultMeta struct {
+	ObservedAtUnix  int64 `json:"observed_at_unix,omitempty"`
+	RetrievedAtUnix int64 `json:"retrieved_at_unix,omitempty"`
+	Stale           bool  `json:"stale,omitempty"`
+	Truncated       bool  `json:"truncated,omitempty"`
+}
+
 // ToolCompletedPayload reports one finished tool invocation.
 type ToolCompletedPayload struct {
-	ToolCallID string         `json:"tool_call_id"`
-	ToolName   string         `json:"tool_name"`
-	OK         bool           `json:"ok"`
-	Result     map[string]any `json:"result,omitempty"`
-	Error      string         `json:"error,omitempty"`
+	ToolCallID string          `json:"tool_call_id"`
+	ToolName   string          `json:"tool_name"`
+	OK         bool            `json:"ok"`
+	Result     map[string]any  `json:"result,omitempty"`
+	Meta       *ToolResultMeta `json:"meta,omitempty"`
+	Error      string          `json:"error,omitempty"`
 }
 
 // RunCompletedPayload is the final run output.

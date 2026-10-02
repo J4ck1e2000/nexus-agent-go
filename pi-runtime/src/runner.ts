@@ -8,6 +8,7 @@ import {
 	type RunCancelledPayload,
 	type RunCompletedPayload,
 	type StartRunRequest,
+	type ToolCallMeta,
 	type ToolCompletedPayload,
 	type ToolStartedPayload,
 } from "./protocol.ts";
@@ -153,11 +154,13 @@ export class RunExecutor {
 				return;
 			}
 			case "tool_execution_end": {
+				const output = extractToolResult(event.result);
 				emit("tool.completed", {
 					tool_call_id: event.toolCallId,
 					tool_name: event.toolName,
 					ok: !event.isError,
-					result: sanitizeToolResult(event.result),
+					result: output.data,
+					meta: output.meta,
 					error: event.isError ? extractToolErrorText(event.result) : undefined,
 				} satisfies ToolCompletedPayload);
 				return;
@@ -219,6 +222,23 @@ function sanitizeToolResult(result: unknown): Record<string, unknown> | undefine
 		return result as Record<string, unknown>;
 	}
 	return { value: String(result).slice(0, 512) };
+}
+
+function extractToolResult(result: unknown): { data?: Record<string, unknown>; meta?: ToolCallMeta } {
+	if (typeof result === "object" && result !== null && !Array.isArray(result)) {
+		const details = (result as Record<string, unknown>).details;
+		if (typeof details === "object" && details !== null && !Array.isArray(details)) {
+			const detailRecord = details as Record<string, unknown>;
+			const data = detailRecord.data;
+			if (typeof data === "object" && data !== null && !Array.isArray(data)) {
+				return {
+					data: data as Record<string, unknown>,
+					meta: detailRecord.meta as ToolCallMeta | undefined,
+				};
+			}
+		}
+	}
+	return { data: sanitizeToolResult(result) };
 }
 
 function extractToolErrorText(result: unknown): string {

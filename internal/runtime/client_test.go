@@ -61,7 +61,7 @@ func TestStartRunParsesNDJSONAcrossChunks(t *testing.T) {
 	for event := range events {
 		seen = append(seen, event)
 		if Terminal(event.Type) {
-			return
+			break
 		}
 	}
 

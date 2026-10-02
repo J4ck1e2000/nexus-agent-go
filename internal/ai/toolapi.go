@@ -18,6 +18,7 @@ const (
 	ToolErrProviderMissing   = "DATA_PROVIDER_MISSING"
 	ToolErrKnowledgeDisabled = "KNOWLEDGE_DISABLED"
 	ToolErrInternal          = "TOOL_INTERNAL"
+	ToolErrOutputTooLarge    = "TOOL_OUTPUT_TOO_LARGE"
 )
 
 const (
@@ -105,6 +106,30 @@ func (d *ToolDispatcher) Dispatch(ctx context.Context, name string, args map[str
 		response.Meta = &ToolCallMeta{RetrievedAtUnix: started.Unix()}
 	} else if response.Meta.RetrievedAtUnix == 0 {
 		response.Meta.RetrievedAtUnix = started.Unix()
+	}
+	encoded, err := json.Marshal(response)
+	if err != nil {
+		return ToolCallResponse{
+			OK:   false,
+			Meta: response.Meta,
+			Error: &ToolCallError{
+				Code:      ToolErrInternal,
+				Message:   "tool result could not be encoded",
+				Retryable: false,
+			},
+		}
+	}
+	if len(encoded) > ToolOutputMaxBytes {
+		response.Meta.Truncated = true
+		return ToolCallResponse{
+			OK:   false,
+			Meta: response.Meta,
+			Error: &ToolCallError{
+				Code:      ToolErrOutputTooLarge,
+				Message:   fmt.Sprintf("tool result exceeds the %d-byte response limit", ToolOutputMaxBytes),
+				Retryable: false,
+			},
+		}
 	}
 	return response
 }

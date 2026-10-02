@@ -4,48 +4,46 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"nexus-agent-go/internal/runtime"
 )
 
-// ExecutorModePi marks health/capability payloads served through the Pi runtime.
+// ExecutorModePi identifies the Pi Runtime executor in health responses.
 const ExecutorModePi = "pi"
 
-// PiQueryService implements the gateway AI contract on top of the external Pi
-// runtime while delegating non-query concerns (capabilities, health, knowledge
-// reload) and pre-start fallback to the legacy service.
+// PiQueryService implements the gateway AI contract using only the Pi Runtime.
 type PiQueryService struct {
-	legacy *Service
-	pi     *PiRuntimeExecutor
+	support *Service
+	pi      *PiRuntimeExecutor
 }
 
-// NewPiQueryService wires the Pi-backed AI service.
-func NewPiQueryService(legacy *Service, pi *PiRuntimeExecutor) *PiQueryService {
-	return &PiQueryService{legacy: legacy, pi: pi}
+// NewPiQueryService wires the Pi Runtime and shared AI support services.
+func NewPiQueryService(support *Service, pi *PiRuntimeExecutor) *PiQueryService {
+	return &PiQueryService{support: support, pi: pi}
 }
 
-// Query executes one request on the Pi runtime, falling back to the legacy
-// service only when the runtime was unreachable before the run started.
+// Query executes one request on the Pi Runtime. Runtime failures are returned to the caller.
 func (s *PiQueryService) Query(ctx context.Context, req AIQueryRequest) (AIQueryResponse, error) {
-	if !s.legacy.Enabled() {
+	if s.support == nil || !s.support.Enabled() {
 		return AIQueryResponse{}, ErrServiceDisabled
 	}
-	resp, err := s.pi.Execute(ctx, req)
-	if errors.Is(err, runtime.ErrRuntimeUnavailable) {
-		return s.legacy.Query(ctx, req)
+	if s.pi == nil {
+		return AIQueryResponse{}, runtime.ErrRuntimeUnavailable
 	}
-	return resp, err
+	return s.pi.Execute(ctx, req)
 }
 
-// QueryStream executes one streaming request on the Pi runtime.
-// Event contract for the frontend is identical to the legacy service:
-// start -> status -> (status/delta)* -> meta -> done.
+// QueryStream executes one streaming request on the Pi Runtime.
 func (s *PiQueryService) QueryStream(ctx context.Context, req AIQueryRequest, emit func(AIStreamEvent) error) error {
 	if emit == nil {
 		return errors.New("stream emitter is nil")
 	}
-	if !s.legacy.Enabled() {
+	if s.support == nil || !s.support.Enabled() {
 		return ErrServiceDisabled
+	}
+	if s.pi == nil {
+		return runtime.ErrRuntimeUnavailable
 	}
 	query := strings.TrimSpace(req.Query)
 	if query == "" {
@@ -58,7 +56,6 @@ func (s *PiQueryService) QueryStream(ctx context.Context, req AIQueryRequest, em
 		}
 		return emit(event)
 	}
-
 	if err := safeEmit(AIStreamEvent{Event: StreamEventStart, Query: query}); err != nil {
 		return err
 	}
@@ -72,23 +69,8 @@ func (s *PiQueryService) QueryStream(ctx context.Context, req AIQueryRequest, em
 
 	resp, err := s.pi.ExecuteStream(ctx, AIQueryRequest{Query: query, Stream: true}, emit)
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return err
-		}
-		if errors.Is(err, runtime.ErrRuntimeUnavailable) {
-			// Pre-start failure only: legacy fallback is allowed (design §6.3).
-			if emitErr := safeEmit(AIStreamEvent{
-				Event:   StreamEventStatus,
-				Phase:   "fallback",
-				Message: localizedStreamPhaseMessage(query, "fallback"),
-			}); emitErr != nil {
-				return emitErr
-			}
-			return s.legacyFallbackStream(ctx, query, safeEmit)
-		}
 		return err
 	}
-
 	meta := AIStreamMeta{
 		ReasoningSummary: strings.TrimSpace(resp.ReasoningSummary),
 		Mode:             strings.TrimSpace(resp.Mode),
@@ -101,64 +83,54 @@ func (s *PiQueryService) QueryStream(ctx context.Context, req AIQueryRequest, em
 	if err := safeEmit(AIStreamEvent{Event: StreamEventMeta, Meta: &meta}); err != nil {
 		return err
 	}
-	finalResp := resp
-	return safeEmit(AIStreamEvent{Event: StreamEventDone, Done: &finalResp})
+	return safeEmit(AIStreamEvent{Event: StreamEventDone, Done: &resp})
 }
 
-// legacyFallbackStream reproduces the legacy stream tail (deltas, meta, done)
-// on top of the legacy non-stream query, without re-emitting the start event.
-func (s *PiQueryService) legacyFallbackStream(ctx context.Context, query string, emit func(AIStreamEvent) error) error {
-	resp, err := s.legacy.Query(ctx, AIQueryRequest{Query: query, Stream: false})
-	if err != nil {
-		return err
-	}
-	if err := emit(AIStreamEvent{
-		Event:   StreamEventStatus,
-		Phase:   "generating",
-		Message: localizedStreamPhaseMessage(query, "generating"),
-	}); err != nil {
-		return err
-	}
-	for _, chunk := range chunkAnswerForStream(resp.Answer, defaultStreamChunkRuneSize) {
-		if err := emit(AIStreamEvent{Event: StreamEventDelta, Text: chunk}); err != nil {
-			return err
-		}
-	}
-	meta := AIStreamMeta{
-		ReasoningSummary: strings.TrimSpace(resp.ReasoningSummary),
-		Mode:             strings.TrimSpace(resp.Mode),
-		ToolCalls:        resp.ToolCalls,
-		RelatedNodes:     resp.RelatedNodes,
-		Warnings:         resp.Warnings,
-		KnowledgeHits:    resp.KnowledgeHits,
-		Retrieval:        resp.Retrieval,
-	}
-	if err := emit(AIStreamEvent{Event: StreamEventMeta, Meta: &meta}); err != nil {
-		return err
-	}
-	return emit(AIStreamEvent{Event: StreamEventDone, Done: &resp})
-}
-
-// Capabilities delegates to the legacy service and marks the Pi executor.
+// Capabilities reports the single supported AI mode and the Pi tool set.
 func (s *PiQueryService) Capabilities(ctx context.Context) CapabilitiesResponse {
-	capabilities := s.legacy.Capabilities(ctx)
-	capabilities.DefaultMode = ExecutorModePi
+	capabilities := s.support.Capabilities(ctx)
+	capabilities.DefaultMode = AIModeAgent
+	capabilities.SupportedModes = []string{AIModeAgent}
 	return capabilities
 }
 
-// Health delegates to the legacy service and marks the Pi executor.
+// Health reports shared AI configuration and the Pi Runtime readiness.
 func (s *PiQueryService) Health(ctx context.Context) HealthResponse {
-	health := s.legacy.Health(ctx)
+	if s.support == nil {
+		ready := false
+		return HealthResponse{
+			Status:       "degraded",
+			Mode:         AIModeAgent,
+			Executor:     ExecutorModePi,
+			RuntimeReady: &ready,
+		}
+	}
+	health := s.support.Health(ctx)
+	health.Mode = AIModeAgent
 	health.Executor = ExecutorModePi
+	healthCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	ready := s.pi != nil && s.pi.Health(healthCtx) == nil
+	health.RuntimeReady = &ready
+	if !ready && health.Status != "disabled" {
+		health.AgentReady = false
+		health.Status = "degraded"
+	}
 	return health
 }
 
-// RetrievalStats delegates to the legacy service.
+// RetrievalStats delegates to the shared support service.
 func (s *PiQueryService) RetrievalStats(ctx context.Context) RetrievalStats {
-	return s.legacy.RetrievalStats(ctx)
+	if s.support == nil {
+		return RetrievalStats{}
+	}
+	return s.support.RetrievalStats(ctx)
 }
 
-// ReloadKnowledge delegates to the legacy service.
+// ReloadKnowledge delegates to the shared support service.
 func (s *PiQueryService) ReloadKnowledge(ctx context.Context) (KnowledgeReloadResult, error) {
-	return s.legacy.ReloadKnowledge(ctx)
+	if s.support == nil {
+		return KnowledgeReloadResult{}, ErrKnowledgeReloadUnavailable
+	}
+	return s.support.ReloadKnowledge(ctx)
 }

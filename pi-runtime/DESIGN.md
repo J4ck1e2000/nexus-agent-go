@@ -61,7 +61,7 @@ ai.Toolbox（既有业务函数）→ Redis/MySQL/Qdrant/agent
 
 - Pi Runtime 只持有模型凭证与内部调用凭证，**不接触业务数据库**；模型参数一律视为不可信输入。
 - Go Tool Gateway 是 gateway 进程内的一组内部路由（《指南》§5 允许），不是新进程。
-- 旧执行器（Eino）**原样保留**，`AI_EXECUTOR` 开关切换；降级边界见 §6.3。
+- Gateway 只调用 Pi Runtime；运行时不可达时返回错误，不回退到本地规则或 Eino。
 
 ## 3. Go ↔ Pi 契约（NDJSON）
 
@@ -160,26 +160,23 @@ pi-runtime/
 
 | 文件 | 内容 |
 | --- | --- |
-| `internal/runtime/config.go`（新） | `AI_EXECUTOR`（默认 `legacy`）、`PI_RUNTIME_URL`、`PI_RUNTIME_TOKEN`、`PI_RUN_TOKEN_SECRET`、`PI_RUN_TIMEOUT_SEC`（默认 120）、`PI_TOOL_TIMEOUT_SEC`、`PI_MAX_TOOL_CALLS` |
+| internal/runtime/config.go | Pi Runtime URL/token and run/tool limits; Runtime URL is required |
 | `internal/runtime/events.go`（新） | 事件信封/类型（§3.2） |
 | `internal/runtime/client.go`（新） | NDJSON 客户端：StartRun（bufio.Scanner，MaxToken 1MB，UTF-8 安全按行解析）、CancelRun、健康检查 |
 | `internal/runtime/manager.go`（新） | Run 状态机 `CREATED→RUNNING→COMPLETED/FAILED/CANCELLED(+CANCELLING)`、原子终态转换、活跃 Run 查询、终态 TTL 后 GC |
 | `internal/runtime/token.go`（新） | Run 凭证签发/校验（HMAC） |
 | `internal/ai/toolapi.go`（新） | 工具分发器：8 工具的参数校验与执行、输出裁剪、错误→`ok/error.code` 分层 |
 | `internal/ai/pi_executor.go`（新） | 实现 `QueryExecutor`/`StreamQueryExecutor`：调 runtime client、事件映射（§3.2）、终稿组装（复用 `parseAgentFinalContent` 等） |
-| `internal/ai/pi_service.go`（新） | `PiQueryService`：包装 legacy `*Service`，实现 gateway `AIQueryService` 接口；Capabilities/Health/ReloadKnowledge 透传 legacy 并带 `executor: pi` 标记 |
+| internal/ai/pi_service.go | Pi-only AI gateway service; delegates shared health and knowledge operations |
 | `internal/gateway/tool_gateway.go`（新） | 内部路由组 `/internal/api/tools/:name`：双凭证中间件、Run 活跃校验、审计日志（工具名/耗时/结果摘要，不落参数原文） |
-| `cmd/gateway/main.go` | 装配：`AI_EXECUTOR=pi` 且配置完整时用 `PiQueryService` 替换注入，否则维持 legacy |
+| cmd/gateway/main.go | Always wires Pi Runtime; startup fails when PI_RUNTIME_URL is missing |
 | `docker-compose.yml` / `.env.example` | 新增 `pi-runtime` 服务与配置项 |
 
-不改动：`handler_ai.go` 的 SSE 事件契约、前端、`internal/agent` 采集端、Eino 执行器本身。
+Eino/规则执行器源文件仍保留，但 Gateway 不再构造或调用它们。前端 SSE 契约和 internal/agent 采集端保持不变。
 
-## 6.3 降级边界（《指南》§13 的落地）
+## 6.3 Runtime 失败行为
 
-- **启动前失败**（Runtime 不可达/非 200/握手失败）→ 回退 legacy 执行器，SSE 增发一条 `status{phase:"fallback"}`（前端已有该 phase 的渲染路径），响应 `mode:"rule"/"agent"` 照旧。
-- **流中途失败** → 已获得内容照常展示，然后 `error` 事件收尾；**不**自动用旧执行器重跑同一问题。
-- 开关回滚：`AI_EXECUTOR=legacy`（或不配 PI_RUNTIME_URL）即回到已验证旧路径。
-
+Pi Runtime 启动失败或运行中断时，Gateway 将错误返回给前端。请求不会回退到规则模式或 Eino 执行器。
 ## 7. 首版不做（与《指南》分期对应）
 
 MySQL 会话/Run/ToolCall 持久化（P3）、SDK Compaction 接入（P4）、Skill 按需读取（P4）、断线后 Run 存活与事件重放（§12.2 后续形态）、多实例部署（P3）、写类工具（远程 Shell/杀进程等，指南 §2.2 明确排除）。
