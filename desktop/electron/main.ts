@@ -1,5 +1,19 @@
-import { app, BrowserWindow } from 'electron';
+import { BrowserWindow, app, safeStorage } from 'electron';
 import path from 'node:path';
+
+import { registerIpcHandlers } from './ipc';
+import { normalizeGatewayUrl } from './lib/validate';
+import { DEFAULT_GATEWAY_URL, SettingsStore } from './services/settings-store';
+import { GatewayClient } from './services/gateway';
+import { TokenStore, type TokenCipher } from './services/token-store';
+
+function createSafeStorageCipher(): TokenCipher {
+  return {
+    isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+    encryptString: (plainText) => safeStorage.encryptString(plainText),
+    decryptString: (encrypted) => safeStorage.decryptString(encrypted),
+  };
+}
 
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -37,12 +51,34 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  const userDataDir = app.getPath('userData');
+  const settings = new SettingsStore(path.join(userDataDir, 'settings.json'));
+  const tokens = new TokenStore({ dir: userDataDir, cipher: createSafeStorageCipher() });
+
+  const notify = (channel: string, payload: unknown): void => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(channel, payload);
+    }
+  };
+
+  const gateway = new GatewayClient(
+    () => normalizeGatewayUrl(settings.load().gatewayUrl) ?? DEFAULT_GATEWAY_URL,
+    () => tokens.load(),
+    { onUnauthorized: () => notify('auth:expired', null) },
+  );
+
+  const disposeIpc = registerIpcHandlers({ gateway, tokens, settings, notify });
+
   createMainWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
     }
+  });
+
+  app.on('before-quit', () => {
+    disposeIpc();
   });
 });
 
