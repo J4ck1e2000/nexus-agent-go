@@ -79,7 +79,6 @@ services:
       NODE_STATE_TTL: "10m"
 
       AI_ENABLED: "${AI_ENABLED}"
-      AI_MODE: "${AI_MODE}"
       AI_PROVIDER: "${AI_PROVIDER}"
       AI_MODEL: "${AI_MODEL}"
       AI_BASE_URL: "${AI_BASE_URL}"
@@ -105,15 +104,46 @@ services:
       KNOWLEDGE_MIN_SCORE: "0.35"
       KNOWLEDGE_SYNC_BATCH_SIZE: "10"
 
+      PI_RUNTIME_URL: "http://pi-runtime:8010"
+      PI_RUNTIME_TOKEN: "${PI_RUNTIME_TOKEN:-nexus-pi-internal-token}"
+      PI_RUN_TIMEOUT_SEC: "${PI_RUN_TIMEOUT_SEC:-120}"
+      PI_TOOL_TIMEOUT_SEC: "${PI_TOOL_TIMEOUT_SEC:-10}"
+      PI_MAX_TOOL_CALLS: "${PI_MAX_TOOL_CALLS:-12}"
+
+  pi-runtime:
+    build:
+      context: ./pi-runtime
+      dockerfile: ../deploy/Dockerfile.pi-runtime
+    container_name: nexus-pi-runtime
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_started
+    environment:
+      PI_RUNTIME_PORT: "8010"
+      PI_RUNTIME_HOST: "0.0.0.0"
+      PI_RUNTIME_TOKEN: "${PI_RUNTIME_TOKEN:-nexus-pi-internal-token}"
+      GATEWAY_TOOL_URL: "http://gateway:3000"
+      GATEWAY_INTERNAL_TOKEN: "${PI_RUNTIME_TOKEN:-nexus-pi-internal-token}"
+      AI_BASE_URL: "${AI_BASE_URL}"
+      AI_API_KEY: "${AI_API_KEY}"
+      AI_MODEL: "${AI_MODEL}"
+      PI_RUN_TIMEOUT_SEC: "${PI_RUN_TIMEOUT_SEC:-120}"
+      PI_TOOL_TIMEOUT_SEC: "${PI_TOOL_TIMEOUT_SEC:-10}"
+      PI_MAX_TOOL_CALLS: "${PI_MAX_TOOL_CALLS:-12}"
+      PI_SESSION_TTL_SEC: "1800"
+      PI_SESSION_CACHE_SIZE: "128"
+
   agent:
     build:
       context: .
       dockerfile: deploy/Dockerfile.agent
       args:
         GO_BASE_IMAGE: ${GO_BASE_IMAGE:-docker.m.daocloud.io/library/golang:1.23-alpine}
-        RUNTIME_BASE_IMAGE: ${RUNTIME_BASE_IMAGE:-docker.m.daocloud.io/library/alpine:3.20}
+        RUNTIME_BASE_IMAGE: ${AGENT_RUNTIME_BASE_IMAGE:-docker.m.daocloud.io/nvidia/cuda:12.9.0-base-ubuntu22.04}
         GOPROXY: ${GOPROXY:-https://goproxy.cn,direct}
     container_name: nexus-agent
+    gpus: all
     restart: unless-stopped
     ports:
       - "8005:8005"

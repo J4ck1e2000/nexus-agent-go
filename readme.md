@@ -1,6 +1,6 @@
-﻿# nexus-agent-go
+# nexus-agent-go
 
-这个项目推荐用 `scripts/knowledge-run` 启动，默认就把 AI + RAG 常用配置准备好。
+AI 问答固定由 Pi Runtime 执行；Docker Compose 会启动 Gateway、Pi Runtime 和后端依赖。
 
 ## Docker 部署（推荐）
 
@@ -45,31 +45,12 @@ docker compose logs -f gateway
 scripts\knowledge-run.cmd -Task sync-reload -Backend qdrant -GatewayURL http://127.0.0.1:3000 -Username admin -Password admin123
 ```
 
-## 快速启动（推荐）
+## 快速启动
 
-### 1. 准备最少环境变量（CMD）
-
-```cmd
-set "MYSQL_DSN=root:password@tcp(127.0.0.1:3306)/nexus_agent?charset=utf8mb4&parseTime=True&loc=Local"
-set "JWT_SECRET=your-jwt-secret"
-
-set AI_ENABLED=true
-set AI_MODE=agent
-set AI_PROVIDER=qwen
-set AI_MODEL=qwen3.5-122b-a10b
-set AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-set AI_API_KEY=your-api-key
-```
-
-### 2. 一条命令启动 Gateway
-
-```cmd
-scripts\knowledge-run.cmd -Task gateway -Backend auto
-```
-
-启动后访问：`http://127.0.0.1:3000`
-
+推荐使用上面的 Docker Compose 命令，它会启动 Gateway 和 Pi Runtime。单独运行 Gateway 时，必须先启动 Pi Runtime 并设置 PI_RUNTIME_URL，见本文末尾。
 ## 常用启动模式
+
+这些命令用于调整知识检索后端。脚本直接启动 Gateway 前，请先启动 Pi Runtime 并设置 PI_RUNTIME_URL。
 
 - `auto`（推荐）：优先 Qdrant，失败自动回退本地知识检索
 - `local`：只用本地 markdown 检索（不依赖向量库）
@@ -78,7 +59,7 @@ scripts\knowledge-run.cmd -Task gateway -Backend auto
 示例：
 
 ```cmd
-scripts\knowledge-run.cmd -Task gateway -Backend auto
+docker compose --env-file .env.example up -d --build
 scripts\knowledge-run.cmd -Task gateway -Backend local
 scripts\knowledge-run.cmd -Task gateway -Backend qdrant
 ```
@@ -119,10 +100,39 @@ scripts\knowledge-run.cmd -Task eval -Backend auto -TopK 5
 
 ## 如果你不想用脚本（手动启动）
 
-也可以继续用：
+也可以用 go run 启动 Gateway。必须先启动 Pi Runtime，并设置 PI_RUNTIME_URL 指向该 Runtime。
 
 ```cmd
 go run .\cmd\gateway\
 ```
 
 但你需要自己维护 `KNOWLEDGE_*` 等环境变量；脚本版更省心。
+
+## AI 问答运行时（Pi Runtime）
+
+AI 问答固定由 TypeScript Pi Runtime 执行。规则模式和旧 Eino 查询执行器不再作为可选运行路径；Runtime 不可用时请求会返回错误，不会切换到规则回答。
+
+### Docker 启动
+
+~~~cmd
+docker compose --env-file .env.example up -d --build
+~~~
+
+Gateway 通过内部工具网关调用 Pi Runtime，前端 SSE 契约保持不变。
+
+### 本地手动启动 Runtime
+
+~~~cmd
+cd pi-runtime
+npm install
+set PI_RUNTIME_PORT=8010
+set PI_RUNTIME_TOKEN=nexus-pi-internal-token
+set GATEWAY_TOOL_URL=http://127.0.0.1:3000
+set GATEWAY_INTERNAL_TOKEN=nexus-pi-internal-token
+set AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+set AI_API_KEY=your-api-key
+set AI_MODEL=qwen3.5-122b-a10b
+node src/server.ts
+~~~
+
+Gateway 启动时必须设置 PI_RUNTIME_URL，例如 http://127.0.0.1:8010。Docker Compose 会默认启动 Pi Runtime 服务。

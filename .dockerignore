@@ -1,0 +1,8 @@
+.git
+.git/**
+.env
+.env.*
+desktop/
+**/node_modules/
+**/.cache/
+coverage/

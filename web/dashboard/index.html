@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -3045,15 +3045,6 @@
             const lower = text.toLowerCase();
 
             if (normalizedLanguage === 'zh') {
-                if (lower.includes('agent execution failed') && lower.includes('rule mode')) {
-                    return 'AI 代理模式执行失败，已自动切换为规则模式。';
-                }
-                if (lower.includes('agent stream unavailable') && lower.includes('rule mode')) {
-                    return 'AI 流式代理暂不可用，正在切换到规则模式...';
-                }
-                if (lower.includes('agent unavailable') && lower.includes('rule mode')) {
-                    return 'AI 代理暂不可用，正在切换到规则模式...';
-                }
                 if (lower.includes('current sampled snapshot')) {
                     return '以上结论基于当前采样快照。';
                 }
@@ -3065,15 +3056,6 @@
                     return `数据已过旧（${staleMatch[1]}s），建议结合下一轮采样复核。`;
                 }
             } else {
-                if (text.includes('已自动切换为规则模式')) {
-                    return 'Agent execution failed, automatically switched to rule mode.';
-                }
-                if (text.includes('流式代理暂不可用')) {
-                    return 'Agent stream unavailable, switching to rule mode...';
-                }
-                if (text.includes('代理暂不可用')) {
-                    return 'Agent unavailable, switching to rule mode...';
-                }
                 if (text.includes('当前采样快照')) {
                     return 'The conclusion is based on the current sampled snapshot.';
                 }
@@ -3180,13 +3162,11 @@
                     thinking: '正在分析节点状态...',
                     tooling: '正在汇总 GPU / CPU / 进程信息...',
                     generating: '正在生成调度建议...',
-                    fallback: 'AI 模式暂不可用，正在切换到规则模式...',
                 }
                 : {
                     thinking: 'Analyzing node status...',
                     tooling: 'Aggregating GPU / CPU / process stats...',
                     generating: 'Generating scheduling guidance...',
-                    fallback: 'Agent mode unavailable, switching to rule mode...',
                 };
 
             if (phaseMap[normalizedPhase]) {
