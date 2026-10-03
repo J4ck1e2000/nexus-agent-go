@@ -11,7 +11,7 @@ docs/*
 pi-runtime/node_modules/
 pi-runtime/.cache/
 
-# local go build artifacts
-gateway
-agent
-ssh-smoke
+# local go build artifacts (repo root binaries only)
+/gateway
+/agent
+/ssh-smoke
