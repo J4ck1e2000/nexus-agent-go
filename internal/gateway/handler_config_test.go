@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -336,5 +337,116 @@ func TestAdmin_SaveConfigArrayRejectsDuplicateURLs(t *testing.T) {
 	}
 	if body := listResp.Body.String(); body != "[]" {
 		t.Fatalf("expected empty list after rejected save, got=%q", body)
+	}
+}
+
+func TestAdmin_CanCreateAndListSSHNode(t *testing.T) {
+	r := setupGatewayTestRouter(t, nil)
+	adminToken := loginAndGetToken(t, r, "admin", "admin123")
+
+	createReq := authorizedRequest(http.MethodPost, "/api/config",
+		bytes.NewBufferString(`{"name":"A6000-01","collector_type":"ssh","ssh_host":"10.0.0.15","ssh_port":22,"ssh_user":"renhaokun","ssh_auth_type":"key"}`), adminToken)
+	createReq.Header.Set("Content-Type", "application/json")
+	createResp := httptest.NewRecorder()
+	r.ServeHTTP(createResp, createReq)
+
+	if createResp.Code != http.StatusCreated {
+		t.Fatalf("create ssh node status mismatch: got=%d want=%d body=%s", createResp.Code, http.StatusCreated, createResp.Body.String())
+	}
+
+	var created struct {
+		ID            int64  `json:"id"`
+		Name          string `json:"name"`
+		CollectorType string `json:"collector_type"`
+		SSHHost       string `json:"ssh_host"`
+		SSHPort       int    `json:"ssh_port"`
+		SSHUser       string `json:"ssh_user"`
+		SSHAuthType   string `json:"ssh_auth_type"`
+		URL           string `json:"url"`
+		HasURL        bool   `json:"-"`
+	}
+	if err := json.Unmarshal(createResp.Body.Bytes(), &created); err != nil {
+		t.Fatalf("unmarshal create response failed: %v", err)
+	}
+	created.HasURL = strings.Contains(createResp.Body.String(), `"url"`)
+	if created.CollectorType != "ssh" || created.SSHHost != "10.0.0.15" || created.SSHPort != 22 || created.SSHUser != "renhaokun" || created.SSHAuthType != "key" {
+		t.Fatalf("created ssh node mismatch: %+v", created)
+	}
+	if created.HasURL {
+		t.Fatalf("ssh node response should omit url: %s", createResp.Body.String())
+	}
+
+	listReq := authorizedRequest(http.MethodGet, "/api/config", nil, adminToken)
+	listResp := httptest.NewRecorder()
+	r.ServeHTTP(listResp, listReq)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list status mismatch: got=%d want=%d", listResp.Code, http.StatusOK)
+	}
+
+	var listed []struct {
+		ID            int64  `json:"id"`
+		CollectorType string `json:"collector_type"`
+		SSHHost       string `json:"ssh_host"`
+		URL           string `json:"url"`
+		HasURL        bool   `json:"-"`
+	}
+	if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
+		t.Fatalf("unmarshal list failed: %v", err)
+	}
+	listed[0].HasURL = strings.Contains(listResp.Body.String(), `"url"`)
+	if len(listed) != 1 || listed[0].CollectorType != "ssh" || listed[0].SSHHost != "10.0.0.15" {
+		t.Fatalf("listed ssh nodes mismatch: %+v", listed)
+	}
+	if listed[0].HasURL {
+		t.Fatalf("listed ssh node should omit url: %s", listResp.Body.String())
+	}
+}
+
+func TestAdmin_SSHNodeValidationAndDuplicateEndpoint(t *testing.T) {
+	r := setupGatewayTestRouter(t, nil)
+	adminToken := loginAndGetToken(t, r, "admin", "admin123")
+
+	postNode := func(body string) *httptest.ResponseRecorder {
+		req := authorizedRequest(http.MethodPost, "/api/config", bytes.NewBufferString(body), adminToken)
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+		r.ServeHTTP(resp, req)
+		return resp
+	}
+
+	// 非法 payload(缺 host)返回 invalid_payload。
+	if resp := postNode(`{"name":"bad-ssh","collector_type":"ssh","ssh_port":22,"ssh_user":"ops"}`); resp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid ssh payload status mismatch: got=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if resp := postNode(`{"name":"bad-port","collector_type":"ssh","ssh_host":"10.0.0.1","ssh_port":0,"ssh_user":"ops"}`); resp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid ssh port status mismatch: got=%d body=%s", resp.Code, resp.Body.String())
+	}
+
+	first := postNode(`{"name":"A6000-01","collector_type":"ssh","ssh_host":"10.0.0.15","ssh_port":22,"ssh_user":"renhaokun"}`)
+	if first.Code != http.StatusCreated {
+		t.Fatalf("first ssh create status mismatch: got=%d body=%s", first.Code, first.Body.String())
+	}
+
+	dup := postNode(`{"name":"A6000-02","collector_type":"ssh","ssh_host":"10.0.0.15","ssh_port":22,"ssh_user":"renhaokun"}`)
+	if dup.Code != http.StatusConflict {
+		t.Fatalf("duplicate ssh endpoint status mismatch: got=%d body=%s", dup.Code, dup.Body.String())
+	}
+	if body := dup.Body.String(); body != `{"error":"duplicate_node_endpoint"}` {
+		t.Fatalf("duplicate ssh endpoint body mismatch: got=%q", body)
+	}
+}
+
+func TestUser_CannotCreateSSHNode(t *testing.T) {
+	r := setupGatewayTestRouter(t, nil)
+	userToken := loginAndGetToken(t, r, "user", "user123")
+
+	req := authorizedRequest(http.MethodPost, "/api/config",
+		bytes.NewBufferString(`{"name":"A6000-01","collector_type":"ssh","ssh_host":"10.0.0.15","ssh_port":22,"ssh_user":"renhaokun"}`), userToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	r.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("status mismatch: got=%d want=%d body=%s", resp.Code, http.StatusForbidden, resp.Body.String())
 	}
 }

@@ -61,10 +61,23 @@ services:
       - "3000:3000"
     volumes:
       - ./knowledge:/app/knowledge:ro
+      # Agentless SSH collector: mount the gateway-side private key and
+      # known_hosts read-only. Leave SSH_PRIVATE_KEY_HOST_PATH empty to
+      # disable SSH monitoring (legacy agent http collector only).
+      - ${SSH_PRIVATE_KEY_HOST_PATH:-/dev/null}:/run/secrets/nexus_ssh_key:ro
+      - ${SSH_KNOWN_HOSTS_HOST_PATH:-/dev/null}:/app/config/known_hosts:ro
     environment:
       PORT: "3000"
       WEB_DIR: "/app/web"
       CONFIG_FILE: "/app/web/config.json"
+
+      # Agentless SSH collector (see .env.example)
+      SSH_PRIVATE_KEY_PATH: "${SSH_PRIVATE_KEY_PATH:-}"
+      SSH_KNOWN_HOSTS_PATH: "${SSH_KNOWN_HOSTS_PATH:-}"
+      SSH_CONNECT_TIMEOUT_SEC: "${SSH_CONNECT_TIMEOUT_SEC:-5}"
+      SSH_COMMAND_TIMEOUT_SEC: "${SSH_COMMAND_TIMEOUT_SEC:-5}"
+      SSH_KEEPALIVE_SEC: "${SSH_KEEPALIVE_SEC:-15}"
+      NODE_POLL_MAX_CONCURRENCY: "${NODE_POLL_MAX_CONCURRENCY:-16}"
 
       MYSQL_DSN: "root:${MYSQL_ROOT_PASSWORD}@tcp(mysql:3306)/nexus_agent?charset=utf8mb4&parseTime=True&loc=Local"
       JWT_SECRET: "${JWT_SECRET}"

@@ -22,6 +22,7 @@ const api: NexusAPI = {
     list: () => ipcRenderer.invoke('nodes:list'),
     add: (payload) => ipcRenderer.invoke('nodes:add', payload),
     remove: (id) => ipcRenderer.invoke('nodes:remove', { id }),
+    testSSH: (payload) => ipcRenderer.invoke('nodes:test-ssh', payload),
   },
   users: {
     list: (q) => ipcRenderer.invoke('users:list', { q: q ?? '' }),

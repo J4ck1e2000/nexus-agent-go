@@ -1,0 +1,37 @@
+__NEXUS_HOST__
+a6000-d-02
+__NEXUS_OS__
+Linux 6.8.0-45-generic
+__NEXUS_UPTIME__
+1209600.25 4780000.10
+__NEXUS_CPU_MODEL__
+model name	: AMD EPYC 7313P 16-Core Processor
+__NEXUS_CPU_CORES__
+32
+__NEXUS_CPU_STAT__
+cpu  1024000 1200 512000 81200000 25600 0 8900 3200 0 0
+__NEXUS_MEMINFO__
+MemTotal:       263878812 kB
+MemFree:        45120776 kB
+MemAvailable:   162000320 kB
+Buffers:         2431000 kB
+Cached:         115000000 kB
+SwapTotal:             0 kB
+SwapFree:              0 kB
+__NEXUS_NETDEV__
+Inter-|   Receive                                                |  Transmit
+ face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+    lo: 8123456789 98765432    0    0    0     0          0         0  8123456789 98765432    0    0    0     0       0          0
+  eth0: 53687091200 41234567    0    0    0     0          0   1234567 32212254720 39876543    0    0    0     0       0          0
+__NEXUS_GPU__
+0, GPU-5a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d, NVIDIA RTX A6000, 46, 40, 23.05, 12, 49140, 8192
+1, GPU-9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c, NVIDIA RTX A6000, 51, 55, 118.44, 97, 49140, 43000
+__NEXUS_GPU_PROC__
+3017462, GPU-9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c, 42800
+__NEXUS_PS__
+      1 root  0.0  0.0 /sbin/init splash
+   1542 root  0.0  0.1 /lib/systemd/systemd-journald
+3017462 renhaokun 98.5 16.2 python train.py --epochs 100 --batch-size 64
+3018003 renhaokun 0.4 0.2 sshd: renhaokun [priv]
+    998 root  0.0  0.0 /usr/sbin/nvidia-persistenced
+__NEXUS_END__

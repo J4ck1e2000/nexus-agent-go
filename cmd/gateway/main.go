@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -14,6 +15,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"nexus-agent-go/internal/ai"
+	"nexus-agent-go/internal/collector"
+	"nexus-agent-go/internal/collector/agenthttp"
+	"nexus-agent-go/internal/collector/sshcollector"
 	"nexus-agent-go/internal/gateway"
 	"nexus-agent-go/internal/runtime"
 )
@@ -50,9 +54,24 @@ func main() {
 	}()
 
 	nodeStateStore := gateway.NewNodeStateStore(redisClient, runtimeCfg.Redis.KeyPrefix, runtimeCfg.NodeStateTTL)
+
+	// SSH agentless 采集器：未配置私钥时禁用（仅保留旧版 Agent HTTP 采集）。
+	sshCollector := buildSSHCollector()
+
 	nodeStateService := gateway.NewNodeStateService(store, nodeStateStore, gateway.NodeStateServiceOptions{
 		PollTimeout: runtimeCfg.PollTimeout,
+		Collectors: collector.NewCollectorRouter(
+			agenthttp.New(nil, runtimeCfg.PollTimeout),
+			sshCollector,
+		),
+		MaxConcurrency: runtimeCfg.MaxConcurrency,
 	})
+	// Gateway 关停时释放全部 SSH 连接。
+	defer func() {
+		if sshCollector != nil {
+			sshCollector.Close()
+		}
+	}()
 	nodePoller := gateway.NewNodePoller(nodeStateService, runtimeCfg.PollInterval)
 	go nodePoller.Start(runnerCtx)
 
@@ -115,6 +134,9 @@ func main() {
 	})
 
 	handler := gateway.NewHandler(store, gateway.NewAuthService(db, jwtSecret), version, nodeStateService)
+	if sshCollector != nil {
+		handler.SetSSHTester(sshCollector)
+	}
 
 	runtimeConfig := runtime.LoadConfigFromEnv()
 	if !runtimeConfig.Enabled {
@@ -156,7 +178,7 @@ func main() {
 		log.Printf("Web directory: %s", webDir)
 		log.Printf("Legacy config bootstrap file: %s", legacyConfigFile)
 		log.Printf("Redis addr: %s, key prefix: %s", runtimeCfg.Redis.Addr, runtimeCfg.Redis.KeyPrefix)
-		log.Printf("Poll interval: %s, poll timeout: %s, node state ttl: %s", runtimeCfg.PollInterval, runtimeCfg.PollTimeout, runtimeCfg.NodeStateTTL)
+		log.Printf("Poll interval: %s, poll timeout: %s, node state ttl: %s, max poll concurrency: %d", runtimeCfg.PollInterval, runtimeCfg.PollTimeout, runtimeCfg.NodeStateTTL, runtimeCfg.MaxConcurrency)
 		log.Printf("AI enabled: %v, mode: %s, provider: %s, model configured: %v",
 			aiConfig.Enabled,
 			aiConfig.Mode,
@@ -193,6 +215,24 @@ func resolveWebDir(defaultDir string) string {
 		return defaultDir
 	}
 	return defaultDir
+}
+
+// buildSSHCollector 从环境变量构建 SSH 采集器。
+// 未设置 SSH_PRIVATE_KEY_PATH 时禁用（返回 nil），其余配置错误直接终止启动，
+// 避免"看起来在跑实际采不到数"的静默失败。
+func buildSSHCollector() *sshcollector.Collector {
+	sshCollector, err := sshcollector.NewWithOptionsFromEnv(sshcollector.LoadOptionsFromEnv())
+	if err != nil {
+		if errors.Is(err, sshcollector.ErrSSHNotConfigured) {
+			log.Printf("ssh collector disabled: SSH_PRIVATE_KEY_PATH not set (legacy agent http collector only)")
+			return nil
+		}
+		log.Fatalf("ssh collector init failed: %v", err)
+	}
+	connectTO, commandTO, keepalive := sshCollector.OptionsSummary()
+	log.Printf("ssh collector enabled: connect timeout %s, command timeout %s, keepalive %s",
+		connectTO, commandTO, keepalive)
+	return sshCollector
 }
 
 // envOr 读取环境变量，不存在时返回默认值。

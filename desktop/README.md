@@ -43,6 +43,14 @@ npm run dev     # electron-forge start:同时启动 Vite dev server 与 Electron
   - Save(持久化到 `app.getPath("userData")/settings.json`)
 - Renderer 不直接访问配置文件,一切经 IPC 读写。
 
+## SSH Node Setup
+
+Add Node 弹窗默认使用 **SSH(agentless)** 采集方式:只需填写主机地址、端口和用户名,可用 **Test Connection** 在保存前做一次真实采集测试(返回服务器主机名与 GPU 数量)。
+
+- Gateway 持有并使用自己的 SSH 私钥(`SSH_PRIVATE_KEY_PATH`);**Desktop 永远不会收到私钥或任何凭据**,Renderer 只接触 host/port/user。
+- 保存前无需在服务器上安装任何程序;服务器要求 `sshd`(密钥认证)+ `/proc` + `ps`,`nvidia-smi` 仅在需要 GPU 指标时必需。
+- 同一 `host:port:user` 端点不允许重复添加;旧版 Agent(URL 方式)仍可在 Collector 下拉框中选择。
+
 ## npm scripts
 
 | 命令 | 作用 |
@@ -88,7 +96,7 @@ desktop/
 | 命名空间 | 方法 | 说明 |
 | --- | --- | --- |
 | `auth` | `login` `register` `logout` `me` `onAuthExpired` | JWT 只存主进程;401 广播过期 |
-| `nodes` | `overview` `list` `add` `remove` | `/api/nodes/overview` 与 `/api/config` |
+| `nodes` | `overview` `list` `add` `remove` `testSSH` | `/api/nodes/overview` 与 `/api/config`;`testSSH` 走 `POST /api/config/test-ssh`(仅管理员) |
 | `users` | `list` `create` `remove` `setRole` `resetPassword` | 管理员接口 |
 | `ai` | `start(requestId, query)` `cancel(requestId)` `onEvent` | SSE 在主进程解析,事件类型 `start/status/delta/meta/done/error` |
 | `settings` | `get` `update` `testConnection` | 网关地址管理 |

@@ -1,0 +1,23 @@
+__NEXUS_HOST__
+cpu-node-01
+__NEXUS_OS__
+Linux 6.1.0-18-amd64
+__NEXUS_UPTIME__
+86400.5 334500.2
+__NEXUS_CPU_MODEL__
+model name	: AMD Ryzen 9 7950X 16-Core Processor
+__NEXUS_CPU_CORES__
+32
+__NEXUS_CPU_STAT__
+cpu  512000 600 256000 32100000 12800 0 4450 1600 0 0
+__NEXUS_MEMINFO__
+MemTotal:       131949780 kB
+MemAvailable:    98304000 kB
+__NEXUS_NETDEV__
+  eth0: 26843545600 20617233 0 0 0 0 0 617233 16106127360 19938271 0 0 0 0 0 0
+__NEXUS_GPU__
+__NEXUS_GPU_PROC__
+__NEXUS_PS__
+   8811 deploy 3.4 1.2 node /opt/app/server.js
+      1 root 0.0 0.0 /sbin/init
+__NEXUS_END__

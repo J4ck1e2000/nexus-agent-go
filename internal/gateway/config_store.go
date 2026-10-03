@@ -7,6 +7,8 @@ import (
 	"net"
 	neturl "net/url"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"gorm.io/gorm"
@@ -20,10 +22,22 @@ type ConfigStore struct {
 }
 
 var (
-	ErrInvalidNodeConfig = errors.New("invalid node config")
-	ErrInvalidNodeURL    = errors.New("invalid node url")
-	ErrDuplicateNodeURL  = errors.New("duplicate node url")
+	ErrInvalidNodeConfig     = errors.New("invalid node config")
+	ErrInvalidNodeURL        = errors.New("invalid node url")
+	ErrDuplicateNodeURL      = errors.New("duplicate node url")
+	ErrInvalidCollectorType  = errors.New("invalid collector type")
+	ErrInvalidSSHHost        = errors.New("invalid ssh host")
+	ErrInvalidSSHPort        = errors.New("invalid ssh port")
+	ErrInvalidSSHUser        = errors.New("invalid ssh user")
+	ErrInvalidSSHAuthType    = errors.New("invalid ssh auth type")
+	ErrDuplicateNodeEndpoint = errors.New("duplicate node endpoint")
 )
+
+// maxSSHHostLen 约束主机名/IPv6 长度，避免异常输入。
+const maxSSHHostLen = 255
+
+// sshUserPattern 与 /api/config/test-ssh 保持一致的用户名规则。
+var sshUserPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // NewConfigStore 创建配置存储实例。
 func NewConfigStore(db *gorm.DB) *ConfigStore {
@@ -64,17 +78,83 @@ func normalizeAgentURL(rawURL string) (string, error) {
 	return parsed.String(), nil
 }
 
-func normalizeAgentConfig(config model.AgentConfig) (string, string, error) {
+// normalizeCollectorType 归一化采集方式，空值按旧版 agent 处理。
+func normalizeCollectorType(raw string) (string, error) {
+	switch strings.TrimSpace(raw) {
+	case "", model.CollectorTypeAgent:
+		return model.CollectorTypeAgent, nil
+	case model.CollectorTypeSSH:
+		return model.CollectorTypeSSH, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported collector type %q", ErrInvalidCollectorType, raw)
+	}
+}
+
+// normalizeSSHUser 校验并返回 SSH 登录用户。
+func normalizeSSHUser(raw string) (string, error) {
+	user := strings.TrimSpace(raw)
+	if user == "" || len(user) > 64 || !sshUserPattern.MatchString(user) {
+		return "", ErrInvalidSSHUser
+	}
+	return user, nil
+}
+
+// normalizeNodeConfig 按采集方式校验并归一化节点配置。
+func normalizeNodeConfig(config model.AgentConfig) (model.AgentConfig, error) {
 	name := strings.TrimSpace(config.Name)
 	if name == "" {
-		return "", "", ErrInvalidNodeConfig
+		return model.AgentConfig{}, ErrInvalidNodeConfig
+	}
+
+	collectorType, err := normalizeCollectorType(config.CollectorType)
+	if err != nil {
+		return model.AgentConfig{}, err
+	}
+
+	normalized := model.AgentConfig{
+		Name:          name,
+		CollectorType: collectorType,
+	}
+
+	if collectorType == model.CollectorTypeSSH {
+		host := strings.ToLower(strings.TrimSpace(config.SSHHost))
+		if host == "" || len(host) > maxSSHHostLen {
+			return model.AgentConfig{}, ErrInvalidSSHHost
+		}
+		if config.SSHPort < 1 || config.SSHPort > 65535 {
+			return model.AgentConfig{}, ErrInvalidSSHPort
+		}
+		user, err := normalizeSSHUser(config.SSHUser)
+		if err != nil {
+			return model.AgentConfig{}, err
+		}
+
+		authType := strings.TrimSpace(config.SSHAuthType)
+		if authType == "" {
+			authType = model.SSHAuthTypeKey
+		}
+		if authType != model.SSHAuthTypeKey {
+			return model.AgentConfig{}, fmt.Errorf("%w: only %q is supported", ErrInvalidSSHAuthType, model.SSHAuthTypeKey)
+		}
+
+		normalized.SSHHost = host
+		normalized.SSHPort = config.SSHPort
+		normalized.SSHUser = user
+		normalized.SSHAuthType = authType
+		return normalized, nil
 	}
 
 	normalizedURL, err := normalizeAgentURL(config.URL)
 	if err != nil {
-		return "", "", err
+		return model.AgentConfig{}, err
 	}
-	return name, normalizedURL, nil
+	normalized.URL = normalizedURL
+	return normalized, nil
+}
+
+// sshEndpointKey 生成 SSH 节点的端点唯一标识 host:port:user。
+func sshEndpointKey(config model.AgentConfig) string {
+	return strings.ToLower(config.SSHHost) + ":" + strconv.Itoa(config.SSHPort) + ":" + config.SSHUser
 }
 
 func isDuplicateNodeDBError(err error) bool {
@@ -109,6 +189,51 @@ func (s *ConfigStore) hasURLConflict(tx *gorm.DB, normalizedURL string) (bool, e
 	return false, nil
 }
 
+func (s *ConfigStore) hasSSHEndpointConflict(tx *gorm.DB, endpointKey string) (bool, error) {
+	var nodes []AgentNode
+	if err := tx.Where("ssh_host <> ''").Find(&nodes).Error; err != nil {
+		return false, fmt.Errorf("load existing ssh nodes failed: %w", err)
+	}
+
+	for _, node := range nodes {
+		if sshEndpointKey(agentNodeToConfig(node)) == endpointKey {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// agentNodeToConfig 将数据库行转换为业务配置，collector_type 空值按 agent 处理。
+func agentNodeToConfig(node AgentNode) model.AgentConfig {
+	collectorType := node.CollectorType
+	if strings.TrimSpace(collectorType) == "" {
+		collectorType = model.CollectorTypeAgent
+	}
+	return model.AgentConfig{
+		ID:            int64(node.ID),
+		Name:          node.Name,
+		CollectorType: collectorType,
+		URL:           node.URL,
+		SSHHost:       node.SSHHost,
+		SSHPort:       node.SSHPort,
+		SSHUser:       node.SSHUser,
+		SSHAuthType:   node.SSHAuthType,
+	}
+}
+
+func agentNodeFromConfig(config model.AgentConfig, createdBy uint) AgentNode {
+	return AgentNode{
+		Name:          config.Name,
+		CollectorType: config.CollectorType,
+		URL:           config.URL,
+		SSHHost:       config.SSHHost,
+		SSHPort:       config.SSHPort,
+		SSHUser:       config.SSHUser,
+		SSHAuthType:   config.SSHAuthType,
+		CreatedBy:     createdBy,
+	}
+}
+
 // Load 读取节点配置列表。
 func (s *ConfigStore) Load() ([]model.AgentConfig, error) {
 	if s == nil || s.db == nil {
@@ -122,11 +247,7 @@ func (s *ConfigStore) Load() ([]model.AgentConfig, error) {
 
 	configs := make([]model.AgentConfig, 0, len(nodes))
 	for _, node := range nodes {
-		configs = append(configs, model.AgentConfig{
-			ID:   int64(node.ID),
-			Name: node.Name,
-			URL:  node.URL,
-		})
+		configs = append(configs, agentNodeToConfig(node))
 	}
 	return configs, nil
 }
@@ -137,36 +258,41 @@ func (s *ConfigStore) Add(config model.AgentConfig, createdBy uint) (model.Agent
 		return model.AgentConfig{}, errors.New("config store db is nil")
 	}
 
-	name, normalizedURL, err := normalizeAgentConfig(config)
+	normalized, err := normalizeNodeConfig(config)
 	if err != nil {
 		return model.AgentConfig{}, err
 	}
 
-	conflict, err := s.hasURLConflict(s.db, normalizedURL)
-	if err != nil {
-		return model.AgentConfig{}, err
-	}
-	if conflict {
-		return model.AgentConfig{}, ErrDuplicateNodeURL
+	if normalized.CollectorType == model.CollectorTypeSSH {
+		conflict, err := s.hasSSHEndpointConflict(s.db, sshEndpointKey(normalized))
+		if err != nil {
+			return model.AgentConfig{}, err
+		}
+		if conflict {
+			return model.AgentConfig{}, ErrDuplicateNodeEndpoint
+		}
+	} else {
+		conflict, err := s.hasURLConflict(s.db, normalized.URL)
+		if err != nil {
+			return model.AgentConfig{}, err
+		}
+		if conflict {
+			return model.AgentConfig{}, ErrDuplicateNodeURL
+		}
 	}
 
-	node := AgentNode{
-		Name:      name,
-		URL:       normalizedURL,
-		CreatedBy: createdBy,
-	}
+	node := agentNodeFromConfig(normalized, createdBy)
 	if err := s.db.Create(&node).Error; err != nil {
 		if isDuplicateNodeDBError(err) {
+			if normalized.CollectorType == model.CollectorTypeSSH {
+				return model.AgentConfig{}, ErrDuplicateNodeEndpoint
+			}
 			return model.AgentConfig{}, ErrDuplicateNodeURL
 		}
 		return model.AgentConfig{}, fmt.Errorf("create node failed: %w", err)
 	}
 
-	return model.AgentConfig{
-		ID:   int64(node.ID),
-		Name: node.Name,
-		URL:  node.URL,
-	}, nil
+	return agentNodeToConfig(node), nil
 }
 
 // Save 兼容旧版一次性覆盖写入。
@@ -181,26 +307,34 @@ func (s *ConfigStore) Save(configs []model.AgentConfig, createdBy uint) error {
 		}
 
 		seenURLs := make(map[string]struct{}, len(configs))
+		seenSSHEndpoints := make(map[string]struct{}, len(configs))
 		for _, item := range configs {
-			name, normalizedURL, err := normalizeAgentConfig(item)
+			normalized, err := normalizeNodeConfig(item)
 			if err != nil {
 				return err
 			}
-			if _, exists := seenURLs[normalizedURL]; exists {
-				return ErrDuplicateNodeURL
+			if normalized.CollectorType == model.CollectorTypeSSH {
+				key := sshEndpointKey(normalized)
+				if _, exists := seenSSHEndpoints[key]; exists {
+					return ErrDuplicateNodeEndpoint
+				}
+				seenSSHEndpoints[key] = struct{}{}
+			} else {
+				if _, exists := seenURLs[normalized.URL]; exists {
+					return ErrDuplicateNodeURL
+				}
+				seenURLs[normalized.URL] = struct{}{}
 			}
-			seenURLs[normalizedURL] = struct{}{}
 
-			node := AgentNode{
-				Name:      name,
-				URL:       normalizedURL,
-				CreatedBy: createdBy,
-			}
+			node := agentNodeFromConfig(normalized, createdBy)
 			if item.ID > 0 {
 				node.ID = uint(item.ID)
 			}
 			if err := tx.Create(&node).Error; err != nil {
 				if isDuplicateNodeDBError(err) {
+					if normalized.CollectorType == model.CollectorTypeSSH {
+						return ErrDuplicateNodeEndpoint
+					}
 					return ErrDuplicateNodeURL
 				}
 				return fmt.Errorf("save node failed: %w", err)

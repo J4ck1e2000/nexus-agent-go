@@ -2,13 +2,13 @@ package agent
 
 import (
 	"bufio"
-	"fmt"
 	"math"
 	"net"
 	"os"
 	"runtime"
 	"strings"
-	"time"
+
+	"nexus-agent-go/internal/model"
 )
 
 // round1 将浮点数保留 1 位小数。
@@ -16,16 +16,9 @@ func round1(v float64) float64 {
 	return math.Round(v*10) / 10
 }
 
-// formatUptime 将秒数转换为可读时长。
+// formatUptime 将秒数转换为可读时长（复用 model 共享实现）。
 func formatUptime(seconds float64) string {
-	d := time.Duration(seconds) * time.Second
-	days := int(d.Hours()) / 24
-	hours := int(d.Hours()) % 24
-	minutes := int(d.Minutes()) % 60
-	if days > 0 {
-		return fmt.Sprintf("%dd %dh %dm", days, hours, minutes)
-	}
-	return fmt.Sprintf("%dh %dm", hours, minutes)
+	return model.FormatUptime(seconds)
 }
 
 // readCPUModel 尝试读取 CPU 型号，Linux 优先读取 /proc/cpuinfo。

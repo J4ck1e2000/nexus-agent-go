@@ -6,7 +6,8 @@ AI 问答固定由 Pi Runtime 执行；Docker Compose 会启动 Gateway、Pi Run
 
 Nexus 是一套分布式 GPU 集群监控与调度辅助平台:
 
-- **Go Agent** 部署在每台 GPU 节点上,采集 CPU / 内存 / GPU(利用率、显存、温度、功耗、进程)指标并上报;
+- **Agentless SSH 采集(推荐)**:Gateway 通过 SSH 直接登录 Linux 服务器执行 `/proc` / `ps` / `nvidia-smi` 采集,目标服务器无需安装任何 Nexus 程序(详见下文 [Agentless SSH Monitoring](#agentless-ssh-monitoring));
+- **Go Agent(旧版,保留兼容)** 部署在每台 GPU 节点上,采集 CPU / 内存 / GPU(利用率、显存、温度、功耗、进程)指标并上报;
 - **Go Gateway** 是控制面:认证(JWT)、节点配置与聚合状态(Redis 热状态 + MySQL 持久化)、管理 API、AI 问答入口(SSE 流式),并对外提供 Web Dashboard;
 - **Pi Runtime**(TypeScript)是唯一的 AI 执行器,经工具网关回调 Gateway 读取集群快照,流式生成回答;
 - **Qdrant** 提供知识库向量检索(可回退本地 markdown 检索);
@@ -25,15 +26,20 @@ Browser (web/)            Electron (desktop/)
                   ▼
             Pi Runtime(AI 执行器,SSE 透传)
                   ▲
-        Go Agent(每台 GPU 节点,指标上报)
+        CollectorRouter
+        ┌────────┴─────────┐
+  SSH Collector        Go Agent(旧版,保留)
+  (agentless,每台         (每台 GPU 节点,
+   Linux 服务器)           指标上报)
 ```
 
 ## 仓库结构
 
 ```text
-├── cmd/                  # Go 入口:gateway / agent / knowledge-sync / rag-eval
+├── cmd/                  # Go 入口:gateway / agent / ssh-smoke / knowledge-sync / rag-eval
 ├── internal/
 │   ├── gateway/          # HTTP API、认证、节点状态、AI 适配层
+│   ├── collector/        # 节点采集抽象:agenthttp(旧版)/ sshcollector(agentless)
 │   ├── ai/               # 意图识别、检索(RAG)、工具、知识同步
 │   ├── runtime/          # Pi Runtime 客户端与运行凭据
 │   ├── agent/            # 节点采集 agent
@@ -61,6 +67,96 @@ Browser (web/)            Electron (desktop/)
 
 `AGENTS.md` 面向 AI 编码代理,汇总了各组件的构建/测试命令与工程约定。
 
+## Agentless SSH Monitoring
+
+Nexus 支持通过 SSH 对 Linux 服务器做无代理(agentless)监控:Gateway 直接登录目标服务器执行一段固定脚本,从 `/proc`、`ps`、`nvidia-smi` 读取指标,转换为与旧版 Agent 完全一致的 `SystemMetrics`。
+
+远端 Linux 服务器只需要具备:
+
+- `sshd`(OpenSSH Server,密钥认证);
+- `/proc` 与 `ps`(任何标准 Linux 发行版都有);
+- `nvidia-smi`(NVIDIA Driver 自带)——无 GPU 的纯 CPU 服务器同样可以采集 CPU / 内存 / 网络。
+
+监控链路:
+
+```text
+Gateway → CollectorRouter → SSH Collector → SSH(长连接复用)
+        → /proc + ps + nvidia-smi → SystemMetrics → NodeState → Redis
+```
+
+旧版 **Go Agent remains supported**:节点的 `collector_type` 为 `agent`(或空)时仍走原来的 HTTP 轮询,存量数据库节点无需迁移。
+
+### 添加 SSH 节点
+
+Desktop(管理员 → Add Node,默认 SSH)或 API:
+
+```json
+POST /api/config
+{
+  "name": "A6000-01",
+  "collector_type": "ssh",
+  "ssh_host": "10.0.0.15",
+  "ssh_port": 22,
+  "ssh_user": "renhaokun",
+  "ssh_auth_type": "key"
+}
+```
+
+同一 `host:port:user` 的 SSH 端点不允许重复添加(409 `duplicate_node_endpoint`)。可用 `POST /api/config/test-ssh`(仅管理员)在保存前做一次真实采集测试,返回 `{ok, hostname, gpu_count, gpu_names}` 或稳定的 `ssh_*` 错误码。
+
+### Gateway 侧凭据(重要)
+
+- SSH 私钥只存在于 Gateway 进程内,通过 `SSH_PRIVATE_KEY_PATH` 从文件加载,**不会写入 MySQL、不会下发到 Desktop/浏览器、不会打印日志**;带 passphrase 的私钥暂不支持(`encrypted_private_key_not_supported`)。
+- 主机指纹校验强制开启(known_hosts),生产代码禁止 `InsecureIgnoreHostKey`。
+- SSH 连接按 `host:port:user` 复用长连接,失效后下一轮轮询自动重连;keepalive 与连接/命令超时均可配置。
+
+### known_hosts
+
+在 Gateway 运行环境中为目标服务器准备 known_hosts:
+
+```bash
+ssh-keyscan -H 10.0.0.15 >> ~/.ssh/known_hosts
+```
+
+> 注意:`ssh-keyscan` 只是抓取指纹,不等于可信验证。**请先在可信网络中核对服务器指纹(或由管理员当面/带外确认)后再写入 known_hosts**,防止首次连接即被劫持(TOFU 风险)。
+
+### 环境变量与 Docker 部署示例
+
+```env
+SSH_PRIVATE_KEY_HOST_PATH=/home/user/.ssh/nexus_id_ed25519
+SSH_KNOWN_HOSTS_HOST_PATH=/home/user/.ssh/known_hosts
+
+# 容器内路径(对应上面的只读挂载)
+SSH_PRIVATE_KEY_PATH=/run/secrets/nexus_ssh_key
+SSH_KNOWN_HOSTS_PATH=/app/config/known_hosts
+
+SSH_CONNECT_TIMEOUT_SEC=5
+SSH_COMMAND_TIMEOUT_SEC=5
+SSH_KEEPALIVE_SEC=15
+NODE_POLL_MAX_CONCURRENCY=16
+```
+
+```bash
+docker compose up -d --build gateway
+```
+
+两个 `*_HOST_PATH` 都不设置时,SSH 采集保持禁用,Gateway 仅使用旧版 Agent HTTP 轮询。
+
+### 采集自检(ssh-smoke)
+
+不启动 Gateway 也可以验证一台服务器能否被 agentless 采集:
+
+```bash
+SSH_HOST=10.0.0.15 \
+SSH_PORT=22 \
+SSH_USER=renhaokun \
+SSH_PRIVATE_KEY_PATH=/home/me/.ssh/id_ed25519 \
+SSH_KNOWN_HOSTS_PATH=/home/me/.ssh/known_hosts \
+go run ./cmd/ssh-smoke
+```
+
+输出一次采集的 JSON 摘要(hostname / CPU / RAM / GPU / 进程数)后退出;失败时输出稳定的 `ssh_*` 错误码并以非零码退出。
+
 ## Docker 部署（推荐）
 
 ### 1. 复制环境变量模板
@@ -82,6 +178,8 @@ Copy-Item .env.example .env
 - `MYSQL_ROOT_PASSWORD`
 - `JWT_SECRET`
 - `AI_API_KEY`
+
+如需 agentless SSH 监控,再按上文 [Agentless SSH Monitoring](#agentless-ssh-monitoring) 配置 `SSH_PRIVATE_KEY_HOST_PATH` 等项(不配置则仅使用旧版 Agent)。
 
 ### 3. 一键启动
 
