@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { AIMessage } from '../../hooks/useAIStream';
 import { useLanguage } from '../../hooks/useLanguage';
 import AIMessageBubble from './AIMessage';
@@ -37,12 +37,30 @@ export default function AIChatWidget({
   const listRef = useRef<HTMLDivElement | null>(null);
   const nearBottomRef = useRef(true);
 
-  const quickPrompts = [
-    t('ai.quick1'),
-    t('ai.quick2'),
-    t('ai.quick3', { node: selectedNodeName || 'server-01' }),
-    t('ai.quick4', { node: selectedNodeName || 'server-01' }),
-  ];
+  // Node-specific prompts only make sense with a node selected; fall back to
+  // fleet-wide prompts instead of referencing a hard-coded node name.
+  const quickPrompts = selectedNodeName
+    ? [
+        t('ai.quick1'),
+        t('ai.quick2'),
+        t('ai.quick3', { node: selectedNodeName }),
+        t('ai.quick4', { node: selectedNodeName }),
+      ]
+    : [t('ai.quick1'), t('ai.quick2'), t('ai.quickAll1'), t('ai.quickAll2')];
+
+  // Esc closes the panel — unless a modal/dialog overlay is open, which
+  // consumes Esc first (one press closes one layer).
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      if (document.querySelector('[data-nexus-overlay="open"]')) return;
+      event.preventDefault();
+      onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
 
   // Auto-scroll only when the user is near the bottom (web parity: 64px).
   useEffect(() => {
@@ -66,7 +84,7 @@ export default function AIChatWidget({
     onSubmit(query);
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       send();

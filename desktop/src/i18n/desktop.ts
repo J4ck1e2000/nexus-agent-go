@@ -147,6 +147,8 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
       quick2: 'Summarize cluster health.',
       quick3: 'Should I schedule a training job on {node}?',
       quick4: 'Explain GPU usage on {node}.',
+      quickAll1: 'How is the fleet doing overall right now?',
+      quickAll2: 'Which nodes are the busiest right now?',
     },
   },
   zh: {
@@ -287,6 +289,8 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
       quick2: '总结一下集群健康状况。',
       quick3: '{node} 适合调度训练任务吗?',
       quick4: '解读 {node} 的 GPU 占用情况。',
+      quickAll1: '现在整个集群的整体资源情况怎么样?',
+      quickAll2: '目前哪些节点最繁忙?',
     },
   },
 };

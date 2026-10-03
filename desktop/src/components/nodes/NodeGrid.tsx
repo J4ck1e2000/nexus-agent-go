@@ -17,6 +17,8 @@ interface NodeGridProps {
   sortMode: SortMode;
   onSortModeChange: (mode: SortMode) => void;
   onClearFilter: () => void;
+  /** Hover state of the card list; while hovered the row order is frozen. */
+  onHoverChange?: (hovered: boolean) => void;
   /** Admin-only delete handler; hides trash icons when absent. */
   onDeleteNode?: (node: EnrichedNode) => void;
   /** Admin-only CTA shown when no nodes exist. */
@@ -35,6 +37,7 @@ export default function NodeGrid({
   sortMode,
   onSortModeChange,
   onClearFilter,
+  onHoverChange,
   onDeleteNode,
   onAddNode,
 }: NodeGridProps) {
@@ -70,7 +73,11 @@ export default function NodeGrid({
           {t('panel.emptyFilter')}
         </div>
       ) : (
-        <div className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+        <div
+          className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1"
+          onMouseEnter={() => onHoverChange?.(true)}
+          onMouseLeave={() => onHoverChange?.(false)}
+        >
           {filteredNodes.map((node) => (
             <NodeCard
               key={node.id}

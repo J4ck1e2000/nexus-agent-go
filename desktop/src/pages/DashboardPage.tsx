@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { EnrichedNode as _EnrichedNode } from '../lib/node-logic';
-import { collectDrawerGroups, matchesFilter, sortNodes, type SortMode } from '../lib/node-logic';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { EnrichedNode } from '../lib/node-logic';
+import {
+  applyFrozenOrder,
+  collectDrawerGroups,
+  matchesFilter,
+  sortNodes,
+  type SortMode,
+} from '../lib/node-logic';
 import { useNodes } from '../hooks/useNodes';
 import { useNodeConfigs, type AddNodeInput } from '../hooks/useNodeConfigs';
 import { localizedError } from '../lib/errors';
@@ -34,13 +40,22 @@ export default function DashboardPage() {
   const [deleteNodeTarget, setDeleteNodeTarget] = useState<{ id: number; name: string } | null>(null);
   const [deletingNode, setDeletingNode] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
+  // While the pointer rests on the node list, polling keeps updating card
+  // values in place but no longer re-orders rows (see applyFrozenOrder).
+  const [listHovered, setListHovered] = useState(false);
+  const frozenOrderRef = useRef<EnrichedNode[]>([]);
 
   const isAdmin = user?.role === 'admin';
 
-  const visibleNodes = useMemo(
-    () => sortNodes(nodes.filter((node) => matchesFilter(node, query)), sortMode),
-    [nodes, query, sortMode],
-  );
+  const visibleNodes = useMemo(() => {
+    const filtered = nodes.filter((node) => matchesFilter(node, query));
+    if (listHovered) {
+      return applyFrozenOrder(frozenOrderRef.current, filtered, sortMode);
+    }
+    const sorted = sortNodes(filtered, sortMode);
+    frozenOrderRef.current = sorted;
+    return sorted;
+  }, [nodes, query, sortMode, listHovered]);
 
   // Keep a valid selection: re-pick when it vanished (e.g. node deleted).
   useEffect(() => {
@@ -155,6 +170,7 @@ export default function DashboardPage() {
           sortMode={sortMode}
           onSortModeChange={setSortMode}
           onClearFilter={() => setQuery('')}
+          onHoverChange={setListHovered}
           onDeleteNode={isAdmin ? (node) => setDeleteNodeTarget({ id: node.id, name: node.name }) : undefined}
           onAddNode={isAdmin ? () => setAddNodeOpen(true) : undefined}
         />

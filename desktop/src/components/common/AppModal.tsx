@@ -1,4 +1,7 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Centered modal with backdrop, Escape-to-close and body scroll lock.
@@ -22,14 +25,44 @@ export default function AppModal({
   maxWidth?: string;
   disableClose?: boolean;
 }) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    // Park focus on the panel itself so Tab cycles inside the dialog and
+    // Enter cannot re-trigger the element that opened it. Children that
+    // focus a specific input (e.g. PromptDialog) run after and win.
+    panelRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape' && !disableClose) {
         event.preventDefault();
         onClose();
+        return;
+      }
+      if (event.key === 'Tab') {
+        trapTab(event);
+      }
+    };
+    const trapTab = (event: KeyboardEvent): void => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+      if (focusables.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === panel)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || active === document.body)) {
+        event.preventDefault();
+        first.focus();
       }
     };
     document.addEventListener('keydown', onKeyDown);
@@ -42,13 +75,22 @@ export default function AppModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      data-nexus-overlay="open"
+    >
       <div
         className="absolute inset-0 bg-[#2f2922]/25 backdrop-blur-[2px]"
         onClick={disableClose ? undefined : onClose}
         aria-hidden="true"
       />
-      <div className={`soft-panel relative flex max-h-[86vh] w-full ${maxWidth} flex-col p-6`}>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className={`soft-panel relative flex max-h-[86vh] w-full ${maxWidth} flex-col p-6 outline-none`}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight text-ink">{title}</h2>
