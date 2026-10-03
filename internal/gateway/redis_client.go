@@ -12,13 +12,14 @@ import (
 )
 
 const (
-	defaultRedisAddr        = "127.0.0.1:6379"
-	defaultRedisDB          = 0
-	defaultRedisKeyPrefix   = "nexus"
-	defaultGatewayPollIntvl = 2 * time.Second
-	defaultGatewayPollTO    = 3 * time.Second
-	defaultNodeStateTTL     = 10 * time.Minute
-	defaultRedisPingTimeout = 5 * time.Second
+	defaultRedisAddr         = "127.0.0.1:6379"
+	defaultRedisDB           = 0
+	defaultRedisKeyPrefix    = "nexus"
+	defaultGatewayPollIntvl  = 2 * time.Second
+	defaultGatewayPollTO     = 3 * time.Second
+	defaultNodeStateTTL      = 10 * time.Minute
+	defaultRedisPingTimeout  = 5 * time.Second
+	defaultPollMaxConcurrent = 16
 )
 
 // RedisConfig 描述 Gateway 的 Redis 连接配置。
@@ -35,6 +36,8 @@ type GatewayRuntimeConfig struct {
 	PollInterval time.Duration
 	PollTimeout  time.Duration
 	NodeStateTTL time.Duration
+	// MaxConcurrency 限制单轮轮询同时采集的节点数。
+	MaxConcurrency int
 }
 
 // LoadGatewayRuntimeConfigFromEnv 从环境变量读取网关运行时配置。
@@ -49,6 +52,7 @@ func LoadGatewayRuntimeConfigFromEnv() GatewayRuntimeConfig {
 		PollInterval: envOrDuration("GATEWAY_POLL_INTERVAL", defaultGatewayPollIntvl),
 		PollTimeout:  envOrDuration("GATEWAY_POLL_TIMEOUT", defaultGatewayPollTO),
 		NodeStateTTL: envOrDuration("NODE_STATE_TTL", defaultNodeStateTTL),
+		MaxConcurrency: envOrIntWithDefault("NODE_POLL_MAX_CONCURRENCY", defaultPollMaxConcurrent),
 	}
 }
 
@@ -94,6 +98,15 @@ func envOrInt(key string, fallback int) int {
 	}
 	n, err := strconv.Atoi(val)
 	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+// envOrIntWithDefault 读取正整数环境变量，非正值回退默认。
+func envOrIntWithDefault(key string, fallback int) int {
+	n := envOrInt(key, fallback)
+	if n <= 0 {
 		return fallback
 	}
 	return n

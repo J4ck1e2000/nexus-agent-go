@@ -150,6 +150,11 @@ func loadPrivateKey(path string) (ssh.Signer, error) {
 // Pool 返回底层连接池（Gateway 关停时调用 CloseAll）。
 func (c *Collector) Pool() *ConnectionPool { return c.pool }
 
+// OptionsSummary 返回连接/命令超时与 keepalive 周期，用于启动日志。
+func (c *Collector) OptionsSummary() (connectTimeout, commandTimeout, keepalive time.Duration) {
+	return c.options.ConnectTimeout, c.options.CommandTimeout, c.options.KeepAliveInterval
+}
+
 // Close 释放全部 SSH 连接。
 func (c *Collector) Close() {
 	if c.pool != nil {
