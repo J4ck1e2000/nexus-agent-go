@@ -1,0 +1,35 @@
+__NEXUS_HOST__
+proc-node
+__NEXUS_OS__
+Linux 6.8.0-45-generic
+__NEXUS_UPTIME__
+3600.0 12000.0
+__NEXUS_CPU_MODEL__
+model name	: AMD EPYC 7443P 24-Core Processor
+__NEXUS_CPU_CORES__
+48
+__NEXUS_CPU_STAT__
+cpu  128000 150 64000 8100000 3200 0 1112 400 0 0
+__NEXUS_MEMINFO__
+MemTotal:       32947200 kB
+MemAvailable:   25165824 kB
+__NEXUS_NETDEV__
+  eth0: 6710886400 5154308 0 0 0 0 0 154308 4026531840 4984568 0 0 0 0 0 0
+__NEXUS_GPU__
+0, GPU-eeee0000-0000-0000-0000-000000000001, NVIDIA RTX 4090, 44, 30, 66.10, 42, 24564, 6144
+__NEXUS_GPU_PROC__
+31337, GPU-eeee0000-0000-0000-0000-000000000001, 6100
+__NEXUS_PS__
+   31337 dev.gpu 145.2 24.5 python benchmark.py --gpu all --steps 10000
+   40000 dev.gpu 0.1 0.1 sleep infinity
+   41000 ops.admin 96.4 8.1 ffmpeg -i input.mp4 -c:v h264_nvenc output.mp4
+   42000 ops.admin 5.0 1.0 stress-ng --cpu 8 --timeout 60s
+   43000 ops.admin 2.0 0.5 tail -f /var/log/syslog
+   44000 ops.admin 0.3 0.2 grep -r TODO .
+   45000 ops.admin 1.1 0.3 vim notes.md
+   46000 ops.admin 8.8 2.2 curl -s https://example.com/large
+   47000 ops.admin 0.0 0.0 cat
+   48000 ops.admin 12.0 3.0 python eval.py
+   49000 ops.admin 3.9 1.1 python infer.py
+   50000 ops.admin 0.0 0.0 [kworker/0:1]
+__NEXUS_END__
