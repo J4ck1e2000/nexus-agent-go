@@ -1,6 +1,7 @@
 package sshcollector
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,11 +21,15 @@ type SSHNodeConfig struct {
 	Host string
 	Port int
 	User string
+	// HostKey is the persisted OpenSSH public key pin for this node.
+	HostKey string
+	// Password is transient bootstrap input and is never used in pooled polling.
+	Password []byte
 }
 
 // poolKey 生成连接池的缓存键 host:port:user。
 func poolKey(node SSHNodeConfig) string {
-	return node.Host + ":" + strconv.Itoa(node.Port) + ":" + node.User
+	return node.Host + ":" + strconv.Itoa(node.Port) + ":" + node.User + ":" + node.HostKey
 }
 
 // Session 抽象 ssh.Session，便于测试替换。
@@ -80,36 +85,72 @@ type DialFunc func(ctx context.Context, node SSHNodeConfig) (SSHClient, error)
 
 // productionDial 返回真实 SSH 拨号函数：
 // TCP 连接受 ctx 与 ConnectTimeout 双重约束，握手超时同样受限，
-// known_hosts 校验强制开启（禁止 InsecureIgnoreHostKey）。
+// 每个节点的固定主机公钥或 known_hosts 校验强制开启（禁止 InsecureIgnoreHostKey）。
 func productionDial(config *ssh.ClientConfig) DialFunc {
 	return func(ctx context.Context, node SSHNodeConfig) (SSHClient, error) {
-		addr := net.JoinHostPort(node.Host, strconv.Itoa(node.Port))
-
-		cfg := *config
-		cfg.User = node.User
-
-		timeout := cfg.Timeout
-		dialer := &net.Dialer{Timeout: timeout}
-		netConn, err := dialer.DialContext(ctx, "tcp", addr)
+		client, err := dialSSHClient(ctx, node, config.Auth, config.HostKeyCallback, config.Timeout)
 		if err != nil {
-			return nil, classifyDialError(err)
+			return nil, err
 		}
-
-		// 握手（密钥交换 + 认证）也必须有界：取 ctx deadline 与超时的较小者。
-		deadline := handshakeDeadline(ctx, timeout)
-		if !deadline.IsZero() {
-			_ = netConn.SetDeadline(deadline)
-		}
-
-		conn, chans, reqs, err := ssh.NewClientConn(netConn, addr, &cfg)
-		if err != nil {
-			_ = netConn.Close()
-			return nil, classifyDialError(err)
-		}
-		// 长连接恢复无 deadline，避免误杀后续 session。
-		_ = netConn.SetDeadline(time.Time{})
-		return &stdClient{client: ssh.NewClient(conn, chans, reqs)}, nil
+		return &stdClient{client: client}, nil
 	}
+}
+
+func dialSSHClient(ctx context.Context, node SSHNodeConfig, defaultAuth []ssh.AuthMethod, fallbackHostKey ssh.HostKeyCallback, timeout time.Duration) (*ssh.Client, error) {
+	addr := net.JoinHostPort(node.Host, strconv.Itoa(node.Port))
+	hostKeyCallback, err := pinnedHostKeyCallback(node.HostKey, fallbackHostKey)
+	if err != nil {
+		return nil, err
+	}
+	auth := defaultAuth
+	if len(node.Password) > 0 {
+		auth = []ssh.AuthMethod{ssh.Password(string(node.Password))}
+	}
+	dialer := &net.Dialer{Timeout: timeout}
+	netConn, err := dialer.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, classifyDialError(err)
+	}
+	deadline := handshakeDeadline(ctx, timeout)
+	if !deadline.IsZero() {
+		_ = netConn.SetDeadline(deadline)
+	}
+	clientConfig := &ssh.ClientConfig{
+		User:            node.User,
+		Auth:            auth,
+		HostKeyCallback: hostKeyCallback,
+		Timeout:         timeout,
+	}
+	conn, chans, reqs, err := ssh.NewClientConn(netConn, addr, clientConfig)
+	if err != nil {
+		_ = netConn.Close()
+		classified := classifyDialError(err)
+		if len(node.Password) > 0 && errors.Is(classified, ErrSSHAuthFailed) {
+			return nil, fmt.Errorf("%w: %v", ErrSSHPasswordAuthFailed, err)
+		}
+		return nil, classified
+	}
+	_ = netConn.SetDeadline(time.Time{})
+	return ssh.NewClient(conn, chans, reqs), nil
+}
+
+func pinnedHostKeyCallback(pinned string, fallback ssh.HostKeyCallback) (ssh.HostKeyCallback, error) {
+	if strings.TrimSpace(pinned) == "" {
+		if fallback == nil {
+			return nil, fmt.Errorf("%w: no trusted host key is available", ErrSSHHostKeyFailed)
+		}
+		return fallback, nil
+	}
+	expected, _, _, _, err := ssh.ParseAuthorizedKey([]byte(pinned))
+	if err != nil {
+		return nil, fmt.Errorf("%w: stored host key is invalid", ErrSSHHostKeyFailed)
+	}
+	return func(_ string, _ net.Addr, presented ssh.PublicKey) error {
+		if !bytes.Equal(expected.Marshal(), presented.Marshal()) {
+			return fmt.Errorf("%w: server host key changed", ErrSSHHostKeyFailed)
+		}
+		return nil
+	}, nil
 }
 
 // handshakeDeadline 取 ctx deadline 与 connect timeout 中较早者。
@@ -130,6 +171,9 @@ func classifyDialError(err error) error {
 		return fmt.Errorf("%w: unknown error", ErrSSHConnectFailed)
 	}
 
+	if errors.Is(err, ErrSSHHostKeyFailed) {
+		return err
+	}
 	var keyErr *knownhosts.KeyError
 	if errors.As(err, &keyErr) {
 		return fmt.Errorf("%w: %v", ErrSSHHostKeyFailed, err)

@@ -29,9 +29,15 @@ const authUserContextKey = "auth_user"
 // SSHTestTimeout 限制 SSH 连接测试的整体时长（覆盖连接 + 命令超时）。
 const SSHTestTimeout = 15 * time.Second
 
+const maxSSHEnrollmentRequestBytes = 64 * 1024
+
 // SSHTester 抽象 SSH 连接测试能力，由 sshcollector.Collector 实现。
 type SSHTester interface {
 	TestSSH(ctx context.Context, host string, port int, user string) (sshcollector.TestSSHResult, error)
+}
+
+type SSHEnroller interface {
+	EnrollSSH(ctx context.Context, node model.AgentConfig, password []byte, hints []sshcollector.TrustedHostKeyHint) (sshcollector.EnrollmentResult, error)
 }
 
 // Handler 聚合网关 API 依赖与处理逻辑。
@@ -42,6 +48,7 @@ type Handler struct {
 	proxyClient      *http.Client
 	nodeStateService *NodeStateService
 	sshTester        SSHTester
+	sshEnroller      SSHEnroller
 	aiQueryService   AIQueryService
 	toolDispatcher   *ai.ToolDispatcher
 	runManager       *runtime.Manager
@@ -75,13 +82,14 @@ func (h *Handler) RegisterAPIRoutes(r *gin.Engine) {
 	authorized := api.Group("")
 	authorized.Use(h.authMiddleware())
 	authorized.GET("/me", h.getMe)
-	authorized.GET("/config", h.getConfig)
 	authorized.GET("/nodes/overview", h.getNodesOverview)
 	authorized.GET("/proxy", h.proxyRequest)
 	h.registerAIRoutes(authorized)
 
 	admin := authorized.Group("")
 	admin.Use(RequireAdmin())
+	admin.GET("/config", h.getConfig)
+	admin.POST("/config/enroll-ssh", h.enrollSSH)
 	admin.POST("/config", h.saveConfig)
 	admin.POST("/config/test-ssh", h.testSSH)
 	admin.DELETE("/config/:id", h.deleteConfig)
@@ -283,6 +291,12 @@ func (h *Handler) saveConfig(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
 			return
 		}
+		for _, config := range configs {
+			if strings.TrimSpace(config.CollectorType) == model.CollectorTypeSSH {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "ssh_enrollment_required"})
+				return
+			}
+		}
 		if err := h.store.Save(configs, currentUser.ID); err != nil {
 			h.writeNodeConfigError(c, err)
 			return
@@ -300,6 +314,10 @@ func (h *Handler) saveConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
 		return
 	}
+	if strings.TrimSpace(payload.CollectorType) == model.CollectorTypeSSH {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ssh_enrollment_required"})
+		return
+	}
 
 	created, err := h.store.Add(payload, currentUser.ID)
 	if err != nil {
@@ -310,6 +328,141 @@ func (h *Handler) saveConfig(c *gin.Context) {
 }
 
 // SetSSHTester 注入 SSH 连接测试实现（未注入时 test-ssh 返回未配置）。
+type oneTimeSSHPassword []byte
+
+func (p *oneTimeSSHPassword) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	*p = append((*p)[:0], value...)
+	return nil
+}
+
+func clearOneTimeSSHPassword(password []byte) {
+	password = password[:cap(password)]
+	for i := range password {
+		password[i] = 0
+	}
+}
+
+type enrollSSHRequest struct {
+	Name            string                            `json:"name"`
+	SSHHost         string                            `json:"ssh_host"`
+	SSHPort         int                               `json:"ssh_port"`
+	SSHUser         string                            `json:"ssh_user"`
+	Password        oneTimeSSHPassword                `json:"ssh_password"`
+	TrustedHostKeys []sshcollector.TrustedHostKeyHint `json:"trusted_host_keys,omitempty"`
+}
+
+func sshBootstrapTransportAllowed(request *http.Request) bool {
+	if request == nil {
+		return false
+	}
+	if request.TLS != nil {
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("SSH_BOOTSTRAP_ALLOW_INSECURE_HTTP")), "true") {
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("SSH_BOOTSTRAP_TRUST_PROXY_TLS")), "true") {
+		forwardedProto := strings.TrimSpace(strings.SplitN(request.Header.Get("X-Forwarded-Proto"), ",", 2)[0])
+		return strings.EqualFold(forwardedProto, "https")
+	}
+	return false
+}
+
+func (h *Handler) enrollSSH(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxSSHEnrollmentRequestBytes)
+	var req enrollSSHRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		clearOneTimeSSHPassword(req.Password)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+		return
+	}
+	defer clearOneTimeSSHPassword(req.Password)
+	if len(req.Password) > 4096 || len(req.TrustedHostKeys) > 16 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+		return
+	}
+	for _, hint := range req.TrustedHostKeys {
+		if len(hint.Marker) > 32 || len(hint.PublicKey) > 4096 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+			return
+		}
+		switch hint.Marker {
+		case "", "@revoked", "@cert-authority":
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+			return
+		}
+	}
+	currentUser, ok := currentAuthUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	if len(req.Password) > 0 && !sshBootstrapTransportAllowed(c.Request) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "insecure_transport"})
+		return
+	}
+	node := model.AgentConfig{
+		Name:          strings.TrimSpace(req.Name),
+		CollectorType: model.CollectorTypeSSH,
+		SSHHost:       strings.TrimSpace(req.SSHHost),
+		SSHPort:       req.SSHPort,
+		SSHUser:       strings.TrimSpace(req.SSHUser),
+		SSHAuthType:   model.SSHAuthTypeKey,
+	}
+	existing, found, err := h.store.FindSSHEndpoint(node)
+	if err != nil {
+		h.writeNodeConfigError(c, err)
+		return
+	}
+	if found {
+		if existing.SSHUser != node.SSHUser {
+			c.JSON(http.StatusConflict, gin.H{"error": "duplicate_node_endpoint"})
+			return
+		}
+		node.SSHHostKey = existing.SSHHostKey
+	} else if err := h.store.CheckSSHEndpointAvailable(node); err != nil {
+		h.writeNodeConfigError(c, err)
+		return
+	}
+	if h.sshEnroller == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": sshcollector.ErrSSHNotConfigured.Error()})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	defer cancel()
+	password := append([]byte(nil), req.Password...)
+	defer clearOneTimeSSHPassword(password)
+	enrollment, err := h.sshEnroller.EnrollSSH(ctx, node, password, req.TrustedHostKeys)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": sshcollector.ErrorCode(err)})
+		return
+	}
+	node.SSHHostKey = enrollment.HostKey
+	node.SSHHostKeyFingerprint = enrollment.HostKeyFingerprint
+	var created model.AgentConfig
+	if found {
+		created, err = h.store.UpdateSSHEnrollment(uint(existing.ID), node)
+	} else {
+		created, err = h.store.Add(node, currentUser.ID)
+	}
+	if err != nil {
+		h.writeNodeConfigError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, created)
+}
+
+func (h *Handler) SetSSHEnroller(enroller SSHEnroller) {
+	h.sshEnroller = enroller
+}
+
 func (h *Handler) SetSSHTester(tester SSHTester) {
 	h.sshTester = tester
 }

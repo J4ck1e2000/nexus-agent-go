@@ -15,6 +15,11 @@ func (s stubCollector) Collect(ctx context.Context, node model.AgentConfig) (mod
 	return model.SystemMetrics{}, 0, nil
 }
 
+type pointerStubCollector struct{}
+
+func (*pointerStubCollector) Collect(context.Context, model.AgentConfig) (model.SystemMetrics, int64, error) {
+	return model.SystemMetrics{}, 0, nil
+}
 func TestCollectorRouter_CollectorFor(t *testing.T) {
 	agent := stubCollector{name: "agent"}
 	ssh := stubCollector{name: "ssh"}
@@ -68,6 +73,20 @@ func TestCollectorRouter_CollectorFor(t *testing.T) {
 	}
 }
 
+func TestCollectorRouter_TypedNilCollectorsRejected(t *testing.T) {
+	var nilCollector *pointerStubCollector
+	router := NewCollectorRouter(nilCollector, nilCollector)
+
+	for _, collectorType := range []string{model.CollectorTypeAgent, model.CollectorTypeSSH} {
+		got, err := router.CollectorFor(model.AgentConfig{CollectorType: collectorType})
+		if err == nil {
+			t.Fatalf("expected missing collector error for %q", collectorType)
+		}
+		if got != nil {
+			t.Fatalf("expected nil collector for %q, got %T", collectorType, got)
+		}
+	}
+}
 func TestCollectorRouter_MissingCollectorRejected(t *testing.T) {
 	agentOnly := NewCollectorRouter(stubCollector{name: "agent"}, nil)
 	if _, err := agentOnly.CollectorFor(model.AgentConfig{CollectorType: model.CollectorTypeSSH}); err == nil {

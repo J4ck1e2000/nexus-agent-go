@@ -1,8 +1,27 @@
 import { createSSEParser } from '../lib/sse';
+import { Agent, type Dispatcher } from 'undici';
 import { GatewayError, codeFromStatus, gatewayError } from './errors';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 export const CONNECTION_TEST_TIMEOUT_MS = 5_000;
+const LOOPBACK_DISPATCHER = new Agent();
+
+function isLoopbackGatewayURL(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    return hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '127.0.0.1' || hostname === '::1';
+  } catch {
+    return false;
+  }
+}
+
+function fetchGateway(url: string, init: RequestInit): Promise<Response> {
+  if (!isLoopbackGatewayURL(url)) return fetch(url, init);
+  return fetch(url, {
+    ...init,
+    dispatcher: LOOPBACK_DISPATCHER,
+  } as RequestInit & { dispatcher: Dispatcher });
+}
 
 export interface GatewayRequestOptions {
   body?: unknown;
@@ -48,7 +67,7 @@ export class GatewayClient {
 
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetchGateway(url, {
         method,
         headers,
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -104,7 +123,7 @@ export class GatewayClient {
 
     let response: Response;
     try {
-      response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal });
+      response = await fetchGateway(url, { method: 'POST', headers, body: JSON.stringify(body), signal });
     } catch (err) {
       throw this.mapTransportError(err, signal, null, url);
     }

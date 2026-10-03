@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { EnrichedNode as _EnrichedNode } from '../lib/node-logic';
 import { collectDrawerGroups, matchesFilter, sortNodes, type SortMode } from '../lib/node-logic';
 import { useNodes } from '../hooks/useNodes';
 import { useNodeConfigs, type AddNodeInput } from '../hooks/useNodeConfigs';
-import type { SSHTestOutcome } from '../components/admin/AddNodeDialog';
 import { localizedError } from '../lib/errors';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
@@ -23,7 +22,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { showToast } = useToastContext();
   const { nodes, lastSyncedAt } = useNodes(true);
-  const { configs, addNode, removeNode, testSSH } = useNodeConfigs(user?.role === 'admin');
+  const { configs, addNode, removeNode } = useNodeConfigs(user?.role === 'admin');
 
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('availability');
@@ -68,37 +67,22 @@ export default function DashboardPage() {
 
   const drawerGroups = useMemo(() => collectDrawerGroups(nodes), [nodes]);
 
-  const handleCreateNode = async (payload: AddNodeInput): Promise<boolean> => {
+  const handleCreateNode = async (payload: AddNodeInput): Promise<{ ok: true } | { ok: false; message: string }> => {
     setSavingNode(true);
     try {
       const result = await addNode(payload);
       if (result.ok) {
         setAddNodeOpen(false);
-        return true;
+        return { ok: true };
       }
-      if (result.error.detail === 'duplicate_node_url') {
-        showToast(t('notify.duplicateNodeUrl'), 'warning');
-      } else if (result.error.detail === 'duplicate_node_endpoint') {
-        showToast(t('desktop.nodes.duplicateEndpoint'), 'warning');
-      } else {
-        showToast(t('notify.saveConfigFailed'), 'error');
-      }
-      return false;
+      const message = localizedError(result.error, t);
+      const warning = result.error.detail === 'duplicate_node_url' || result.error.detail === 'duplicate_node_endpoint';
+      showToast(message, warning ? 'warning' : 'error');
+      return { ok: false, message };
     } finally {
       setSavingNode(false);
     }
   };
-
-  const handleTestSSH = useCallback(
-    async (payload: { sshHost: string; sshPort: number; sshUser: string }): Promise<SSHTestOutcome> => {
-      const result = await testSSH(payload);
-      if (result.ok) {
-        return { ok: true, result: result.data };
-      }
-      return { ok: false, message: localizedError(result.error, t) };
-    },
-    [testSSH, t],
-  );
 
   const handleDeleteNode = async (): Promise<void> => {
     if (!deleteNodeTarget) return;
@@ -178,7 +162,6 @@ export default function DashboardPage() {
           busy={savingNode}
           onClose={() => setAddNodeOpen(false)}
           onCreate={handleCreateNode}
-          onTestSSH={handleTestSSH}
         />
       )}
 

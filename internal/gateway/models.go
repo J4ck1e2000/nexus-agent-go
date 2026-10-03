@@ -39,13 +39,16 @@ type AgentNode struct {
 	URL string `gorm:"type:varchar(255);uniqueIndex:uk_agent_nodes_url;default:null" json:"url,omitempty"`
 	// SSHHost/SSHPort/SSHUser/SSHAuthType 为 ssh 模式连接信息，
 	// SSH 私钥永不入库。
-	SSHHost     string    `gorm:"type:varchar(255);not null;default:''" json:"ssh_host,omitempty"`
-	SSHPort     int       `gorm:"not null;default:0" json:"ssh_port,omitempty"`
-	SSHUser     string    `gorm:"type:varchar(64);not null;default:''" json:"ssh_user,omitempty"`
-	SSHAuthType string    `gorm:"type:varchar(16);not null;default:''" json:"ssh_auth_type,omitempty"`
-	CreatedBy   uint      `gorm:"column:created_by;index;not null" json:"created_by"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	SSHHost               string    `gorm:"type:varchar(255);not null;default:''" json:"ssh_host,omitempty"`
+	SSHPort               int       `gorm:"not null;default:0" json:"ssh_port,omitempty"`
+	SSHEndpointKey        *string   `gorm:"column:ssh_endpoint_key;type:varchar(300);uniqueIndex:uk_agent_nodes_ssh_endpoint" json:"-"`
+	SSHUser               string    `gorm:"type:varchar(64);not null;default:''" json:"ssh_user,omitempty"`
+	SSHAuthType           string    `gorm:"type:varchar(16);not null;default:''" json:"ssh_auth_type,omitempty"`
+	SSHHostKey            string    `gorm:"column:ssh_host_key;type:text" json:"-"`
+	SSHHostKeyFingerprint string    `gorm:"column:ssh_host_key_fingerprint;type:varchar(128)" json:"ssh_host_key_fingerprint,omitempty"`
+	CreatedBy             uint      `gorm:"column:created_by;index;not null" json:"created_by"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 // TableName 指定节点表名。

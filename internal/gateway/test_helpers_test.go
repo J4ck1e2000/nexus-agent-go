@@ -16,6 +16,10 @@ import (
 )
 
 func setupGatewayTestRouter(t *testing.T, proxyClient *http.Client, sshTesters ...SSHTester) *gin.Engine {
+	return setupGatewayTestRouterWithEnroller(t, proxyClient, nil, sshTesters...)
+}
+
+func setupGatewayTestRouterWithEnroller(t *testing.T, proxyClient *http.Client, enroller SSHEnroller, sshTesters ...SSHTester) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -38,6 +42,9 @@ func setupGatewayTestRouter(t *testing.T, proxyClient *http.Client, sshTesters .
 	}
 	if len(sshTesters) > 0 {
 		h.SetSSHTester(sshTesters[0])
+	}
+	if enroller != nil {
+		h.SetSSHEnroller(enroller)
 	}
 	h.RegisterAPIRoutes(r)
 	return r

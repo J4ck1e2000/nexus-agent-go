@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { AgentConfig, TestSSHResult } from '../../../electron/types/ipc';
+import type { AgentConfig } from '../../../electron/types/ipc';
 import type { ResolvedCollectorType } from '../../../electron/lib/node-payload';
 import type { AddNodeInput } from '../../hooks/useNodeConfigs';
 import AppModal from '../common/AppModal';
@@ -7,16 +7,7 @@ import { useLanguage } from '../../hooks/useLanguage';
 import { normalizeAgentUrl } from '../../lib/node-logic';
 import { useToastContext } from '../../context/ToastContext';
 
-export type SSHTestOutcome =
-  | { ok: true; result: TestSSHResult }
-  | { ok: false; message: string };
-
-type TestState =
-  | { kind: 'idle' }
-  | { kind: 'testing' }
-  | { kind: 'ok'; result: TestSSHResult }
-  | { kind: 'failed'; message: string };
-
+export type NodeCreateOutcome = { ok: true } | { ok: false; message: string };
 /** Admin "Add Node" dialog: SSH (agentless, default) or legacy Agent URL. */
 export default function AddNodeDialog({
   open,
@@ -24,14 +15,12 @@ export default function AddNodeDialog({
   busy,
   onClose,
   onCreate,
-  onTestSSH,
 }: {
   open: boolean;
   configs: AgentConfig[];
   busy: boolean;
   onClose: () => void;
-  onCreate: (payload: AddNodeInput) => Promise<boolean>;
-  onTestSSH: (payload: { sshHost: string; sshPort: number; sshUser: string }) => Promise<SSHTestOutcome>;
+  onCreate: (payload: AddNodeInput) => Promise<NodeCreateOutcome>;
 }) {
   const { t } = useLanguage();
   const { showToast } = useToastContext();
@@ -41,8 +30,8 @@ export default function AddNodeDialog({
   const [sshHost, setSshHost] = useState('');
   const [sshPort, setSshPort] = useState('22');
   const [sshUser, setSshUser] = useState('');
+  const [sshPassword, setSshPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [testState, setTestState] = useState<TestState>({ kind: 'idle' });
 
   const reset = (): void => {
     setCollectorType('ssh');
@@ -51,8 +40,8 @@ export default function AddNodeDialog({
     setSshHost('');
     setSshPort('22');
     setSshUser('');
+    setSshPassword('');
     setError(null);
-    setTestState({ kind: 'idle' });
   };
 
   const parsedPort = (): number => Number.parseInt(sshPort.trim(), 10);
@@ -90,10 +79,9 @@ export default function AddNodeDialog({
         return;
       }
 
-      const ok = await onCreate({ name: trimmedName, collectorType: 'agent', url: trimmedUrl });
-      if (ok) {
-        reset();
-      }
+      const outcome = await onCreate({ name: trimmedName, collectorType: 'agent', url: trimmedUrl });
+      if (outcome.ok) reset();
+      else setError(outcome.message);
       return;
     }
 
@@ -112,47 +100,19 @@ export default function AddNodeDialog({
       setError(t('desktop.nodes.userRequired'));
       return;
     }
-    const endpoint = `${host.toLowerCase()}:${port}:${user}`;
-    const duplicate = configs
-      .filter((config) => config.collector_type === 'ssh')
-      .some(
-        (config) =>
-          `${(config.ssh_host ?? '').toLowerCase()}:${config.ssh_port ?? 0}:${config.ssh_user ?? ''}` === endpoint,
-      );
-    if (duplicate) {
-      showToast(t('desktop.nodes.duplicateEndpoint'), 'warning');
-      setError(t('desktop.nodes.duplicateEndpoint'));
-      return;
-    }
-
-    const ok = await onCreate({
+    const password = sshPassword;
+    setSshPassword('');
+    const outcome = await onCreate({
       name: trimmedName,
       collectorType: 'ssh',
       sshHost: host,
       sshPort: port,
       sshUser: user,
+      sshPassword: password,
     });
-    if (ok) {
-      reset();
-    }
+    if (outcome.ok) reset();
+    else setError(outcome.message);
   };
-
-  const runTest = async (): Promise<void> => {
-    setError(null);
-    const host = sshHost.trim();
-    const user = sshUser.trim();
-    const port = parsedPort();
-    if (!host || !user || !Number.isInteger(port) || port < 1 || port > 65535) {
-      setError(t('desktop.nodes.testInvalidInput'));
-      return;
-    }
-
-    setTestState({ kind: 'testing' });
-    const outcome = await onTestSSH({ sshHost: host, sshPort: port, sshUser: user });
-    setTestState(outcome.ok ? { kind: 'ok', result: outcome.result } : { kind: 'failed', message: outcome.message });
-  };
-
-  const testButtonDisabled = busy || testState.kind === 'testing';
 
   return (
     <AppModal
@@ -185,9 +145,10 @@ export default function AddNodeDialog({
             value={collectorType}
             disabled={busy}
             onChange={(event) => {
-              setCollectorType(event.target.value === 'ssh' ? 'ssh' : 'agent');
+              const nextType = event.target.value === 'ssh' ? 'ssh' : 'agent';
+              if (nextType === 'agent') setSshPassword('');
+              setCollectorType(nextType);
               setError(null);
-              setTestState({ kind: 'idle' });
             }}
           >
             <option value="ssh">{t('desktop.nodes.collectorSSH')}</option>
@@ -246,35 +207,24 @@ export default function AddNodeDialog({
                 onChange={(event) => setSshUser(event.target.value)}
               />
             </label>
-            {testState.kind === 'testing' && (
-              <p className="text-xs text-muted">{t('desktop.nodes.testing')}</p>
-            )}
-            {testState.kind === 'ok' && (
-              <p className="text-xs text-success">
-                {t('desktop.nodes.testOk', {
-                  hostname: testState.result.hostname,
-                  count: testState.result.gpu_count,
-                })}
-              </p>
-            )}
-            {testState.kind === 'failed' && (
-              <p className="text-xs text-danger">{testState.message}</p>
-            )}
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-muted">{t('desktop.nodes.passwordLabel')}</span>
+              <input
+                type="password"
+                className="input-field font-mono"
+                value={sshPassword}
+                maxLength={4096}
+                autoComplete="new-password"
+                disabled={busy}
+                onChange={(event) => setSshPassword(event.target.value)}
+              />
+              <span className="text-xs text-muted">{t('desktop.nodes.passwordHint')}</span>
+            </label>
           </>
         )}
 
         {error && <p className="text-xs text-danger">{error}</p>}
         <div className="mt-1 flex items-center justify-end gap-2">
-          {collectorType === 'ssh' && (
-            <button
-              type="button"
-              className="muted-button mr-auto"
-              disabled={testButtonDisabled}
-              onClick={() => void runTest()}
-            >
-              {testState.kind === 'testing' ? t('desktop.nodes.testing') : t('desktop.nodes.testConnection')}
-            </button>
-          )}
           <button
             type="button"
             className="muted-button"
@@ -287,7 +237,7 @@ export default function AddNodeDialog({
             {t('action.cancel')}
           </button>
           <button type="submit" className="primary-button" disabled={busy}>
-            {busy ? t('action.submitting') : t('desktop.nodes.addServer')}
+            {busy ? t('desktop.nodes.connecting') : collectorType === 'ssh' ? t('desktop.nodes.connectAndAdd') : t('desktop.nodes.addServer')}
           </button>
         </div>
       </form>

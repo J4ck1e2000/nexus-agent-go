@@ -45,11 +45,13 @@ npm run dev     # electron-forge start:同时启动 Vite dev server 与 Electron
 
 ## SSH Node Setup
 
-Add Node 弹窗默认使用 **SSH(agentless)** 采集方式:只需填写主机地址、端口和用户名,可用 **Test Connection** 在保存前做一次真实采集测试(返回服务器主机名与 GPU 数量)。
+Add Node 弹窗默认使用 **SSH(agentless)** 采集方式。管理员填写服务器地址、SSH 端口和服务器上已有账号的用户名；首次连接时可输入该账号密码，让 Gateway 把自己的公钥一次性加入 `authorized_keys`。密码随后丢弃，指标采集改用 Gateway 专用 SSH 密钥。
 
-- Gateway 持有并使用自己的 SSH 私钥(`SSH_PRIVATE_KEY_PATH`);**Desktop 永远不会收到私钥或任何凭据**,Renderer 只接触 host/port/user。
-- 保存前无需在服务器上安装任何程序;服务器要求 `sshd`(密钥认证)+ `/proc` + `ps`,`nvidia-smi` 仅在需要 GPU 指标时必需。
-- 同一 `host:port:user` 端点不允许重复添加;旧版 Agent(URL 方式)仍可在 Collector 下拉框中选择。
+- Gateway 的 Ed25519 身份默认保存在 Docker 的 `ssh-key-data` 持久卷中；不要删除该卷。也可用 `SSH_PRIVATE_KEY_PATH` 配置现有未加密私钥。
+- Desktop 会把管理员电脑 `~/.ssh/known_hosts` 中匹配的主机密钥用于首次信任；无预置信任记录时自动固定首次观察到的主机密钥。之后密钥变化会阻止连接。
+- 首次引导密码只通过 HTTPS 发送到远程 Gateway。本机 `127.0.0.1` / `localhost` 的 loopback HTTP 可用；Gateway 也会执行服务端传输检查。
+- 服务器无需安装 Agent，需提供 `sshd`、普通 shell、`/proc` 和 `ps`；读取 NVIDIA GPU 指标时还需 `nvidia-smi`。
+- 已登录用户都可查看全局节点指标；添加和删除节点仅限管理员。管理员身份不拥有节点，所有管理员对同一份节点列表操作。旧版 Agent(URL 方式)仍可在 Collector 下拉框中选择。
 
 ## npm scripts
 

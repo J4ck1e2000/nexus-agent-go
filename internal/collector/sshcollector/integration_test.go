@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -32,12 +33,16 @@ type integrationServer struct {
 	listener   net.Listener
 	hostSigner ssh.Signer
 
-	mu           sync.Mutex
-	connCount    int
-	sessionCount int
-	liveConns    []*ssh.ServerConn
-	clientPub    ssh.PublicKey
-	output       []byte
+	mu                sync.Mutex
+	connCount         int
+	sessionCount      int
+	liveConns         []*ssh.ServerConn
+	clientPub         ssh.PublicKey
+	authorizedPub     ssh.PublicKey
+	bootstrapPassword string
+	passwordAuthCount int
+	keyInstallCount   int
+	output            []byte
 }
 
 func newIntegrationServer(t *testing.T, output []byte) *integrationServer {
@@ -104,11 +109,27 @@ func (s *integrationServer) handleConn(raw net.Conn) {
 			if meta.User() != "renhaokun" {
 				return nil, fmt.Errorf("unexpected user %q", meta.User())
 			}
-			if string(key.Marshal()) != string(s.clientPub.Marshal()) {
+			s.mu.Lock()
+			authorized := (s.clientPub != nil && string(key.Marshal()) == string(s.clientPub.Marshal())) ||
+				(s.authorizedPub != nil && string(key.Marshal()) == string(s.authorizedPub.Marshal()))
+			s.mu.Unlock()
+			if !authorized {
 				return nil, errors.New("unknown public key")
 			}
 			return &ssh.Permissions{}, nil
 		},
+	}
+	if s.bootstrapPassword != "" {
+		serverConfig.PasswordCallback = func(meta ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			s.mu.Lock()
+			s.passwordAuthCount++
+			expected := s.bootstrapPassword
+			s.mu.Unlock()
+			if meta.User() != "renhaokun" || string(password) != expected {
+				return nil, errors.New("invalid password")
+			}
+			return &ssh.Permissions{}, nil
+		}
 	}
 	serverConfig.AddHostKey(s.hostSigner)
 	serverConn, chans, reqs, err := ssh.NewServerConn(raw, serverConfig)
@@ -152,7 +173,6 @@ func (s *integrationServer) handleSession(newChannel ssh.NewChannel) {
 	defer channel.Close()
 
 	for req := range requests {
-		fmt.Printf("SERVER-DEBUG: request type=%q wantReply=%v\n", req.Type, req.WantReply)
 		switch req.Type {
 		case "exec":
 			if len(req.Payload) < 4 {
@@ -169,8 +189,11 @@ func (s *integrationServer) handleSession(newChannel ssh.NewChannel) {
 			// 与真实 sshd 一致：命令结束后发送 exit-status 并关闭整个
 			// channel（客户端 Session.Wait 需要它结束）。
 			go func(ch ssh.Channel) {
-				_, _ = io.ReadAll(ch)
-				_, _ = ch.Write(s.output)
+				script, _ := io.ReadAll(ch)
+				output := s.handleScript(script)
+				if len(output) > 0 {
+					_, _ = ch.Write(output)
+				}
 				_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: 0}))
 				_ = ch.Close()
 			}(channel)
@@ -182,6 +205,54 @@ func (s *integrationServer) handleSession(newChannel ssh.NewChannel) {
 	}
 }
 
+func (s *integrationServer) handleScript(script []byte) []byte {
+	text := string(script)
+	if strings.Contains(text, "authorized_keys") {
+		const startMarker = "key=" + "\x27"
+		start := strings.Index(text, startMarker)
+		if start < 0 {
+			return nil
+		}
+		value := text[start+len(startMarker):]
+		end := strings.IndexByte(value, "\x27"[0])
+		if end < 0 {
+			return nil
+		}
+		line := strings.TrimSpace(value[:end])
+		line = strings.TrimPrefix(line, "restrict ")
+		key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(line))
+		if err != nil {
+			return nil
+		}
+		s.mu.Lock()
+		s.authorizedPub = key
+		s.keyInstallCount++
+		s.mu.Unlock()
+		return nil
+	}
+	return s.output
+}
+func newPasswordIntegrationServer(t *testing.T, output []byte, password string) *integrationServer {
+	t.Helper()
+	hostSigner, _ := generateEd25519Signer(t)
+	server := &integrationServer{
+		hostSigner:        hostSigner,
+		bootstrapPassword: password,
+		output:            output,
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen failed: %v", err)
+	}
+	server.listener = listener
+	go server.serve()
+	t.Cleanup(func() { _ = listener.Close() })
+
+	keyPath := filepath.Join(t.TempDir(), "gateway", "id_ed25519")
+	t.Setenv("SSH_PRIVATE_KEY_PATH", keyPath)
+	t.Setenv("SSH_KNOWN_HOSTS_PATH", "")
+	return server
+}
 func generateEd25519Signer(t *testing.T) (ssh.Signer, ed25519.PrivateKey) {
 	t.Helper()
 	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
@@ -294,6 +365,69 @@ func TestSSHCollectorIntegration_RealHandshakeCollectsMetrics(t *testing.T) {
 	}
 }
 
+func TestSSHCollectorIntegration_PasswordBootstrapTOFUPinsHostAndUsesGatewayKey(t *testing.T) {
+	server := newPasswordIntegrationServer(t, loadFixture(t, "snapshot_a6000.txt"), "server-password")
+	collector := newEnvCollector(t)
+	host, portText, err := net.SplitHostPort(server.addr())
+	if err != nil {
+		t.Fatalf("split host and port: %v", err)
+	}
+	node := model.AgentConfig{
+		Name:          "password-bootstrap-node",
+		CollectorType: model.CollectorTypeSSH,
+		SSHHost:       host,
+		SSHPort:       portFromText(t, portText),
+		SSHUser:       "renhaokun",
+		SSHAuthType:   model.SSHAuthTypeKey,
+	}
+	result, err := collector.EnrollSSH(context.Background(), node, []byte("server-password"), nil)
+	if err != nil {
+		t.Fatalf("EnrollSSH failed: %v", err)
+	}
+	if !result.GatewayKeyBootstrapped {
+		t.Fatal("expected the Gateway public key to be bootstrapped")
+	}
+	if result.HostKeyFingerprint != ssh.FingerprintSHA256(server.hostSigner.PublicKey()) {
+		t.Fatalf("host-key fingerprint mismatch: %q", result.HostKeyFingerprint)
+	}
+	if result.Metrics.Hostname != "a6000-d-02" || len(result.Metrics.Gpus) != 2 {
+		t.Fatalf("first metrics sample mismatch: hostname=%q gpus=%d", result.Metrics.Hostname, len(result.Metrics.Gpus))
+	}
+
+	server.mu.Lock()
+	passwordAuthCount := server.passwordAuthCount
+	keyInstallCount := server.keyInstallCount
+	authorizedKey := server.authorizedPub
+	server.mu.Unlock()
+	if passwordAuthCount != 1 || keyInstallCount != 1 || authorizedKey == nil {
+		t.Fatalf("bootstrap side effects mismatch: password_auth=%d key_install=%d authorized=%v", passwordAuthCount, keyInstallCount, authorizedKey != nil)
+	}
+
+	node.SSHHostKey = result.HostKey
+	metrics, _, err := collector.Collect(context.Background(), node)
+	if err != nil {
+		t.Fatalf("key-authenticated collection failed: %v", err)
+	}
+	if metrics.Hostname != "a6000-d-02" {
+		t.Fatalf("reconnected hostname mismatch: %q", metrics.Hostname)
+	}
+
+	_, wrongPrivate := generateEd25519Signer(t)
+	wrongSigner, err := ssh.NewSignerFromKey(wrongPrivate)
+	if err != nil {
+		t.Fatalf("create wrong host signer: %v", err)
+	}
+	node.SSHHostKey = strings.TrimSpace(string(ssh.MarshalAuthorizedKey(wrongSigner.PublicKey())))
+	if _, err := collector.EnrollSSH(context.Background(), node, []byte("server-password"), nil); ErrorCode(err) != ErrSSHHostKeyFailed.Error() {
+		t.Fatalf("changed pinned host key should be blocked, got %v", err)
+	}
+	server.mu.Lock()
+	passwordAuthCountAfterChange := server.passwordAuthCount
+	server.mu.Unlock()
+	if passwordAuthCountAfterChange != passwordAuthCount {
+		t.Fatalf("password must not be sent after a pinned host-key change")
+	}
+}
 func TestSSHCollectorIntegration_ReconnectsAfterServerKillsConnection(t *testing.T) {
 	server := newIntegrationServer(t, loadFixture(t, "snapshot_a6000.txt"))
 	collector := newEnvCollector(t)

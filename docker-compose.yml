@@ -58,12 +58,12 @@ services:
       qdrant:
         condition: service_started
     ports:
-      - "3000:3000"
+      - "${GATEWAY_HOST_BIND:-127.0.0.1}:3000:3000"
     volumes:
       - ./knowledge:/app/knowledge:ro
-      # Agentless SSH collector: mount the gateway-side private key and
-      # known_hosts read-only. Leave SSH_PRIVATE_KEY_HOST_PATH empty to
-      # disable SSH monitoring (legacy agent http collector only).
+      # Persistent Gateway SSH identity; a key is generated here when absent.
+      - ssh-key-data:/var/lib/nexus-agent/ssh
+      # Optional administrator-provided private key and known_hosts mounts.
       - ${SSH_PRIVATE_KEY_HOST_PATH:-/dev/null}:/run/secrets/nexus_ssh_key:ro
       - ${SSH_KNOWN_HOSTS_HOST_PATH:-/dev/null}:/app/config/known_hosts:ro
     environment:
@@ -72,8 +72,10 @@ services:
       CONFIG_FILE: "/app/web/config.json"
 
       # Agentless SSH collector (see .env.example)
-      SSH_PRIVATE_KEY_PATH: "${SSH_PRIVATE_KEY_PATH:-}"
+      SSH_PRIVATE_KEY_PATH: "${SSH_PRIVATE_KEY_PATH:-/var/lib/nexus-agent/ssh/id_ed25519}"
       SSH_KNOWN_HOSTS_PATH: "${SSH_KNOWN_HOSTS_PATH:-}"
+      SSH_BOOTSTRAP_ALLOW_INSECURE_HTTP: "${SSH_BOOTSTRAP_ALLOW_INSECURE_HTTP:-true}"
+      SSH_BOOTSTRAP_TRUST_PROXY_TLS: "${SSH_BOOTSTRAP_TRUST_PROXY_TLS:-false}"
       SSH_CONNECT_TIMEOUT_SEC: "${SSH_CONNECT_TIMEOUT_SEC:-5}"
       SSH_COMMAND_TIMEOUT_SEC: "${SSH_COMMAND_TIMEOUT_SEC:-5}"
       SSH_KEEPALIVE_SEC: "${SSH_KEEPALIVE_SEC:-15}"
@@ -107,7 +109,7 @@ services:
       KNOWLEDGE_QDRANT_COLLECTION: "knowledge_chunks"
       KNOWLEDGE_QDRANT_TIMEOUT_SEC: "5"
 
-      KNOWLEDGE_EMBEDDING_ENABLED: "true"
+      KNOWLEDGE_EMBEDDING_ENABLED: "${KNOWLEDGE_EMBEDDING_ENABLED:-true}"
       KNOWLEDGE_EMBEDDING_PROVIDER: "openai_compatible"
       KNOWLEDGE_EMBEDDING_MODEL: "${KNOWLEDGE_EMBEDDING_MODEL:-text-embedding-v3}"
       KNOWLEDGE_EMBEDDING_BASE_URL: "${AI_BASE_URL}"
@@ -139,7 +141,7 @@ services:
       GATEWAY_TOOL_URL: "http://gateway:3000"
       GATEWAY_INTERNAL_TOKEN: "${PI_RUNTIME_TOKEN:-nexus-pi-internal-token}"
       AI_BASE_URL: "${AI_BASE_URL}"
-      AI_API_KEY: "${AI_API_KEY}"
+      AI_API_KEY: "${PI_RUNTIME_API_KEY:-${AI_API_KEY}}"
       AI_MODEL: "${AI_MODEL}"
       PI_RUN_TIMEOUT_SEC: "${PI_RUN_TIMEOUT_SEC:-120}"
       PI_TOOL_TIMEOUT_SEC: "${PI_TOOL_TIMEOUT_SEC:-10}"
@@ -165,6 +167,7 @@ services:
       METRICS_INTERVAL: "2s"
 
 volumes:
+  ssh-key-data:
   mysql-data:
   redis-data:
   qdrant-data:

@@ -35,6 +35,10 @@ type AgentConfig struct {
 	SSHUser string `json:"ssh_user,omitempty"`
 	// SSHAuthType 为 SSH 认证方式（当前仅 key）。
 	SSHAuthType string `json:"ssh_auth_type,omitempty"`
+	// SSHHostKey stores the pinned public host key internally; it is never sent to clients.
+	SSHHostKey string `json:"-"`
+	// SSHHostKeyFingerprint is safe to show to administrators.
+	SSHHostKeyFingerprint string `json:"ssh_host_key_fingerprint,omitempty"`
 }
 
 // FormatUptime 将秒数转换为可读时长，供 Agent 与 SSH Collector 共用。

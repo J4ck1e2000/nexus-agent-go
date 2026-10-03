@@ -73,7 +73,7 @@ Nexus 支持通过 SSH 对 Linux 服务器做无代理(agentless)监控:Gateway 
 
 远端 Linux 服务器只需要具备:
 
-- `sshd`(OpenSSH Server,密钥认证);
+- `sshd`(OpenSSH Server；首次引导时需允许账号密码登录，或预先授权 Gateway 公钥；引导后使用密钥认证);
 - `/proc` 与 `ps`(任何标准 Linux 发行版都有);
 - `nvidia-smi`(NVIDIA Driver 自带)——无 GPU 的纯 CPU 服务器同样可以采集 CPU / 内存 / 网络。
 
@@ -88,59 +88,50 @@ Gateway → CollectorRouter → SSH Collector → SSH(长连接复用)
 
 ### 添加 SSH 节点
 
-Desktop(管理员 → Add Node,默认 SSH)或 API:
+只有管理员可以添加或管理节点。Desktop 管理员打开 **Add Node**，选择 SSH 并填写节点名称、服务器地址、SSH 端口和远端账号用户名。该账号必须是管理员在服务器上已有的账号，能通过 SSH 登录并运行普通 shell 命令；不需要安装 Nexus Agent，也不需要 `sudo`。建议使用权限足以读取指标的普通账号，而不是直接使用 root。
 
-```json
-POST /api/config
-{
-  "name": "A6000-01",
-  "collector_type": "ssh",
-  "ssh_host": "10.0.0.15",
-  "ssh_port": 22,
-  "ssh_user": "renhaokun",
-  "ssh_auth_type": "key"
-}
-```
+首次连接时，如果 Gateway 专用公钥还没有授权到该账号，管理员可以填写该账号的服务器密码。Gateway 会用密码建立 SSH 会话，只把自己的公钥追加到该账号的 `~/.ssh/authorized_keys`，随后立即改用密钥认证并采集首份数据。密码不会保存到节点配置或 MySQL，应用也不会把它写入日志；如果公钥已授权，密码可以留空。目标服务器需在首次引导时允许密码认证，后续可按服务器策略关闭密码认证。
 
-同一 `host:port:user` 的 SSH 端点不允许重复添加(409 `duplicate_node_endpoint`)。可用 `POST /api/config/test-ssh`(仅管理员)在保存前做一次真实采集测试,返回 `{ok, hostname, gpu_count, gpu_names}` 或稳定的 `ssh_*` 错误码。
+管理接口使用 `POST /api/config/enroll-ssh`，普通的 `POST /api/config` 会拒绝 SSH 节点，避免绕过安全引导。节点按 `host:port` 在全平台唯一，和由哪位平台管理员添加、使用哪个 Linux 用户名无关；所有管理员共享同一份节点列表。若该服务器已存在但本次填写了另一个 Linux 用户名，系统会提示已添加，不会创建副本或静默切换采集账号。需要更换远端登录账号时，先删除全局节点再重新添加。修改后的主机指纹不会静默覆盖已有指纹；若服务器合法轮换主机密钥，先核验并更新管理员电脑或 Gateway 上过期的 `known_hosts` 记录，再删除旧节点并重新添加以重置数据库固定值。
 
-### Gateway 侧凭据(重要)
+所有已登录用户都可以读取全局节点状态 `GET /api/nodes/overview`。节点配置、添加、删除及 SSH 凭据引导都仅限管理员。
 
-- SSH 私钥只存在于 Gateway 进程内,通过 `SSH_PRIVATE_KEY_PATH` 从文件加载,**不会写入 MySQL、不会下发到 Desktop/浏览器、不会打印日志**;带 passphrase 的私钥暂不支持(`encrypted_private_key_not_supported`)。
-- 主机指纹校验强制开启(known_hosts),生产代码禁止 `InsecureIgnoreHostKey`。
-- SSH 连接按 `host:port:user` 复用长连接,失效后下一轮轮询自动重连;keepalive 与连接/命令超时均可配置。
+### SSH 身份与凭据
 
-### known_hosts
+- Gateway 首次启动时生成独立的 Ed25519 SSH 密钥。Docker Compose 将它保存在 `ssh-key-data` 持久卷中；不要删除该卷，否则目标服务器授权的公钥与 Gateway 身份会失配。也可以通过 `SSH_PRIVATE_KEY_PATH` 提供现有未加密私钥。
+- 添加节点时，Desktop 会查找管理员电脑 `~/.ssh/known_hosts` 中与目标匹配的记录，并把匹配的主机公钥作为信任提示交给 Gateway。也可以给 Gateway 配置 `SSH_KNOWN_HOSTS_PATH`。如果没有可用的预置信任记录，系统自动信任首次收到的主机公钥并将公钥和 `SHA256` 指纹存入节点配置；此后公钥发生变化会拒绝连接，不会要求管理员逐次确认。
+- 自动信任首次连接的主机公钥是 TOFU。它能识别后续密钥变化，但无法证明首次连接时没有网络中间人。需要更强的首次连接保证时，请先把经过独立核验的主机公钥放入管理员电脑或 Gateway 的 `known_hosts`。
+- Gateway 的远端公钥带有 `restrict` 选项，关闭端口转发、代理转发、X11 转发和 PTY。该选项不限制远程命令本身；Gateway 密钥可按远端账号权限执行命令，因此建议使用具备必要读取权限的低权限账号，避免直接使用 root。
+- SSH 私钥、密码不会下发到浏览器或普通用户端；SSH 节点按 `host:port` 全局唯一，所选 Linux 用户仅作为该节点的 Gateway 登录账号。连接按主机地址、端口、登录账号和固定主机公钥复用。连接和命令超时、keepalive 均可配置。
 
-在 Gateway 运行环境中为目标服务器准备 known_hosts:
+### 密码传输
 
-```bash
-ssh-keyscan -H 10.0.0.15 >> ~/.ssh/known_hosts
-```
+首次引导密码只允许通过 HTTPS 提交到远程 Gateway。Gateway 会再次执行服务端检查；仅管理员 Desktop 的客户端校验不足以绕过此检查。Docker Compose 默认把 Gateway 端口绑定到本机 `127.0.0.1`，所以本机 Desktop 可通过 loopback HTTP 使用首次密码。若把 Gateway 暴露给其他机器，请配置 HTTPS 并将 `SSH_BOOTSTRAP_ALLOW_INSECURE_HTTP=false`。TLS 在可信反向代理终止时，可将 `SSH_BOOTSTRAP_TRUST_PROXY_TLS=true`，前提是代理覆盖 `X-Forwarded-Proto` 且外部不能绕过代理直连 Gateway。
 
-> 注意:`ssh-keyscan` 只是抓取指纹,不等于可信验证。**请先在可信网络中核对服务器指纹(或由管理员当面/带外确认)后再写入 known_hosts**,防止首次连接即被劫持(TOFU 风险)。
-
-### 环境变量与 Docker 部署示例
+### 环境变量与 Docker 部署
 
 ```env
-SSH_PRIVATE_KEY_HOST_PATH=/home/user/.ssh/nexus_id_ed25519
-SSH_KNOWN_HOSTS_HOST_PATH=/home/user/.ssh/known_hosts
-
-# 容器内路径(对应上面的只读挂载)
-SSH_PRIVATE_KEY_PATH=/run/secrets/nexus_ssh_key
-SSH_KNOWN_HOSTS_PATH=/app/config/known_hosts
+# 默认使用 Docker 持久卷中的 Gateway 密钥；known_hosts 可缺省并在首次连接时 TOFU 固定
+SSH_PRIVATE_KEY_PATH=/var/lib/nexus-agent/ssh/id_ed25519
+SSH_KNOWN_HOSTS_PATH=
+# 如需挂载自有密钥/known_hosts，需同时设置宿主机与容器路径：
+# SSH_PRIVATE_KEY_HOST_PATH=/home/user/.ssh/nexus_id_ed25519
+# SSH_PRIVATE_KEY_PATH=/run/secrets/nexus_ssh_key
+# SSH_KNOWN_HOSTS_HOST_PATH=/home/user/.ssh/known_hosts
+# SSH_KNOWN_HOSTS_PATH=/app/config/known_hosts
 
 SSH_CONNECT_TIMEOUT_SEC=5
 SSH_COMMAND_TIMEOUT_SEC=5
 SSH_KEEPALIVE_SEC=15
 NODE_POLL_MAX_CONCURRENCY=16
+GATEWAY_HOST_BIND=127.0.0.1
+SSH_BOOTSTRAP_ALLOW_INSECURE_HTTP=true
+SSH_BOOTSTRAP_TRUST_PROXY_TLS=false
 ```
 
 ```bash
 docker compose up -d --build gateway
 ```
-
-两个 `*_HOST_PATH` 都不设置时,SSH 采集保持禁用,Gateway 仅使用旧版 Agent HTTP 轮询。
 
 ### 采集自检(ssh-smoke)
 
@@ -179,7 +170,7 @@ Copy-Item .env.example .env
 - `JWT_SECRET`
 - `AI_API_KEY`
 
-如需 agentless SSH 监控,再按上文 [Agentless SSH Monitoring](#agentless-ssh-monitoring) 配置 `SSH_PRIVATE_KEY_HOST_PATH` 等项(不配置则仅使用旧版 Agent)。
+Docker Compose 默认生成并持久保存 Gateway 的 SSH 身份；添加 SSH 节点无需在宿主机预先创建私钥。旧版 Agent(URL 方式)仍可继续使用。
 
 ### 3. 一键启动
 

@@ -8,6 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"nexus-agent-go/internal/collector/sshcollector"
+	"nexus-agent-go/internal/model"
 )
 
 func TestLogin_SuccessAndFailure(t *testing.T) {
@@ -143,7 +146,6 @@ func TestUser_CannotCreateOrDeleteNode(t *testing.T) {
 func TestAdmin_CanCreateAndDeleteNode(t *testing.T) {
 	r := setupGatewayTestRouter(t, nil)
 	adminToken := loginAndGetToken(t, r, "admin", "admin123")
-	userToken := loginAndGetToken(t, r, "user", "user123")
 
 	createReq := authorizedRequest(http.MethodPost, "/api/config", bytes.NewBufferString(`{"name":"node-a","url":"http://127.0.0.1:8005"}`), adminToken)
 	createReq.Header.Set("Content-Type", "application/json")
@@ -165,7 +167,7 @@ func TestAdmin_CanCreateAndDeleteNode(t *testing.T) {
 		t.Fatalf("invalid created id: %d", created.ID)
 	}
 
-	listReq := authorizedRequest(http.MethodGet, "/api/config", nil, userToken)
+	listReq := authorizedRequest(http.MethodGet, "/api/config", nil, adminToken)
 	listResp := httptest.NewRecorder()
 	r.ServeHTTP(listResp, listReq)
 	if listResp.Code != http.StatusOK {
@@ -341,101 +343,116 @@ func TestAdmin_SaveConfigArrayRejectsDuplicateURLs(t *testing.T) {
 }
 
 func TestAdmin_CanCreateAndListSSHNode(t *testing.T) {
-	r := setupGatewayTestRouter(t, nil)
+	t.Setenv("SSH_BOOTSTRAP_ALLOW_INSECURE_HTTP", "true")
+	enroller := &fakeSSHEnroller{result: sshcollector.EnrollmentResult{
+		Metrics:            model.SystemMetrics{Hostname: "a6000-01"},
+		HostKey:            "ssh-ed25519 AAAATESTKEY",
+		HostKeyFingerprint: "SHA256:test-host-key",
+	}}
+	r := setupGatewayTestRouterWithEnroller(t, nil, enroller)
 	adminToken := loginAndGetToken(t, r, "admin", "admin123")
+	userToken := loginAndGetToken(t, r, "user", "user123")
 
-	createReq := authorizedRequest(http.MethodPost, "/api/config",
-		bytes.NewBufferString(`{"name":"A6000-01","collector_type":"ssh","ssh_host":"10.0.0.15","ssh_port":22,"ssh_user":"renhaokun","ssh_auth_type":"key"}`), adminToken)
+	legacy := authorizedRequest(http.MethodPost, "/api/config",
+		bytes.NewBufferString("{\"name\":\"legacy-ssh\",\"collector_type\":\"ssh\",\"ssh_host\":\"10.0.0.16\",\"ssh_port\":22,\"ssh_user\":\"ops\"}"), adminToken)
+	legacy.Header.Set("Content-Type", "application/json")
+	legacyResp := httptest.NewRecorder()
+	r.ServeHTTP(legacyResp, legacy)
+	if legacyResp.Code != http.StatusBadRequest || !strings.Contains(legacyResp.Body.String(), "ssh_enrollment_required") {
+		t.Fatalf("raw SSH config must require enrollment: status=%d body=%s", legacyResp.Code, legacyResp.Body.String())
+	}
+
+	body := "{\"name\":\"A6000-01\",\"ssh_host\":\"10.0.0.15\",\"ssh_port\":22,\"ssh_user\":\"renhaokun\",\"ssh_password\":\"one-time-secret\",\"trusted_host_keys\":[]}"
+	createReq := authorizedRequest(http.MethodPost, "/api/config/enroll-ssh", bytes.NewBufferString(body), adminToken)
 	createReq.Header.Set("Content-Type", "application/json")
 	createResp := httptest.NewRecorder()
 	r.ServeHTTP(createResp, createReq)
-
 	if createResp.Code != http.StatusCreated {
-		t.Fatalf("create ssh node status mismatch: got=%d want=%d body=%s", createResp.Code, http.StatusCreated, createResp.Body.String())
+		t.Fatalf("SSH enrollment status mismatch: got=%d body=%s", createResp.Code, createResp.Body.String())
+	}
+	if strings.Contains(createResp.Body.String(), "one-time-secret") || strings.Contains(createResp.Body.String(), "ssh_host_key\"") {
+		t.Fatalf("response leaked a password or raw host key: %s", createResp.Body.String())
+	}
+	if enroller.calls != 1 || string(enroller.password) != "one-time-secret" {
+		t.Fatalf("enroller did not receive the one-time password: calls=%d", enroller.calls)
 	}
 
-	var created struct {
-		ID            int64  `json:"id"`
-		Name          string `json:"name"`
-		CollectorType string `json:"collector_type"`
-		SSHHost       string `json:"ssh_host"`
-		SSHPort       int    `json:"ssh_port"`
-		SSHUser       string `json:"ssh_user"`
-		SSHAuthType   string `json:"ssh_auth_type"`
-		URL           string `json:"url"`
-		HasURL        bool   `json:"-"`
-	}
+	var created map[string]any
 	if err := json.Unmarshal(createResp.Body.Bytes(), &created); err != nil {
 		t.Fatalf("unmarshal create response failed: %v", err)
 	}
-	created.HasURL = strings.Contains(createResp.Body.String(), `"url"`)
-	if created.CollectorType != "ssh" || created.SSHHost != "10.0.0.15" || created.SSHPort != 22 || created.SSHUser != "renhaokun" || created.SSHAuthType != "key" {
-		t.Fatalf("created ssh node mismatch: %+v", created)
-	}
-	if created.HasURL {
-		t.Fatalf("ssh node response should omit url: %s", createResp.Body.String())
+	if created["collector_type"] != "ssh" || created["ssh_host"] != "10.0.0.15" || created["ssh_host_key_fingerprint"] != "SHA256:test-host-key" {
+		t.Fatalf("created SSH node mismatch: %+v", created)
 	}
 
-	listReq := authorizedRequest(http.MethodGet, "/api/config", nil, adminToken)
-	listResp := httptest.NewRecorder()
-	r.ServeHTTP(listResp, listReq)
-	if listResp.Code != http.StatusOK {
-		t.Fatalf("list status mismatch: got=%d want=%d", listResp.Code, http.StatusOK)
+	adminList := authorizedRequest(http.MethodGet, "/api/config", nil, adminToken)
+	adminListResp := httptest.NewRecorder()
+	r.ServeHTTP(adminListResp, adminList)
+	if adminListResp.Code != http.StatusOK {
+		t.Fatalf("admin config list status mismatch: got=%d", adminListResp.Code)
 	}
-
-	var listed []struct {
-		ID            int64  `json:"id"`
-		CollectorType string `json:"collector_type"`
-		SSHHost       string `json:"ssh_host"`
-		URL           string `json:"url"`
-		HasURL        bool   `json:"-"`
+	userConfig := authorizedRequest(http.MethodGet, "/api/config", nil, userToken)
+	userConfigResp := httptest.NewRecorder()
+	r.ServeHTTP(userConfigResp, userConfig)
+	if userConfigResp.Code != http.StatusForbidden {
+		t.Fatalf("user must not read SSH connection settings: got=%d", userConfigResp.Code)
 	}
-	if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
-		t.Fatalf("unmarshal list failed: %v", err)
-	}
-	listed[0].HasURL = strings.Contains(listResp.Body.String(), `"url"`)
-	if len(listed) != 1 || listed[0].CollectorType != "ssh" || listed[0].SSHHost != "10.0.0.15" {
-		t.Fatalf("listed ssh nodes mismatch: %+v", listed)
-	}
-	if listed[0].HasURL {
-		t.Fatalf("listed ssh node should omit url: %s", listResp.Body.String())
+	userOverview := authorizedRequest(http.MethodGet, "/api/nodes/overview", nil, userToken)
+	userOverviewResp := httptest.NewRecorder()
+	r.ServeHTTP(userOverviewResp, userOverview)
+	if userOverviewResp.Code != http.StatusOK {
+		t.Fatalf("ordinary user should read the shared node overview: got=%d", userOverviewResp.Code)
 	}
 }
-
 func TestAdmin_SSHNodeValidationAndDuplicateEndpoint(t *testing.T) {
-	r := setupGatewayTestRouter(t, nil)
+	t.Setenv("SSH_BOOTSTRAP_ALLOW_INSECURE_HTTP", "true")
+	enroller := &fakeSSHEnroller{result: sshcollector.EnrollmentResult{
+		HostKey:            "ssh-ed25519 AAAATESTKEY",
+		HostKeyFingerprint: "SHA256:first",
+	}}
+	r := setupGatewayTestRouterWithEnroller(t, nil, enroller)
 	adminToken := loginAndGetToken(t, r, "admin", "admin123")
 
 	postNode := func(body string) *httptest.ResponseRecorder {
-		req := authorizedRequest(http.MethodPost, "/api/config", bytes.NewBufferString(body), adminToken)
+		req := authorizedRequest(http.MethodPost, "/api/config/enroll-ssh", bytes.NewBufferString(body), adminToken)
 		req.Header.Set("Content-Type", "application/json")
 		resp := httptest.NewRecorder()
 		r.ServeHTTP(resp, req)
 		return resp
 	}
 
-	// 非法 payload(缺 host)返回 invalid_payload。
-	if resp := postNode(`{"name":"bad-ssh","collector_type":"ssh","ssh_port":22,"ssh_user":"ops"}`); resp.Code != http.StatusBadRequest {
-		t.Fatalf("invalid ssh payload status mismatch: got=%d body=%s", resp.Code, resp.Body.String())
+	if resp := postNode("{\"name\":\"bad-ssh\",\"ssh_port\":22,\"ssh_user\":\"ops\"}"); resp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid SSH payload status mismatch: got=%d body=%s", resp.Code, resp.Body.String())
 	}
-	if resp := postNode(`{"name":"bad-port","collector_type":"ssh","ssh_host":"10.0.0.1","ssh_port":0,"ssh_user":"ops"}`); resp.Code != http.StatusBadRequest {
-		t.Fatalf("invalid ssh port status mismatch: got=%d body=%s", resp.Code, resp.Body.String())
+	if resp := postNode("{\"name\":\"bad-port\",\"ssh_host\":\"10.0.0.1\",\"ssh_port\":0,\"ssh_user\":\"ops\"}"); resp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid SSH port status mismatch: got=%d body=%s", resp.Code, resp.Body.String())
 	}
 
-	first := postNode(`{"name":"A6000-01","collector_type":"ssh","ssh_host":"10.0.0.15","ssh_port":22,"ssh_user":"renhaokun"}`)
+	first := postNode("{\"name\":\"A6000-01\",\"ssh_host\":\"10.0.0.15\",\"ssh_port\":22,\"ssh_user\":\"renhaokun\",\"ssh_password\":\"bootstrap\"}")
 	if first.Code != http.StatusCreated {
-		t.Fatalf("first ssh create status mismatch: got=%d body=%s", first.Code, first.Body.String())
+		t.Fatalf("first SSH enrollment status mismatch: got=%d body=%s", first.Code, first.Body.String())
+	}
+	var firstNode map[string]any
+	if err := json.Unmarshal(first.Body.Bytes(), &firstNode); err != nil {
+		t.Fatalf("decode first enrollment: %v", err)
 	}
 
-	dup := postNode(`{"name":"A6000-02","collector_type":"ssh","ssh_host":"10.0.0.15","ssh_port":22,"ssh_user":"renhaokun"}`)
-	if dup.Code != http.StatusConflict {
-		t.Fatalf("duplicate ssh endpoint status mismatch: got=%d body=%s", dup.Code, dup.Body.String())
+	enroller.result.HostKeyFingerprint = "SHA256:rotated"
+	second := postNode("{\"name\":\"A6000-01-renewed\",\"ssh_host\":\"10.0.0.15\",\"ssh_port\":22,\"ssh_user\":\"renhaokun\",\"ssh_password\":\"bootstrap\"}")
+	if second.Code != http.StatusCreated {
+		t.Fatalf("re-enrollment status mismatch: got=%d body=%s", second.Code, second.Body.String())
 	}
-	if body := dup.Body.String(); body != `{"error":"duplicate_node_endpoint"}` {
-		t.Fatalf("duplicate ssh endpoint body mismatch: got=%q", body)
+	var secondNode map[string]any
+	if err := json.Unmarshal(second.Body.Bytes(), &secondNode); err != nil {
+		t.Fatalf("decode second enrollment: %v", err)
+	}
+	if secondNode["id"] != firstNode["id"] || secondNode["name"] != "A6000-01-renewed" || secondNode["ssh_host_key_fingerprint"] != "SHA256:rotated" {
+		t.Fatalf("same SSH endpoint should be repaired in place: first=%+v second=%+v", firstNode, secondNode)
+	}
+	if enroller.calls != 2 {
+		t.Fatalf("same endpoint should enroll twice in place; calls=%d", enroller.calls)
 	}
 }
-
 func TestUser_CannotCreateSSHNode(t *testing.T) {
 	r := setupGatewayTestRouter(t, nil)
 	userToken := loginAndGetToken(t, r, "user", "user123")
