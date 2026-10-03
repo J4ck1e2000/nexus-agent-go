@@ -36,6 +36,9 @@ export function useNodes(enabled: boolean): UseNodesResult {
         const nowMs = Date.now();
         setNodes(result.data.map((node) => enrichNode(node, nowMs)));
         setError(null);
+        // Only a successful sync may advance the "synced" timestamp; on
+        // failure the UI keeps showing when data was last actually fresh.
+        setLastSyncedAt(new Date());
       } else {
         // Poll errors stay silent in the UI (web behavior); keep stale data.
         setError(result.error);
@@ -43,7 +46,6 @@ export function useNodes(enabled: boolean): UseNodesResult {
     } finally {
       inFlightRef.current = false;
       if (!disposedRef.current) {
-        setLastSyncedAt(new Date());
         setLoading(false);
       }
     }

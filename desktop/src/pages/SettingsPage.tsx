@@ -1,31 +1,34 @@
 import { useLanguage } from '../hooks/useLanguage';
 import GatewaySettings from '../components/settings/GatewaySettings';
 import LanguageToggle from '../components/common/LanguageToggle';
+import AppModal from '../components/common/AppModal';
 
-export default function SettingsPage() {
+/**
+ * Settings rendered as an overlay above the dashboard so the dashboard (node
+ * selection, AI assistant session, polling) stays mounted while it is open.
+ */
+export default function SettingsPage({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   const { t } = useLanguage();
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-8">
-      <div className="soft-panel p-6">
-        <p className="eyebrow">{t('app.eyebrow')}</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
-          {t('desktop.settings.title')}
-        </h1>
-        <p className="mt-1 text-sm text-muted">{t('desktop.settings.subtitle')}</p>
+    <AppModal open={open} onClose={onClose} title={t('desktop.settings.title')} subtitle={t('desktop.settings.subtitle')} maxWidth="max-w-2xl">
+      <div className="flex flex-col gap-5">
+        <GatewaySettings />
 
-        <div className="mt-6 flex flex-col gap-5">
-          <GatewaySettings />
-
-          <div className="soft-panel-subtle p-5">
-            <h3 className="text-sm font-semibold text-ink">{t('desktop.settings.languageSection')}</h3>
-            <p className="mt-1 text-xs text-muted">{t('desktop.settings.languageHint')}</p>
-            <div className="mt-3">
-              <LanguageToggle />
-            </div>
+        <div className="soft-panel-subtle p-5">
+          <h3 className="text-sm font-semibold text-ink">{t('desktop.settings.languageSection')}</h3>
+          <p className="mt-1 text-xs text-muted">{t('desktop.settings.languageHint')}</p>
+          <div className="mt-3">
+            <LanguageToggle />
           </div>
         </div>
       </div>
-    </div>
+    </AppModal>
   );
 }

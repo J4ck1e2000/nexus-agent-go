@@ -2,11 +2,14 @@ import { useLanguage } from '../../hooks/useLanguage';
 import type { EnrichedNode } from '../../lib/node-logic';
 import NodeListToolbar from './NodeListToolbar';
 import NodeCard from './NodeCard';
+import Spinner from '../common/Spinner';
 import type { SortMode } from '../../lib/node-logic';
 
 interface NodeGridProps {
   nodes: EnrichedNode[];
   filteredNodes: EnrichedNode[];
+  /** True while the first overview fetch is still in flight. */
+  loading?: boolean;
   selectedId: number | null;
   onSelect: (id: number) => void;
   query: string;
@@ -24,6 +27,7 @@ interface NodeGridProps {
 export default function NodeGrid({
   nodes,
   filteredNodes,
+  loading = false,
   selectedId,
   onSelect,
   query,
@@ -46,7 +50,12 @@ export default function NodeGrid({
         onClear={onClearFilter}
       />
 
-      {nodes.length === 0 ? (
+      {loading && nodes.length === 0 ? (
+        <div className="soft-panel-subtle flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-muted">
+          <Spinner size={22} />
+          <p className="text-xs">{t('desktop.nodes.loading')}</p>
+        </div>
+      ) : nodes.length === 0 ? (
         <div className="soft-panel-subtle flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-sm font-semibold text-ink">{t('empty.noConfiguredNodes')}</p>
           <p className="text-xs text-muted">{t('empty.addFirstNode')}</p>

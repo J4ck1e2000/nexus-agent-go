@@ -21,7 +21,7 @@ export default function DashboardPage() {
   const { t } = useLanguage();
   const { user } = useAuth();
   const { showToast } = useToastContext();
-  const { nodes, lastSyncedAt } = useNodes(true);
+  const { nodes, lastSyncedAt, error: pollError, loading } = useNodes(true);
   const { configs, addNode, removeNode } = useNodeConfigs(user?.role === 'admin');
 
   const [query, setQuery] = useState('');
@@ -103,6 +103,15 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {pollError && nodes.length > 0 && (
+        <div
+          className="rounded-2xl border border-[#dfd0c5] bg-[#f1e7df] px-4 py-2.5 text-xs font-medium text-[#5f4a42]"
+          role="status"
+        >
+          {t('desktop.connection.staleBanner')}
+        </div>
+      )}
+
       <SummaryTiles nodes={nodes} />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
@@ -138,6 +147,7 @@ export default function DashboardPage() {
         <NodeGrid
           nodes={nodes}
           filteredNodes={visibleNodes}
+          loading={loading}
           selectedId={selectedId}
           onSelect={setSelectedId}
           query={query}

@@ -32,6 +32,10 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         hint: 'The desktop app talks to your Nexus Gateway over HTTP or HTTPS. Default: http://127.0.0.1:3000.',
         saved: 'Gateway URL saved.',
       },
+      connection: {
+        staleBanner:
+          'Connection to the Gateway was lost. Showing the last synced data — retrying automatically…',
+      },
       nodes: {
         collectorLabel: 'Collector',
         collectorSSH: 'SSH (agentless)',
@@ -51,6 +55,7 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         addServer: 'Add Server',
         connectAndAdd: 'Connect and add',
         connecting: 'Connecting and adding…',
+        loading: 'Loading nodes…',
 
       },
     },
@@ -159,6 +164,9 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         hint: '桌面客户端通过 HTTP 或 HTTPS 访问 Nexus Gateway。默认地址:http://127.0.0.1:3000。',
         saved: '网关地址已保存。',
       },
+      connection: {
+        staleBanner: '与 Gateway 的连接中断,正在显示最后一次同步的数据,会自动重试…',
+      },
       nodes: {
         collectorLabel: '采集方式',
         collectorSSH: 'SSH(无代理)',
@@ -178,6 +186,7 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         addServer: '添加服务器',
         connectAndAdd: '连接并添加',
         connecting: '正在连接并添加…',
+        loading: '正在加载节点…',
 
       },
     },
