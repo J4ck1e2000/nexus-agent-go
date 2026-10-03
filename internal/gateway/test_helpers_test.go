@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func setupGatewayTestRouter(t *testing.T, proxyClient *http.Client) *gin.Engine {
+func setupGatewayTestRouter(t *testing.T, proxyClient *http.Client, sshTesters ...SSHTester) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -35,6 +35,9 @@ func setupGatewayTestRouter(t *testing.T, proxyClient *http.Client) *gin.Engine 
 	h := NewHandler(NewConfigStore(db), NewAuthService(db, "test-secret"), VersionInfo{})
 	if proxyClient != nil {
 		h.proxyClient = proxyClient
+	}
+	if len(sshTesters) > 0 {
+		h.SetSSHTester(sshTesters[0])
 	}
 	h.RegisterAPIRoutes(r)
 	return r

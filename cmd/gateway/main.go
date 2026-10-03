@@ -134,6 +134,9 @@ func main() {
 	})
 
 	handler := gateway.NewHandler(store, gateway.NewAuthService(db, jwtSecret), version, nodeStateService)
+	if sshCollector != nil {
+		handler.SetSSHTester(sshCollector)
+	}
 
 	runtimeConfig := runtime.LoadConfigFromEnv()
 	if !runtimeConfig.Enabled {

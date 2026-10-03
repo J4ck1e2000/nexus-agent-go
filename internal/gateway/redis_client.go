@@ -49,9 +49,9 @@ func LoadGatewayRuntimeConfigFromEnv() GatewayRuntimeConfig {
 			DB:        envOrInt("REDIS_DB", defaultRedisDB),
 			KeyPrefix: envOrString("REDIS_KEY_PREFIX", defaultRedisKeyPrefix),
 		},
-		PollInterval: envOrDuration("GATEWAY_POLL_INTERVAL", defaultGatewayPollIntvl),
-		PollTimeout:  envOrDuration("GATEWAY_POLL_TIMEOUT", defaultGatewayPollTO),
-		NodeStateTTL: envOrDuration("NODE_STATE_TTL", defaultNodeStateTTL),
+		PollInterval:   envOrDuration("GATEWAY_POLL_INTERVAL", defaultGatewayPollIntvl),
+		PollTimeout:    envOrDuration("GATEWAY_POLL_TIMEOUT", defaultGatewayPollTO),
+		NodeStateTTL:   envOrDuration("NODE_STATE_TTL", defaultNodeStateTTL),
 		MaxConcurrency: envOrIntWithDefault("NODE_POLL_MAX_CONCURRENCY", defaultPollMaxConcurrent),
 	}
 }

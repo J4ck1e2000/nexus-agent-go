@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,11 +19,20 @@ import (
 	"gorm.io/gorm"
 
 	"nexus-agent-go/internal/ai"
+	"nexus-agent-go/internal/collector/sshcollector"
 	"nexus-agent-go/internal/model"
 	"nexus-agent-go/internal/runtime"
 )
 
 const authUserContextKey = "auth_user"
+
+// SSHTestTimeout 限制 SSH 连接测试的整体时长（覆盖连接 + 命令超时）。
+const SSHTestTimeout = 15 * time.Second
+
+// SSHTester 抽象 SSH 连接测试能力，由 sshcollector.Collector 实现。
+type SSHTester interface {
+	TestSSH(ctx context.Context, host string, port int, user string) (sshcollector.TestSSHResult, error)
+}
 
 // Handler 聚合网关 API 依赖与处理逻辑。
 type Handler struct {
@@ -31,6 +41,7 @@ type Handler struct {
 	versionInfo      VersionInfo
 	proxyClient      *http.Client
 	nodeStateService *NodeStateService
+	sshTester        SSHTester
 	aiQueryService   AIQueryService
 	toolDispatcher   *ai.ToolDispatcher
 	runManager       *runtime.Manager
@@ -72,6 +83,7 @@ func (h *Handler) RegisterAPIRoutes(r *gin.Engine) {
 	admin := authorized.Group("")
 	admin.Use(RequireAdmin())
 	admin.POST("/config", h.saveConfig)
+	admin.POST("/config/test-ssh", h.testSSH)
 	admin.DELETE("/config/:id", h.deleteConfig)
 	admin.POST("/admin/users", h.createAdminUser)
 	admin.GET("/admin/users", h.listAdminUsers)
@@ -295,6 +307,62 @@ func (h *Handler) saveConfig(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, created)
+}
+
+// SetSSHTester 注入 SSH 连接测试实现（未注入时 test-ssh 返回未配置）。
+func (h *Handler) SetSSHTester(tester SSHTester) {
+	h.sshTester = tester
+}
+
+type testSSHRequest struct {
+	SSHHost string `json:"ssh_host"`
+	SSHPort int    `json:"ssh_port"`
+	SSHUser string `json:"ssh_user"`
+}
+
+// testSSH 用 Gateway 侧配置的私钥对目标主机做一次真实采集测试。
+// 仅管理员可用；失败只返回稳定错误码，不暴露 SSH 栈信息或私钥路径。
+func (h *Handler) testSSH(c *gin.Context) {
+	var req testSSHRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+		return
+	}
+
+	host := strings.ToLower(strings.TrimSpace(req.SSHHost))
+	if host == "" || len(host) > maxSSHHostLen {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+		return
+	}
+	if req.SSHPort < 1 || req.SSHPort > 65535 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+		return
+	}
+	if _, err := normalizeSSHUser(req.SSHUser); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+		return
+	}
+
+	if h.sshTester == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": sshcollector.ErrSSHNotConfigured.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), SSHTestTimeout)
+	defer cancel()
+
+	result, err := h.sshTester.TestSSH(ctx, host, req.SSHPort, strings.TrimSpace(req.SSHUser))
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": sshcollector.ErrorCode(err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"ok":        true,
+		"hostname":  result.Hostname,
+		"gpu_count": result.GPUCount,
+		"gpu_names": result.GPUNames,
+	})
 }
 
 // writeNodeConfigError 将节点配置错误映射为稳定的 API 错误码。
