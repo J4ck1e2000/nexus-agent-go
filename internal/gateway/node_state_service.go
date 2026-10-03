@@ -2,16 +2,19 @@ package gateway
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"nexus-agent-go/internal/collector"
+	"nexus-agent-go/internal/collector/agenthttp"
 	"nexus-agent-go/internal/model"
 )
+
+const defaultPollMaxConcurrency = 16
 
 type nodeConfigLoader interface {
 	Load() ([]model.AgentConfig, error)
@@ -22,37 +25,45 @@ type NodeStateServiceOptions struct {
 	PollTimeout time.Duration
 	HTTPClient  *http.Client
 	NowFunc     func() time.Time
+	// Collectors 指定采集路由；为 nil 时按旧行为构建仅含 Agent HTTP 的默认路由。
+	Collectors *collector.CollectorRouter
+	// MaxConcurrency 限制单轮轮询的并发节点数；<=0 时使用默认值 16。
+	MaxConcurrency int
 }
 
 // NodeStateService 聚合节点轮询、状态缓存和聚合读取能力。
 type NodeStateService struct {
-	configLoader nodeConfigLoader
-	stateStore   *NodeStateStore
-	httpClient   *http.Client
-	pollTimeout  time.Duration
-	nowFunc      func() time.Time
+	configLoader   nodeConfigLoader
+	stateStore     *NodeStateStore
+	collectors     *collector.CollectorRouter
+	maxConcurrency int
+	nowFunc        func() time.Time
 }
 
 // NewNodeStateService 创建节点状态服务。
 func NewNodeStateService(loader nodeConfigLoader, stateStore *NodeStateStore, opts NodeStateServiceOptions) *NodeStateService {
-	pollTimeout := opts.PollTimeout
-	if pollTimeout <= 0 {
-		pollTimeout = defaultGatewayPollTO
-	}
-	client := opts.HTTPClient
-	if client == nil {
-		client = &http.Client{}
-	}
 	nowFunc := opts.NowFunc
 	if nowFunc == nil {
 		nowFunc = time.Now
 	}
+	router := opts.Collectors
+	if router == nil {
+		// 兼容旧行为：未显式配置采集路由时，仅启用 Agent HTTP 采集。
+		router = collector.NewCollectorRouter(
+			agenthttp.New(opts.HTTPClient, opts.PollTimeout),
+			nil,
+		)
+	}
+	maxConcurrency := opts.MaxConcurrency
+	if maxConcurrency <= 0 {
+		maxConcurrency = defaultPollMaxConcurrency
+	}
 	return &NodeStateService{
-		configLoader: loader,
-		stateStore:   stateStore,
-		httpClient:   client,
-		pollTimeout:  pollTimeout,
-		nowFunc:      nowFunc,
+		configLoader:   loader,
+		stateStore:     stateStore,
+		collectors:     router,
+		maxConcurrency: maxConcurrency,
+		nowFunc:        nowFunc,
 	}
 }
 
@@ -86,11 +97,15 @@ func (s *NodeStateService) PollOnce(ctx context.Context) error {
 
 	results := make(chan NodeState, len(nodes))
 	var wg sync.WaitGroup
+	// 信号量限制单轮并发采集数，避免节点规模放大后同时发起大量连接。
+	sem := make(chan struct{}, s.maxConcurrency)
 	for _, node := range nodes {
 		node := node
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			var previous *NodeState
 			if prev, ok := previousStates[node.ID]; ok {
 				prevCopy := prev
@@ -143,7 +158,7 @@ func (s *NodeStateService) GetNodesOverview(ctx context.Context) ([]NodeOverview
 
 		state.ID = node.ID
 		state.Name = node.Name
-		state.URL = node.URL
+		state.URL = nodeDisplayEndpoint(node)
 		if strings.TrimSpace(state.Status) == "" {
 			state.Status = NodeStatusOffline
 		}
@@ -173,7 +188,15 @@ func (s *NodeStateService) pollNode(ctx context.Context, node model.AgentConfig,
 		state.DataAgeSec = cloneFloat64Ptr(previous.DataAgeSec)
 	}
 
-	metrics, collectedAtUnix, err := s.fetchNodeCurrentMetrics(ctx, node.URL)
+	collectorImpl, err := s.collectors.CollectorFor(node)
+	if err != nil {
+		state.LastError = err.Error()
+		log.Printf("node poller collector select failed: node=%s err=%v", node.Name, err)
+		applyDerivedFields(&state, now)
+		return state
+	}
+
+	metrics, collectedAtUnix, err := collectorImpl.Collect(ctx, node)
 	if err != nil {
 		state.LastError = err.Error()
 		applyDerivedFields(&state, now)
@@ -188,43 +211,4 @@ func (s *NodeStateService) pollNode(ctx context.Context, node model.AgentConfig,
 	state.Metrics = computeNetworkSpeed(metrics, previous, now)
 	applyDerivedFields(&state, now)
 	return state
-}
-
-func (s *NodeStateService) fetchNodeCurrentMetrics(ctx context.Context, nodeURL string) (model.SystemMetrics, int64, error) {
-	targetURL := strings.TrimSpace(nodeURL)
-	if targetURL == "" {
-		return model.SystemMetrics{}, 0, fmt.Errorf("node url is empty")
-	}
-	targetURL = strings.TrimRight(targetURL, "/") + "/metrics/current"
-
-	requestCtx, cancel := context.WithTimeout(ctx, s.pollTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, targetURL, nil)
-	if err != nil {
-		return model.SystemMetrics{}, 0, fmt.Errorf("build request failed: %w", err)
-	}
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return model.SystemMetrics{}, 0, fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
-		message := strings.TrimSpace(string(body))
-		if message == "" {
-			message = resp.Status
-		}
-		return model.SystemMetrics{}, 0, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, message)
-	}
-
-	var payload struct {
-		CollectedAtUnix int64 `json:"collected_at_unix"`
-		model.SystemMetrics
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return model.SystemMetrics{}, 0, fmt.Errorf("decode response failed: %w", err)
-	}
-	return payload.SystemMetrics, payload.CollectedAtUnix, nil
 }

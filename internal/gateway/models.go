@@ -29,8 +29,8 @@ func (User) TableName() string {
 
 // AgentNode 为监控节点配置表。
 type AgentNode struct {
-	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name      string    `gorm:"type:varchar(128);not null" json:"name"`
+	ID   uint   `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name string `gorm:"type:varchar(128);not null" json:"name"`
 	// CollectorType 为采集方式（agent/ssh）。历史数据经迁移默认填 agent，
 	// 业务层对空值同样按 agent 处理。
 	CollectorType string `gorm:"type:varchar(16);not null;default:'agent'" json:"collector_type"`

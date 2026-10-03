@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"fmt"
 	"time"
 
 	"nexus-agent-go/internal/model"
@@ -103,11 +104,20 @@ func emptyGPUSummary() NodeGPUSummary {
 	}
 }
 
+// nodeDisplayEndpoint 返回节点在概览中的展示端点：
+// agent 模式为 Agent URL，SSH 模式为 ssh://user@host:port。
+func nodeDisplayEndpoint(node model.AgentConfig) string {
+	if node.CollectorType == model.CollectorTypeSSH {
+		return fmt.Sprintf("ssh://%s@%s:%d", node.SSHUser, node.SSHHost, node.SSHPort)
+	}
+	return node.URL
+}
+
 func pendingNodeState(node model.AgentConfig) NodeState {
 	return NodeState{
 		ID:                node.ID,
 		Name:              node.Name,
-		URL:               node.URL,
+		URL:               nodeDisplayEndpoint(node),
 		Status:            NodeStatusPending,
 		ActiveUsers:       []string{},
 		ActiveUserCount:   0,
