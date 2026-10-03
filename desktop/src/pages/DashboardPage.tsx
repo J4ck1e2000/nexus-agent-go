@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { EnrichedNode as _EnrichedNode } from '../lib/node-logic';
 import { collectDrawerGroups, matchesFilter, sortNodes, type SortMode } from '../lib/node-logic';
 import { useNodes } from '../hooks/useNodes';
-import { useNodeConfigs } from '../hooks/useNodeConfigs';
+import { useNodeConfigs, type AddNodeInput } from '../hooks/useNodeConfigs';
+import type { SSHTestOutcome } from '../components/admin/AddNodeDialog';
+import { localizedError } from '../lib/errors';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { useToastContext } from '../context/ToastContext';
@@ -21,7 +23,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { showToast } = useToastContext();
   const { nodes, lastSyncedAt } = useNodes(true);
-  const { configs, addNode, removeNode } = useNodeConfigs(user?.role === 'admin');
+  const { configs, addNode, removeNode, testSSH } = useNodeConfigs(user?.role === 'admin');
 
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('availability');
@@ -66,7 +68,7 @@ export default function DashboardPage() {
 
   const drawerGroups = useMemo(() => collectDrawerGroups(nodes), [nodes]);
 
-  const handleCreateNode = async (payload: { name: string; url: string }): Promise<boolean> => {
+  const handleCreateNode = async (payload: AddNodeInput): Promise<boolean> => {
     setSavingNode(true);
     try {
       const result = await addNode(payload);
@@ -76,6 +78,8 @@ export default function DashboardPage() {
       }
       if (result.error.detail === 'duplicate_node_url') {
         showToast(t('notify.duplicateNodeUrl'), 'warning');
+      } else if (result.error.detail === 'duplicate_node_endpoint') {
+        showToast(t('desktop.nodes.duplicateEndpoint'), 'warning');
       } else {
         showToast(t('notify.saveConfigFailed'), 'error');
       }
@@ -84,6 +88,17 @@ export default function DashboardPage() {
       setSavingNode(false);
     }
   };
+
+  const handleTestSSH = useCallback(
+    async (payload: { sshHost: string; sshPort: number; sshUser: string }): Promise<SSHTestOutcome> => {
+      const result = await testSSH(payload);
+      if (result.ok) {
+        return { ok: true, result: result.data };
+      }
+      return { ok: false, message: localizedError(result.error, t) };
+    },
+    [testSSH, t],
+  );
 
   const handleDeleteNode = async (): Promise<void> => {
     if (!deleteNodeTarget) return;
@@ -163,6 +178,7 @@ export default function DashboardPage() {
           busy={savingNode}
           onClose={() => setAddNodeOpen(false)}
           onCreate={handleCreateNode}
+          onTestSSH={handleTestSSH}
         />
       )}
 

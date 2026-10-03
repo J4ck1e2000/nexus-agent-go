@@ -80,10 +80,22 @@ export type AvailabilityTier =
   | 'offline'
   | (string & {});
 
+export type CollectorType = 'ssh' | 'agent' | (string & {});
+
 export interface AgentConfig {
   id: number;
   name: string;
-  url: string;
+  /**
+   * Present for collector_type=agent; ssh nodes omit it (Go omitempty).
+   * SSH nodes surface "ssh://user@host:port" in NodeOverview.url instead.
+   */
+  url?: string;
+  /** Absent in legacy gateway payloads; treated as "agent". */
+  collector_type?: CollectorType;
+  ssh_host?: string;
+  ssh_port?: number;
+  ssh_user?: string;
+  ssh_auth_type?: 'key';
 }
 
 export interface GpuInfo {
@@ -166,7 +178,29 @@ export interface NodeOverview {
 
 export interface AddNodePayload {
   name: string;
-  url: string;
+  /** Collector to attach: "ssh" (default in the UI) or legacy "agent". */
+  collector_type: CollectorType;
+  /** Agent mode: agent base URL. */
+  url?: string;
+  /** SSH mode: connection target. Credentials never reach the desktop. */
+  ssh_host?: string;
+  ssh_port?: number;
+  ssh_user?: string;
+  ssh_auth_type?: 'key';
+}
+
+/** Response of POST /api/config/test-ssh. */
+export interface TestSSHResult {
+  ok: boolean;
+  hostname: string;
+  gpu_count: number;
+  gpu_names: string[];
+}
+
+export interface TestSSHPayload {
+  ssh_host: string;
+  ssh_port: number;
+  ssh_user: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +277,7 @@ export interface NexusAPI {
     list(): Promise<NexusResult<AgentConfig[]>>;
     add(payload: AddNodePayload): Promise<NexusResult<AgentConfig>>;
     remove(id: number): Promise<NexusResult<null>>;
+    testSSH(payload: TestSSHPayload): Promise<NexusResult<TestSSHResult>>;
   };
   users: {
     list(q?: string): Promise<NexusResult<UserRecord[]>>;

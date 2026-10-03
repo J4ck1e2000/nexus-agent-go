@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   isValidPassword,
   isValidRequestId,
+  isValidSSHHost,
+  isValidSSHPort,
+  isValidSSHUser,
   isValidUsername,
   normalizeGatewayUrl,
   sanitizeAIQuery,
@@ -60,5 +63,35 @@ describe('sanitizeAIQuery', () => {
     expect(() => sanitizeAIQuery('   ')).toThrowError(gatewayError({ code: 'invalid_input', message: '' }).constructor);
     expect(() => sanitizeAIQuery(42)).toThrowError();
     expect(() => sanitizeAIQuery('x'.repeat(8001))).toThrowError();
+  });
+});
+
+describe('ssh validators', () => {
+  it('accepts reasonable hosts and rejects empty/oversized ones', () => {
+    expect(isValidSSHHost('10.0.0.15')).toBe(true);
+    expect(isValidSSHHost('gpu-cluster.example.com')).toBe(true);
+    expect(isValidSSHHost('2001:db8::1')).toBe(true);
+    expect(isValidSSHHost('')).toBe(false);
+    expect(isValidSSHHost('   ')).toBe(false);
+    expect(isValidSSHHost('h'.repeat(256))).toBe(false);
+    expect(isValidSSHHost(42)).toBe(false);
+  });
+
+  it('bounds the port to 1..65535 integers', () => {
+    expect(isValidSSHPort(1)).toBe(true);
+    expect(isValidSSHPort(22)).toBe(true);
+    expect(isValidSSHPort(65535)).toBe(true);
+    expect(isValidSSHPort(0)).toBe(false);
+    expect(isValidSSHPort(65536)).toBe(false);
+    expect(isValidSSHPort(22.5)).toBe(false);
+    expect(isValidSSHPort('22')).toBe(false);
+  });
+
+  it('mirrors gateway ssh user rules', () => {
+    expect(isValidSSHUser('renhaokun')).toBe(true);
+    expect(isValidSSHUser('a.b_c-d9')).toBe(true);
+    expect(isValidSSHUser('')).toBe(false);
+    expect(isValidSSHUser('bad space')).toBe(false);
+    expect(isValidSSHUser('x'.repeat(65))).toBe(false);
   });
 });

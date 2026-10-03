@@ -65,6 +65,28 @@ export function isValidNodeUrl(raw: unknown): raw is string {
   return normalized !== null;
 }
 
+/** SSH host: non-empty, reasonable length (hostname / IPv4 / IPv6). */
+export function isValidSSHHost(raw: unknown): raw is string {
+  return typeof raw === 'string' && raw.trim().length >= 1 && raw.trim().length <= 255;
+}
+
+/** SSH port: 1..65535 integer. */
+export function isValidSSHPort(raw: unknown): raw is number {
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= 65535;
+}
+
+const SSH_USER_PATTERN = /^[a-zA-Z0-9._-]+$/;
+
+/** Mirrors the Gateway rules: 1-64 chars of [a-zA-Z0-9._-]. */
+export function isValidSSHUser(raw: unknown): raw is string {
+  return (
+    typeof raw === 'string' &&
+    raw.length >= 1 &&
+    raw.length <= 64 &&
+    SSH_USER_PATTERN.test(raw)
+  );
+}
+
 /** Validate a positive integer id used in path params. */
 export function isValidId(raw: unknown): raw is number {
   return typeof raw === 'number' && Number.isInteger(raw) && raw > 0;
