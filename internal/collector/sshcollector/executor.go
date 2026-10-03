@@ -142,6 +142,9 @@ func (e *SSHCommandExecutor) Run(ctx context.Context, node SSHNodeConfig, script
 		return nil, fmt.Errorf("%w: output exceeds %d bytes", ErrSSHOutputTooLarge, e.maxOutputBytes)
 	}
 
+	// 命令已结束：先关 session 让 stderr drain goroutine 拿到 EOF，
+	// 否则 stderr 管道要等远端关 channel 才会返回。
+	_ = session.Close()
 	if stderrData := <-stderrCh; len(stderrData) > 0 {
 		logStderr(node, stderrData)
 	}
