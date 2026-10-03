@@ -93,7 +93,7 @@ export default function DashboardPage() {
         showToast(t('notify.nodeDeleted', { name: deleteNodeTarget.name }), 'success');
         setDeleteNodeTarget(null);
       } else {
-        showToast(t('notify.saveConfigFailed'), 'error');
+        showToast(localizedError(result.error, t), 'error');
         setDeleteNodeTarget(null);
       }
     } finally {
@@ -182,6 +182,7 @@ export default function DashboardPage() {
         title={t('dialog.deleteNodeTitle')}
         description={t('dialog.deleteNodeDescription', { name: deleteNodeTarget?.name ?? '' })}
         confirmTone="danger"
+        confirmLabel={t('action.deleteNode')}
         busy={deletingNode}
         onConfirm={() => void handleDeleteNode()}
         onCancel={() => setDeleteNodeTarget(null)}

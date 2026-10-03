@@ -116,6 +116,14 @@
       disabled:opacity-60 disabled:cursor-not-allowed;
   }
 
+  /* Filled danger for destructive confirm actions (web parity: #392320). */
+  .danger-button {
+    @apply inline-flex items-center justify-center gap-2 bg-[#392320] text-[#f8f4ed] border border-[#392320]
+      rounded-full px-5 py-2.5 text-sm font-medium transition
+      hover:bg-[#281714] hover:border-[#281714]
+      disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
   .input-field {
     @apply w-full bg-panel-soft border border-line rounded-2xl px-4 py-2.5 text-sm text-ink
       outline-none transition placeholder:text-[#a39a8f]

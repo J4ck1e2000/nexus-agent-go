@@ -56,7 +56,18 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         connectAndAdd: 'Connect and add',
         connecting: 'Connecting and adding…',
         loading: 'Loading nodes…',
+        passwordClearedHint:
+          'For security the password was cleared from the form. Re-enter it to retry.',
 
+      },
+      admin: {
+        roleChangeTitle: 'Change user role',
+        roleChangeDescription:
+          'This will change {name}\'s role to {role}. The change takes effect immediately.',
+      },
+      role: {
+        admin: 'Admin',
+        user: 'User',
       },
     },
     status: {
@@ -187,7 +198,16 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         connectAndAdd: '连接并添加',
         connecting: '正在连接并添加…',
         loading: '正在加载节点…',
+        passwordClearedHint: '出于安全考虑,密码已从表单清除;如需重试,请重新输入密码。',
 
+      },
+      admin: {
+        roleChangeTitle: '变更用户角色',
+        roleChangeDescription: '即将把 {name} 的角色变更为「{role}」,变更立即生效。',
+      },
+      role: {
+        admin: '管理员',
+        user: '普通用户',
       },
     },
     status: {
