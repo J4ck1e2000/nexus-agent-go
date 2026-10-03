@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"nexus-agent-go/internal/model"
 )
@@ -24,11 +25,32 @@ type CollectorRouter struct {
 	ssh   NodeMetricsCollector
 }
 
+// isNilCollector detects typed nils hidden inside interface values.
+func isNilCollector(collector NodeMetricsCollector) bool {
+	if collector == nil {
+		return true
+	}
+	value := reflect.ValueOf(collector)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
+func normalizeNilCollector(collector NodeMetricsCollector) NodeMetricsCollector {
+	if isNilCollector(collector) {
+		return nil
+	}
+	return collector
+}
+
 // NewCollectorRouter 创建采集路由；未配置的采集器保持 nil。
 func NewCollectorRouter(agentCollector, sshCollector NodeMetricsCollector) *CollectorRouter {
 	return &CollectorRouter{
-		agent: agentCollector,
-		ssh:   sshCollector,
+		agent: normalizeNilCollector(agentCollector),
+		ssh:   normalizeNilCollector(sshCollector),
 	}
 }
 

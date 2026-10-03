@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"nexus-agent-go/internal/collector/sshcollector"
+	"nexus-agent-go/internal/model"
 )
 
 // ErrWrap 构造带哨兵的错误供错误码映射测试使用。
@@ -36,6 +37,23 @@ func (f *fakeSSHTester) TestSSH(ctx context.Context, host string, port int, user
 		return sshcollector.TestSSHResult{}, f.err
 	}
 	return f.result, nil
+}
+
+type fakeSSHEnroller struct {
+	result   sshcollector.EnrollmentResult
+	err      error
+	calls    int
+	node     model.AgentConfig
+	password []byte
+	hints    []sshcollector.TrustedHostKeyHint
+}
+
+func (f *fakeSSHEnroller) EnrollSSH(_ context.Context, node model.AgentConfig, password []byte, hints []sshcollector.TrustedHostKeyHint) (sshcollector.EnrollmentResult, error) {
+	f.calls++
+	f.node = node
+	f.password = append([]byte(nil), password...)
+	f.hints = append([]sshcollector.TrustedHostKeyHint(nil), hints...)
+	return f.result, f.err
 }
 
 func setupSSHTestRouter(t *testing.T, tester SSHTester) *gin.Engine {

@@ -3691,6 +3691,10 @@
 
                 let disposed = false;
                 const loadConfig = async () => {
+                    if (currentUser.role !== 'admin') {
+                        setServers([]);
+                        return;
+                    }
                     try {
                         const res = await authFetch('/api/config');
                         if (!res.ok) {

@@ -26,7 +26,8 @@ export type GatewayErrorCode =
   | 'gateway_error'
   | 'invalid_response'
   | 'invalid_input'
-  | 'aborted';
+  | 'aborted'
+  | 'insecure_transport';
 
 export interface NexusError {
   code: GatewayErrorCode;
@@ -96,6 +97,8 @@ export interface AgentConfig {
   ssh_port?: number;
   ssh_user?: string;
   ssh_auth_type?: 'key';
+  ssh_host_key_fingerprint?: string;
+
 }
 
 export interface GpuInfo {
@@ -182,11 +185,13 @@ export interface AddNodePayload {
   collector_type: CollectorType;
   /** Agent mode: agent base URL. */
   url?: string;
-  /** SSH mode: connection target. Credentials never reach the desktop. */
+  /** SSH connection target and one-time bootstrap password. */
   ssh_host?: string;
   ssh_port?: number;
   ssh_user?: string;
   ssh_auth_type?: 'key';
+  ssh_password?: string;
+
 }
 
 /** Response of POST /api/config/test-ssh. */

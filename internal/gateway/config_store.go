@@ -141,6 +141,8 @@ func normalizeNodeConfig(config model.AgentConfig) (model.AgentConfig, error) {
 		normalized.SSHPort = config.SSHPort
 		normalized.SSHUser = user
 		normalized.SSHAuthType = authType
+		normalized.SSHHostKey = strings.TrimSpace(config.SSHHostKey)
+		normalized.SSHHostKeyFingerprint = strings.TrimSpace(config.SSHHostKeyFingerprint)
 		return normalized, nil
 	}
 
@@ -152,9 +154,17 @@ func normalizeNodeConfig(config model.AgentConfig) (model.AgentConfig, error) {
 	return normalized, nil
 }
 
-// sshEndpointKey 生成 SSH 节点的端点唯一标识 host:port:user。
+// sshEndpointKey 以物理连接地址 host:port 标识全局唯一的 SSH 节点。
 func sshEndpointKey(config model.AgentConfig) string {
-	return strings.ToLower(config.SSHHost) + ":" + strconv.Itoa(config.SSHPort) + ":" + config.SSHUser
+	return net.JoinHostPort(strings.ToLower(config.SSHHost), strconv.Itoa(config.SSHPort))
+}
+
+func sshEndpointKeyPointer(config model.AgentConfig) *string {
+	if config.CollectorType != model.CollectorTypeSSH {
+		return nil
+	}
+	key := sshEndpointKey(config)
+	return &key
 }
 
 func isDuplicateNodeDBError(err error) bool {
@@ -210,27 +220,32 @@ func agentNodeToConfig(node AgentNode) model.AgentConfig {
 		collectorType = model.CollectorTypeAgent
 	}
 	return model.AgentConfig{
-		ID:            int64(node.ID),
-		Name:          node.Name,
-		CollectorType: collectorType,
-		URL:           node.URL,
-		SSHHost:       node.SSHHost,
-		SSHPort:       node.SSHPort,
-		SSHUser:       node.SSHUser,
-		SSHAuthType:   node.SSHAuthType,
+		ID:                    int64(node.ID),
+		Name:                  node.Name,
+		CollectorType:         collectorType,
+		URL:                   node.URL,
+		SSHHost:               node.SSHHost,
+		SSHPort:               node.SSHPort,
+		SSHUser:               node.SSHUser,
+		SSHAuthType:           node.SSHAuthType,
+		SSHHostKey:            node.SSHHostKey,
+		SSHHostKeyFingerprint: node.SSHHostKeyFingerprint,
 	}
 }
 
 func agentNodeFromConfig(config model.AgentConfig, createdBy uint) AgentNode {
 	return AgentNode{
-		Name:          config.Name,
-		CollectorType: config.CollectorType,
-		URL:           config.URL,
-		SSHHost:       config.SSHHost,
-		SSHPort:       config.SSHPort,
-		SSHUser:       config.SSHUser,
-		SSHAuthType:   config.SSHAuthType,
-		CreatedBy:     createdBy,
+		Name:                  config.Name,
+		CollectorType:         config.CollectorType,
+		URL:                   config.URL,
+		SSHHost:               config.SSHHost,
+		SSHPort:               config.SSHPort,
+		SSHEndpointKey:        sshEndpointKeyPointer(config),
+		SSHUser:               config.SSHUser,
+		SSHAuthType:           config.SSHAuthType,
+		SSHHostKey:            config.SSHHostKey,
+		SSHHostKeyFingerprint: config.SSHHostKeyFingerprint,
+		CreatedBy:             createdBy,
 	}
 }
 
@@ -250,6 +265,83 @@ func (s *ConfigStore) Load() ([]model.AgentConfig, error) {
 		configs = append(configs, agentNodeToConfig(node))
 	}
 	return configs, nil
+}
+
+// FindSSHEndpoint locates an existing SSH node so a failed/offline node can be re-enrolled in place.
+func (s *ConfigStore) FindSSHEndpoint(config model.AgentConfig) (model.AgentConfig, bool, error) {
+	if s == nil || s.db == nil {
+		return model.AgentConfig{}, false, errors.New("config store db is nil")
+	}
+	normalized, err := normalizeNodeConfig(config)
+	if err != nil {
+		return model.AgentConfig{}, false, err
+	}
+	if normalized.CollectorType != model.CollectorTypeSSH {
+		return model.AgentConfig{}, false, ErrInvalidCollectorType
+	}
+	var node AgentNode
+	err = s.db.Where("collector_type = ? AND ssh_host = ? AND ssh_port = ?", model.CollectorTypeSSH, normalized.SSHHost, normalized.SSHPort).Order("id ASC").First(&node).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.AgentConfig{}, false, nil
+	}
+	if err != nil {
+		return model.AgentConfig{}, false, fmt.Errorf("find SSH endpoint failed: %w", err)
+	}
+	return agentNodeToConfig(node), true, nil
+}
+
+// UpdateSSHEnrollment refreshes an existing endpoint after successful key bootstrap.
+func (s *ConfigStore) UpdateSSHEnrollment(id uint, config model.AgentConfig) (model.AgentConfig, error) {
+	if s == nil || s.db == nil {
+		return model.AgentConfig{}, errors.New("config store db is nil")
+	}
+	normalized, err := normalizeNodeConfig(config)
+	if err != nil {
+		return model.AgentConfig{}, err
+	}
+	if normalized.CollectorType != model.CollectorTypeSSH {
+		return model.AgentConfig{}, ErrInvalidCollectorType
+	}
+	result := s.db.Model(&AgentNode{}).Where("id = ? AND collector_type = ?", id, model.CollectorTypeSSH).Updates(map[string]any{
+		"name":                     normalized.Name,
+		"ssh_endpoint_key":         sshEndpointKey(normalized),
+		"ssh_host_key":             normalized.SSHHostKey,
+		"ssh_host_key_fingerprint": normalized.SSHHostKeyFingerprint,
+		"ssh_auth_type":            model.SSHAuthTypeKey,
+	})
+	if result.Error != nil {
+		if isDuplicateNodeDBError(result.Error) {
+			return model.AgentConfig{}, ErrDuplicateNodeEndpoint
+		}
+		return model.AgentConfig{}, fmt.Errorf("update SSH enrollment failed: %w", result.Error)
+	}
+	var stored AgentNode
+	if err := s.db.Where("id = ? AND collector_type = ?", id, model.CollectorTypeSSH).First(&stored).Error; err != nil {
+		return model.AgentConfig{}, fmt.Errorf("reload SSH node failed: %w", err)
+	}
+	return agentNodeToConfig(stored), nil
+}
+
+// CheckSSHEndpointAvailable validates a new SSH endpoint before remote bootstrap side effects.
+func (s *ConfigStore) CheckSSHEndpointAvailable(config model.AgentConfig) error {
+	if s == nil || s.db == nil {
+		return errors.New("config store db is nil")
+	}
+	normalized, err := normalizeNodeConfig(config)
+	if err != nil {
+		return err
+	}
+	if normalized.CollectorType != model.CollectorTypeSSH {
+		return ErrInvalidCollectorType
+	}
+	conflict, err := s.hasSSHEndpointConflict(s.db, sshEndpointKey(normalized))
+	if err != nil {
+		return err
+	}
+	if conflict {
+		return ErrDuplicateNodeEndpoint
+	}
+	return nil
 }
 
 // Add 新增单个节点配置。

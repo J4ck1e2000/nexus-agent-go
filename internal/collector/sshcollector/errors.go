@@ -12,6 +12,10 @@ var (
 	ErrSSHConnectFailed = errors.New("ssh_connect_failed")
 	// ErrSSHAuthFailed 表示 SSH 认证被拒绝。
 	ErrSSHAuthFailed = errors.New("ssh_auth_failed")
+	// ErrSSHPasswordAuthFailed indicates the one-time bootstrap password was rejected.
+	ErrSSHPasswordAuthFailed = errors.New("ssh_password_auth_failed")
+	// ErrSSHBootstrapFailed indicates the Gateway key could not be installed on the remote account.
+	ErrSSHBootstrapFailed = errors.New("ssh_bootstrap_failed")
 	// ErrSSHHostKeyFailed 表示 known_hosts 校验失败（未知主机或指纹变化）。
 	ErrSSHHostKeyFailed = errors.New("ssh_host_key_failed")
 	// ErrSSHCommandTimeout 表示远程脚本执行超时。
@@ -36,8 +40,12 @@ func ErrorCode(err error) string {
 		return ErrSSHNotConfigured.Error()
 	case errors.Is(err, ErrSSHConnectFailed):
 		return ErrSSHConnectFailed.Error()
+	case errors.Is(err, ErrSSHPasswordAuthFailed):
+		return ErrSSHPasswordAuthFailed.Error()
 	case errors.Is(err, ErrSSHAuthFailed):
 		return ErrSSHAuthFailed.Error()
+	case errors.Is(err, ErrSSHBootstrapFailed):
+		return ErrSSHBootstrapFailed.Error()
 	case errors.Is(err, ErrSSHHostKeyFailed):
 		return ErrSSHHostKeyFailed.Error()
 	case errors.Is(err, ErrSSHCommandTimeout):

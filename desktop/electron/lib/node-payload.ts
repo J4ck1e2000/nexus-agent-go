@@ -74,10 +74,15 @@ export function sanitizeAgentConfig(value: unknown): AgentConfig {
   if (authType !== undefined && authType !== 'key') {
     throw invalid('Node payload has an invalid ssh_auth_type');
   }
+  const fingerprint = optionalString(obj, 'ssh_host_key_fingerprint');
+  if (fingerprint !== undefined && !/^SHA256:[A-Za-z0-9+/]{43}$/.test(fingerprint)) {
+    throw invalid('Node payload has an invalid SSH host key fingerprint');
+  }
   config.ssh_host = host;
   config.ssh_port = port;
   config.ssh_user = user;
   if (authType !== undefined) config.ssh_auth_type = 'key';
+  if (fingerprint !== undefined) config.ssh_host_key_fingerprint = fingerprint;
   return config;
 }
 
@@ -91,7 +96,7 @@ export function sanitizeAgentConfigList(value: unknown): AgentConfig[] {
 /**
  * Validate renderer-supplied Add Node input and build the Gateway payload.
  * Mirrors the Gateway rules: agent mode needs a URL, ssh mode needs
- * host/port/user; credentials are never part of the payload.
+ * host/port/user. The SSH password is transient bootstrap input.
  */
 export function buildAddNodeBody(payload: unknown): AddNodePayload {
   const obj = asRecord(payload, 'add node payload');
@@ -114,6 +119,10 @@ export function buildAddNodeBody(payload: unknown): AddNodePayload {
   const host = optionalString(obj, 'ssh_host')?.trim() ?? '';
   const port = obj.ssh_port;
   const user = optionalString(obj, 'ssh_user')?.trim() ?? '';
+  const sshPassword = optionalString(obj, 'ssh_password') ?? '';
+  if (new TextEncoder().encode(sshPassword).length > 4096) {
+    throw invalid('ssh_password must be at most 4096 bytes');
+  }
   if (!isValidSSHHost(host)) {
     throw invalid('SSH host is required');
   }
@@ -123,7 +132,15 @@ export function buildAddNodeBody(payload: unknown): AddNodePayload {
   if (!isValidSSHUser(user)) {
     throw invalid('SSH user must be 1-64 characters (letters, digits, . _ -)');
   }
-  return { name, collector_type: 'ssh', ssh_host: host, ssh_port: port, ssh_user: user, ssh_auth_type: 'key' };
+  return {
+    name,
+    collector_type: 'ssh',
+    ssh_host: host,
+    ssh_port: port,
+    ssh_user: user,
+    ssh_auth_type: 'key',
+    ...(sshPassword ? { ssh_password: sshPassword } : {}),
+  };
 }
 
 /**

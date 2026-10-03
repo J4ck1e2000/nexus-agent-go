@@ -55,7 +55,7 @@ func main() {
 
 	nodeStateStore := gateway.NewNodeStateStore(redisClient, runtimeCfg.Redis.KeyPrefix, runtimeCfg.NodeStateTTL)
 
-	// SSH agentless 采集器：未配置私钥时禁用（仅保留旧版 Agent HTTP 采集）。
+	// SSH agentless 采集器：默认使用自动生成并持久保存的 Gateway 密钥。
 	sshCollector := buildSSHCollector()
 
 	nodeStateService := gateway.NewNodeStateService(store, nodeStateStore, gateway.NodeStateServiceOptions{
@@ -136,6 +136,7 @@ func main() {
 	handler := gateway.NewHandler(store, gateway.NewAuthService(db, jwtSecret), version, nodeStateService)
 	if sshCollector != nil {
 		handler.SetSSHTester(sshCollector)
+		handler.SetSSHEnroller(sshCollector)
 	}
 
 	runtimeConfig := runtime.LoadConfigFromEnv()
@@ -218,16 +219,16 @@ func resolveWebDir(defaultDir string) string {
 }
 
 // buildSSHCollector 从环境变量构建 SSH 采集器。
-// 未设置 SSH_PRIVATE_KEY_PATH 时禁用（返回 nil），其余配置错误直接终止启动，
-// 避免"看起来在跑实际采不到数"的静默失败。
+// SSH 未配置或初始化失败时只禁用 SSH 采集，Gateway 和其他采集模式继续运行。
 func buildSSHCollector() *sshcollector.Collector {
 	sshCollector, err := sshcollector.NewWithOptionsFromEnv(sshcollector.LoadOptionsFromEnv())
 	if err != nil {
 		if errors.Is(err, sshcollector.ErrSSHNotConfigured) {
-			log.Printf("ssh collector disabled: SSH_PRIVATE_KEY_PATH not set (legacy agent http collector only)")
+			log.Printf("ssh collector unavailable: Gateway SSH identity could not be loaded")
 			return nil
 		}
-		log.Fatalf("ssh collector init failed: %v", err)
+		log.Printf("ssh collector disabled: init failed: %v", err)
+		return nil
 	}
 	connectTO, commandTO, keepalive := sshCollector.OptionsSummary()
 	log.Printf("ssh collector enabled: connect timeout %s, command timeout %s, keepalive %s",

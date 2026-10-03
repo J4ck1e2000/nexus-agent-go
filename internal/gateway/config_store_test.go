@@ -217,19 +217,12 @@ func TestConfigStore_DuplicateSSHEndpointRejected(t *testing.T) {
 		t.Fatalf("first add failed: %v", err)
 	}
 
-	// 同一 host:port:user 换名字仍然冲突。
+	// 同一 host:port 即是同一台全局节点，名字和 Linux 用户都不能创建副本。
 	duplicate := payload
 	duplicate.Name = "A6000-02"
+	duplicate.SSHUser = "root"
 	if _, err := store.Add(duplicate, 1); !errors.Is(err, ErrDuplicateNodeEndpoint) {
-		t.Fatalf("expected duplicate endpoint error, got %v", err)
-	}
-
-	// 不同用户不冲突。
-	other := payload
-	other.Name = "A6000-03"
-	other.SSHUser = "root"
-	if _, err := store.Add(other, 1); err != nil {
-		t.Fatalf("different user should not conflict: %v", err)
+		t.Fatalf("expected same-server duplicate error, got %v", err)
 	}
 
 	// 不同端口不冲突。
@@ -288,10 +281,10 @@ func TestConfigStore_SaveMixedNodes(t *testing.T) {
 		t.Fatalf("collector types mismatch: %+v", configs)
 	}
 
-	// 同一批内重复 SSH 端点应被拒绝。
+	// 同一批内同一 host:port 使用不同 Linux 账号也不能重复添加。
 	dupErr := store.Save([]model.AgentConfig{
 		{Name: "ssh-a", CollectorType: model.CollectorTypeSSH, SSHHost: "10.0.0.15", SSHPort: 22, SSHUser: "renhaokun"},
-		{Name: "ssh-b", CollectorType: model.CollectorTypeSSH, SSHHost: "10.0.0.15", SSHPort: 22, SSHUser: "renhaokun"},
+		{Name: "ssh-b", CollectorType: model.CollectorTypeSSH, SSHHost: "10.0.0.15", SSHPort: 22, SSHUser: "root"},
 	}, 1)
 	if !errors.Is(dupErr, ErrDuplicateNodeEndpoint) {
 		t.Fatalf("expected duplicate endpoint error, got %v", dupErr)

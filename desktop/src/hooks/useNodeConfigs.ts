@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AgentConfig, NexusError, NexusResult, TestSSHResult } from '../../electron/types/ipc';
+import type { AgentConfig, NexusError, NexusResult } from '../../electron/types/ipc';
 import type { ResolvedCollectorType } from '../../electron/lib/node-payload';
 
 export interface AddNodeInput {
@@ -11,12 +11,8 @@ export interface AddNodeInput {
   sshHost?: string;
   sshPort?: number;
   sshUser?: string;
-}
-
-export interface TestSSHInput {
-  sshHost: string;
-  sshPort: number;
-  sshUser: string;
+  /** One-time SSH bootstrap password; cleared by the dialog after submission. */
+  sshPassword?: string;
 }
 
 export interface UseNodeConfigsResult {
@@ -26,7 +22,6 @@ export interface UseNodeConfigsResult {
   reload: () => Promise<void>;
   addNode: (payload: AddNodeInput) => Promise<NexusResult<AgentConfig>>;
   removeNode: (id: number) => Promise<NexusResult<null>>;
-  testSSH: (payload: TestSSHInput) => Promise<NexusResult<TestSSHResult>>;
 }
 
 /** Node configuration list (GET/POST/DELETE /api/config) for admins. */
@@ -60,6 +55,7 @@ export function useNodeConfigs(enabled: boolean): UseNodeConfigsResult {
         ssh_host: payload.sshHost,
         ssh_port: payload.sshPort,
         ssh_user: payload.sshUser,
+        ssh_password: payload.sshPassword,
         ssh_auth_type: payload.collectorType === 'ssh' ? 'key' : undefined,
       });
       if (result.ok) {
@@ -81,15 +77,5 @@ export function useNodeConfigs(enabled: boolean): UseNodeConfigsResult {
     [reload],
   );
 
-  const testSSH = useCallback(
-    async (payload: TestSSHInput): Promise<NexusResult<TestSSHResult>> =>
-      window.nexus.nodes.testSSH({
-        ssh_host: payload.sshHost,
-        ssh_port: payload.sshPort,
-        ssh_user: payload.sshUser,
-      }),
-    [],
-  );
-
-  return { configs, loading, error, reload, addNode, removeNode, testSSH };
+  return { configs, loading, error, reload, addNode, removeNode };
 }

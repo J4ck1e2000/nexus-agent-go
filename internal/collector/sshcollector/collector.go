@@ -5,9 +5,13 @@ package sshcollector
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -51,6 +55,17 @@ func LoadOptionsFromEnv() Options {
 	}
 }
 
+func defaultSSHPrivateKeyPath(configured string) (string, error) {
+	if configured = strings.TrimSpace(configured); configured != "" {
+		return configured, nil
+	}
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve SSH key storage directory: %w", err)
+	}
+	return filepath.Join(configDir, "nexus-agent-go", "ssh", "id_ed25519"), nil
+}
+
 func envSeconds(key string, fallback time.Duration) time.Duration {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {
@@ -70,9 +85,11 @@ type cpuSample struct {
 
 // Collector 是 agentless SSH 指标采集器，实现 collector.NodeMetricsCollector。
 type Collector struct {
-	executor CommandExecutor
-	options  Options
-	nowFunc  func() time.Time
+	executor        CommandExecutor
+	signer          ssh.Signer
+	hostKeyCallback ssh.HostKeyCallback
+	options         Options
+	nowFunc         func() time.Time
 
 	mu      sync.Mutex
 	prevCPU map[int64]cpuSample
@@ -94,24 +111,24 @@ func New(executor CommandExecutor, opts Options) *Collector {
 }
 
 // NewWithOptionsFromEnv 按环境变量构建生产采集器（含连接池与执行器）。
-// 未设置 SSH_PRIVATE_KEY_PATH 时返回 ErrSSHNotConfigured。
+// 未设置 SSH_PRIVATE_KEY_PATH 时会在用户配置目录中生成独立的 Gateway 密钥。
 func NewWithOptionsFromEnv(opts Options) (*Collector, error) {
-	if strings.TrimSpace(opts.PrivateKeyPath) == "" {
-		return nil, ErrSSHNotConfigured
+	privateKeyPath, err := defaultSSHPrivateKeyPath(opts.PrivateKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("SSH private key path is unavailable: %w", err)
 	}
-	if strings.TrimSpace(opts.KnownHostsPath) == "" {
-		return nil, fmt.Errorf("ssh collector requires SSH_KNOWN_HOSTS_PATH: %w", ErrSSHNotConfigured)
-	}
-
-	signer, err := loadPrivateKey(opts.PrivateKeyPath)
+	signer, err := loadOrCreatePrivateKey(privateKeyPath)
 	if err != nil {
 		return nil, err
 	}
-	hostKeyCallback, err := knownhosts.New(opts.KnownHostsPath)
-	if err != nil {
-		return nil, fmt.Errorf("load known_hosts failed: %v", err)
+	opts.PrivateKeyPath = privateKeyPath
+	var hostKeyCallback ssh.HostKeyCallback
+	if path := strings.TrimSpace(opts.KnownHostsPath); path != "" {
+		hostKeyCallback, err = knownhosts.New(path)
+		if err != nil {
+			return nil, fmt.Errorf("load known_hosts failed: %w", err)
+		}
 	}
-
 	connectTimeout := opts.ConnectTimeout
 	if connectTimeout <= 0 {
 		connectTimeout = 5 * time.Second
@@ -121,22 +138,67 @@ func NewWithOptionsFromEnv(opts Options) (*Collector, error) {
 		HostKeyCallback: hostKeyCallback,
 		Timeout:         connectTimeout,
 	}
-
 	pool := NewConnectionPool(productionDial(clientConfig), opts.KeepAliveInterval)
 	executor := NewSSHCommandExecutor(pool, opts.CommandTimeout, opts.MaxOutputBytes)
 	sshCollector := New(executor, opts)
 	sshCollector.pool = pool
+	sshCollector.signer = signer
+	sshCollector.hostKeyCallback = hostKeyCallback
 	return sshCollector, nil
 }
 
-// loadPrivateKey 读取并解析 Gateway 侧 SSH 私钥。
-// 加密私钥第一阶段明确拒绝，不做交互式 passphrase。
-func loadPrivateKey(path string) (ssh.Signer, error) {
-	pemBytes, err := os.ReadFile(path)
-	if err != nil {
+func loadOrCreatePrivateKey(path string) (ssh.Signer, error) {
+	data, err := os.ReadFile(path)
+	if err == nil {
+		return parsePrivateKey(data)
+	}
+	if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("%w: read private key failed: %v", ErrSSHConnectFailed, err)
 	}
-	signer, err := ssh.ParsePrivateKey(pemBytes)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, fmt.Errorf("create SSH key directory: %w", err)
+	}
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("generate Gateway SSH key: %w", err)
+	}
+	block, err := ssh.MarshalPrivateKey(privateKey, "nexus-agent-go Gateway key")
+	if err != nil {
+		return nil, fmt.Errorf("encode Gateway SSH key: %w", err)
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil, fmt.Errorf("read concurrently created SSH key: %w", readErr)
+		}
+		return parsePrivateKey(data)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("create Gateway SSH key: %w", err)
+	}
+	written := false
+	defer func() {
+		_ = f.Close()
+		if !written {
+			_ = os.Remove(path)
+		}
+	}()
+	if _, err := f.Write(pem.EncodeToMemory(block)); err != nil {
+		return nil, fmt.Errorf("write Gateway SSH key: %w", err)
+	}
+	if err := f.Sync(); err != nil {
+		return nil, fmt.Errorf("sync Gateway SSH key: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("close Gateway SSH key: %w", err)
+	}
+	written = true
+	return ssh.NewSignerFromKey(privateKey)
+}
+
+func parsePrivateKey(data []byte) (ssh.Signer, error) {
+	signer, err := ssh.ParsePrivateKey(data)
 	if err != nil {
 		var passErr *ssh.PassphraseMissingError
 		if errors.As(err, &passErr) {
@@ -145,6 +207,14 @@ func loadPrivateKey(path string) (ssh.Signer, error) {
 		return nil, fmt.Errorf("%w: parse private key failed: %v", ErrSSHConnectFailed, err)
 	}
 	return signer, nil
+}
+
+// PublicKeyLine returns the Gateway identity to authorize on a remote account.
+func (c *Collector) PublicKeyLine() (string, error) {
+	if c == nil || c.signer == nil {
+		return "", ErrSSHNotConfigured
+	}
+	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(c.signer.PublicKey()))), nil
 }
 
 // Pool 返回底层连接池（Gateway 关停时调用 CloseAll）。
@@ -165,9 +235,10 @@ func (c *Collector) Close() {
 // Collect 采集一次节点指标并转换为 SystemMetrics。
 func (c *Collector) Collect(ctx context.Context, node model.AgentConfig) (model.SystemMetrics, int64, error) {
 	out, err := c.executor.Run(ctx, SSHNodeConfig{
-		Host: node.SSHHost,
-		Port: node.SSHPort,
-		User: node.SSHUser,
+		Host:    node.SSHHost,
+		Port:    node.SSHPort,
+		User:    node.SSHUser,
+		HostKey: node.SSHHostKey,
 	}, remoteMetricsScript)
 	if err != nil {
 		return model.SystemMetrics{}, 0, err
