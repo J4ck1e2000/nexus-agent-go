@@ -272,14 +272,7 @@ func (h *Handler) saveConfig(c *gin.Context) {
 			return
 		}
 		if err := h.store.Save(configs, currentUser.ID); err != nil {
-			switch {
-			case errors.Is(err, ErrDuplicateNodeURL):
-				c.JSON(http.StatusConflict, gin.H{"error": "duplicate_node_url"})
-			case errors.Is(err, ErrInvalidNodeConfig), errors.Is(err, ErrInvalidNodeURL):
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
-			}
+			h.writeNodeConfigError(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "success"})
@@ -291,24 +284,37 @@ func (h *Handler) saveConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
 		return
 	}
-	if strings.TrimSpace(payload.Name) == "" || strings.TrimSpace(payload.URL) == "" {
+	if strings.TrimSpace(payload.Name) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
 		return
 	}
 
 	created, err := h.store.Add(payload, currentUser.ID)
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrDuplicateNodeURL):
-			c.JSON(http.StatusConflict, gin.H{"error": "duplicate_node_url"})
-		case errors.Is(err, ErrInvalidNodeConfig), errors.Is(err, ErrInvalidNodeURL):
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
-		}
+		h.writeNodeConfigError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, created)
+}
+
+// writeNodeConfigError 将节点配置错误映射为稳定的 API 错误码。
+func (h *Handler) writeNodeConfigError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ErrDuplicateNodeURL):
+		c.JSON(http.StatusConflict, gin.H{"error": "duplicate_node_url"})
+	case errors.Is(err, ErrDuplicateNodeEndpoint):
+		c.JSON(http.StatusConflict, gin.H{"error": "duplicate_node_endpoint"})
+	case errors.Is(err, ErrInvalidNodeConfig),
+		errors.Is(err, ErrInvalidNodeURL),
+		errors.Is(err, ErrInvalidCollectorType),
+		errors.Is(err, ErrInvalidSSHHost),
+		errors.Is(err, ErrInvalidSSHPort),
+		errors.Is(err, ErrInvalidSSHUser),
+		errors.Is(err, ErrInvalidSSHAuthType):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_payload"})
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+	}
 }
 
 // deleteConfig 删除节点配置。

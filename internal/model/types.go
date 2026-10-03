@@ -1,13 +1,52 @@
 package model
 
+import (
+	"fmt"
+	"time"
+)
+
+// 节点采集方式：agent 为旧版 HTTP Agent，ssh 为无代理 SSH 采集。
+const (
+	// CollectorTypeAgent 表示节点由部署在目标服务器上的 Nexus Agent 提供 HTTP 指标。
+	CollectorTypeAgent = "agent"
+	// CollectorTypeSSH 表示节点由 Gateway 通过 SSH 直接采集（agentless）。
+	CollectorTypeSSH = "ssh"
+)
+
+// SSHAuthTypeKey 表示 SSH 仅支持密钥认证。
+const SSHAuthTypeKey = "key"
+
 // AgentConfig 描述前端保存的单个节点配置。
 type AgentConfig struct {
 	// ID 为节点唯一标识。
 	ID int64 `json:"id"`
 	// Name 为节点显示名称。
 	Name string `json:"name"`
-	// URL 为节点 Agent 地址。
-	URL string `json:"url"`
+	// CollectorType 为采集方式（agent/ssh），空值按 agent 处理。
+	CollectorType string `json:"collector_type,omitempty"`
+	// URL 为节点 Agent 地址，仅 collector_type=agent 时有效。
+	URL string `json:"url,omitempty"`
+
+	// SSHHost 为 SSH 主机地址，仅 collector_type=ssh 时有效。
+	SSHHost string `json:"ssh_host,omitempty"`
+	// SSHPort 为 SSH 端口，仅 collector_type=ssh 时有效。
+	SSHPort int `json:"ssh_port,omitempty"`
+	// SSHUser 为 SSH 登录用户，仅 collector_type=ssh 时有效。
+	SSHUser string `json:"ssh_user,omitempty"`
+	// SSHAuthType 为 SSH 认证方式（当前仅 key）。
+	SSHAuthType string `json:"ssh_auth_type,omitempty"`
+}
+
+// FormatUptime 将秒数转换为可读时长，供 Agent 与 SSH Collector 共用。
+func FormatUptime(seconds float64) string {
+	d := time.Duration(seconds) * time.Second
+	days := int(d.Hours()) / 24
+	hours := int(d.Hours()) % 24
+	minutes := int(d.Minutes()) % 60
+	if days > 0 {
+		return fmt.Sprintf("%dd %dh %dm", days, hours, minutes)
+	}
+	return fmt.Sprintf("%dh %dm", hours, minutes)
 }
 
 // ProcessInfo 表示进程级监控数据。
