@@ -27,14 +27,19 @@ export default function AppModal({
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
 
+  // Initial focus must run once per open — it must NOT live in the effect
+  // below: callers pass inline `onClose` closures and dashboard polling
+  // re-renders every 2s, so re-running focus there would steal the caret
+  // from any field the user is typing in. Children that focus a specific
+  // input (e.g. PromptDialog) still win with their delayed focus.
+  useEffect(() => {
+    if (open) panelRef.current?.focus();
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    // Park focus on the panel itself so Tab cycles inside the dialog and
-    // Enter cannot re-trigger the element that opened it. Children that
-    // focus a specific input (e.g. PromptDialog) run after and win.
-    panelRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape' && !disableClose) {
         event.preventDefault();
