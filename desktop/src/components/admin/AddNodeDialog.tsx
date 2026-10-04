@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import type { AgentConfig } from '../../../electron/types/ipc';
 import type { ResolvedCollectorType } from '../../../electron/lib/node-payload';
 import type { AddNodeInput } from '../../hooks/useNodeConfigs';
@@ -32,6 +32,8 @@ export default function AddNodeDialog({
   const [sshUser, setSshUser] = useState('');
   const [sshPassword, setSshPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [passwordCleared, setPasswordCleared] = useState(false);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
 
   const reset = (): void => {
     setCollectorType('ssh');
@@ -42,6 +44,7 @@ export default function AddNodeDialog({
     setSshUser('');
     setSshPassword('');
     setError(null);
+    setPasswordCleared(false);
   };
 
   const parsedPort = (): number => Number.parseInt(sshPort.trim(), 10);
@@ -101,6 +104,9 @@ export default function AddNodeDialog({
       return;
     }
     const password = sshPassword;
+    // The bootstrap password is wiped from state as soon as it is submitted
+    // (it is never persisted); if the enrollment fails the user must re-enter
+    // it, so say so and drop focus back into the field.
     setSshPassword('');
     const outcome = await onCreate({
       name: trimmedName,
@@ -110,8 +116,13 @@ export default function AddNodeDialog({
       sshUser: user,
       sshPassword: password,
     });
-    if (outcome.ok) reset();
-    else setError(outcome.message);
+    if (outcome.ok) {
+      reset();
+    } else {
+      setError(outcome.message);
+      setPasswordCleared(true);
+      passwordRef.current?.focus();
+    }
   };
 
   return (
@@ -124,7 +135,7 @@ export default function AddNodeDialog({
       title={t('modal.addNode')}
       subtitle={t('modal.configuration')}
       maxWidth="max-w-md"
-      disableEscape={busy}
+      disableClose={busy}
     >
       <form className="flex flex-col gap-3" onSubmit={(event) => void submit(event)}>
         <label className="flex flex-col gap-1.5">
@@ -216,9 +227,16 @@ export default function AddNodeDialog({
                 maxLength={4096}
                 autoComplete="new-password"
                 disabled={busy}
-                onChange={(event) => setSshPassword(event.target.value)}
+                ref={passwordRef}
+                onChange={(event) => {
+                  setSshPassword(event.target.value);
+                  setPasswordCleared(false);
+                }}
               />
               <span className="text-xs text-muted">{t('desktop.nodes.passwordHint')}</span>
+              {passwordCleared && (
+                <span className="text-xs text-[#7a4740]">{t('desktop.nodes.passwordClearedHint')}</span>
+              )}
             </label>
           </>
         )}

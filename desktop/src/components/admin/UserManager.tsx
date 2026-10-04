@@ -29,6 +29,7 @@ export default function UserManager({ open, onClose }: { open: boolean; onClose:
   });
   const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
   const [passwordTarget, setPasswordTarget] = useState<UserRecord | null>(null);
+  const [roleChangeTarget, setRoleChangeTarget] = useState<{ target: UserRecord; role: UserRole } | null>(null);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -88,6 +89,20 @@ export default function UserManager({ open, onClose }: { open: boolean; onClose:
     }
   };
 
+  /**
+   * Selecting a lower role in the table is easy to do by accident, so demoting
+   * another admin asks for confirmation first. Self-demotion is left alone:
+   * the gateway rejects it with a dedicated localized error.
+   */
+  const handleRoleSelect = (target: UserRecord, role: UserRole): void => {
+    if (role === target.role) return;
+    if (target.role === 'admin' && role === 'user' && target.id !== user?.id) {
+      setRoleChangeTarget({ target, role });
+      return;
+    }
+    void handleRoleChange(target, role);
+  };
+
   const handleDelete = async (): Promise<void> => {
     if (!deleteTarget) return;
     setActionKey(`delete:${deleteTarget.id}`);
@@ -130,7 +145,7 @@ export default function UserManager({ open, onClose }: { open: boolean; onClose:
         title={t('adminUsers.modalTitle')}
         subtitle={t('adminUsers.modalSubtitle')}
         maxWidth="max-w-5xl"
-        disableEscape={actionKey !== null}
+        disableClose={actionKey !== null}
       >
         <div className="flex flex-col gap-4">
           <section className="soft-panel-subtle p-4">
@@ -222,7 +237,7 @@ export default function UserManager({ open, onClose }: { open: boolean; onClose:
                           value={entry.role}
                           disabled={actionKey !== null}
                           onChange={(event) =>
-                            void handleRoleChange(entry, event.target.value as UserRole)
+                            handleRoleSelect(entry, event.target.value as UserRole)
                           }
                         >
                           <option value="user">{t('adminUsers.roleUser')}</option>
@@ -266,9 +281,26 @@ export default function UserManager({ open, onClose }: { open: boolean; onClose:
         title={t('dialog.deleteUserTitle')}
         description={t('dialog.deleteUserDescription', { name: deleteTarget?.username ?? '' })}
         confirmTone="danger"
+        confirmLabel={t('action.deleteUser')}
         busy={deleteTarget !== null && actionKey === `delete:${deleteTarget.id}`}
         onConfirm={() => void handleDelete()}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={roleChangeTarget !== null}
+        title={t('desktop.admin.roleChangeTitle')}
+        description={t('desktop.admin.roleChangeDescription', {
+          name: roleChangeTarget?.target.username ?? '',
+          role: roleChangeTarget ? t(`desktop.role.${roleChangeTarget.role}`) : '',
+        })}
+        confirmTone="danger"
+        busy={false}
+        onConfirm={() => {
+          if (roleChangeTarget) void handleRoleChange(roleChangeTarget.target, roleChangeTarget.role);
+          setRoleChangeTarget(null);
+        }}
+        onCancel={() => setRoleChangeTarget(null)}
       />
 
       <PromptDialog

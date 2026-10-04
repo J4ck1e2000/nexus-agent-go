@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DrawerUserGroup } from '../../lib/node-logic';
 import { avatarTone, initialsOf } from '../../lib/format';
 import { useLanguage } from '../../hooks/useLanguage';
@@ -16,10 +16,28 @@ export default function ActivityDrawer({
   const { t } = useLanguage();
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // Matches AppModal: Esc closes and background scrolling is locked.
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" data-nexus-overlay="open">
       <div
         className="absolute inset-0 bg-[#2f2922]/25 backdrop-blur-[2px]"
         onClick={onClose}

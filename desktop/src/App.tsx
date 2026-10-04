@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AuthProvider, useAuthContext } from './context/AuthContext';
 import { LanguageProvider, useLanguageContext } from './context/LanguageContext';
 import { ToastProvider } from './context/ToastContext';
-import AppShell, { type AppView } from './components/layout/AppShell';
+import AppShell from './components/layout/AppShell';
 import ToastStack from './components/common/Toast';
 import Spinner from './components/common/Spinner';
 import LoginPage from './pages/LoginPage';
@@ -12,7 +12,9 @@ import DashboardPage from './pages/DashboardPage';
 function Root() {
   const { status } = useAuthContext();
   const { t } = useLanguageContext();
-  const [view, setView] = useState<AppView>('dashboard');
+  // Settings is an overlay; the dashboard stays mounted underneath so node
+  // selection, filters and the AI assistant session all survive it.
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   if (status === 'loading') {
     return (
@@ -28,9 +30,13 @@ function Root() {
   }
 
   return (
-    <AppShell view={view} onNavigate={setView}>
-      {view === 'settings' ? <SettingsPage /> : <DashboardPage />}
-    </AppShell>
+    <>
+      <AppShell onOpenSettings={() => setSettingsOpen(true)}>
+        <DashboardPage />
+      </AppShell>
+      <SettingsPage open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <ToastStack />
+    </>
   );
 }
 
@@ -40,7 +46,6 @@ export default function App() {
       <ToastProvider>
         <AuthProvider>
           <Root />
-          <ToastStack />
         </AuthProvider>
       </ToastProvider>
     </LanguageProvider>

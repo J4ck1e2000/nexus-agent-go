@@ -32,6 +32,10 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         hint: 'The desktop app talks to your Nexus Gateway over HTTP or HTTPS. Default: http://127.0.0.1:3000.',
         saved: 'Gateway URL saved.',
       },
+      connection: {
+        staleBanner:
+          'Connection to the Gateway was lost. Showing the last synced data — retrying automatically…',
+      },
       nodes: {
         collectorLabel: 'Collector',
         collectorSSH: 'SSH (agentless)',
@@ -51,7 +55,19 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         addServer: 'Add Server',
         connectAndAdd: 'Connect and add',
         connecting: 'Connecting and adding…',
+        loading: 'Loading nodes…',
+        passwordClearedHint:
+          'For security the password was cleared from the form. Re-enter it to retry.',
 
+      },
+      admin: {
+        roleChangeTitle: 'Change user role',
+        roleChangeDescription:
+          'This will change {name}\'s role to {role}. The change takes effect immediately.',
+      },
+      role: {
+        admin: 'Admin',
+        user: 'User',
       },
     },
     status: {
@@ -131,6 +147,8 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
       quick2: 'Summarize cluster health.',
       quick3: 'Should I schedule a training job on {node}?',
       quick4: 'Explain GPU usage on {node}.',
+      quickAll1: 'How is the fleet doing overall right now?',
+      quickAll2: 'Which nodes are the busiest right now?',
     },
   },
   zh: {
@@ -159,6 +177,9 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         hint: '桌面客户端通过 HTTP 或 HTTPS 访问 Nexus Gateway。默认地址:http://127.0.0.1:3000。',
         saved: '网关地址已保存。',
       },
+      connection: {
+        staleBanner: '与 Gateway 的连接中断,正在显示最后一次同步的数据,会自动重试…',
+      },
       nodes: {
         collectorLabel: '采集方式',
         collectorSSH: 'SSH(无代理)',
@@ -178,7 +199,17 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
         addServer: '添加服务器',
         connectAndAdd: '连接并添加',
         connecting: '正在连接并添加…',
+        loading: '正在加载节点…',
+        passwordClearedHint: '出于安全考虑,密码已从表单清除;如需重试,请重新输入密码。',
 
+      },
+      admin: {
+        roleChangeTitle: '变更用户角色',
+        roleChangeDescription: '即将把 {name} 的角色变更为「{role}」,变更立即生效。',
+      },
+      role: {
+        admin: '管理员',
+        user: '普通用户',
       },
     },
     status: {
@@ -258,6 +289,8 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
       quick2: '总结一下集群健康状况。',
       quick3: '{node} 适合调度训练任务吗?',
       quick4: '解读 {node} 的 GPU 占用情况。',
+      quickAll1: '现在整个集群的整体资源情况怎么样?',
+      quickAll2: '目前哪些节点最繁忙?',
     },
   },
 };

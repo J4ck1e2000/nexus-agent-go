@@ -60,7 +60,7 @@ export default function PromptDialog({
   };
 
   return (
-    <AppModal open={open} onClose={onCancel} title={title} maxWidth="max-w-md" disableEscape={busy}>
+    <AppModal open={open} onClose={onCancel} title={title} maxWidth="max-w-md" disableClose={busy}>
       <p className="text-sm leading-relaxed text-muted">{description}</p>
       <form
         className="mt-4 flex flex-col gap-3"

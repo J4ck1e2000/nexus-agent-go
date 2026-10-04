@@ -40,12 +40,32 @@ export default function NodeListToolbar({
           </svg>
           <input
             type="text"
-            className="input-field pl-9"
+            className="input-field pl-9 pr-8"
             value={query}
             placeholder={t('panel.searchPlaceholder')}
             onChange={(event) => onQueryChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && query) {
+                event.preventDefault();
+                onClear();
+              }
+            }}
             aria-label={t('panel.searchPlaceholder')}
           />
+          {query && (
+            <button
+              type="button"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer rounded-full p-1 text-[#a39a8f] transition hover:bg-[#f1ece3] hover:text-ink"
+              onClick={onClear}
+              aria-label={t('action.clearFilter')}
+              title={t('action.clearFilter')}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          )}
         </div>
         <SortSelect value={sortMode} onChange={onSortModeChange} />
       </div>

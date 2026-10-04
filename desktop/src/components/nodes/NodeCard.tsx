@@ -43,12 +43,13 @@ export default function NodeCard({ node, selected, onSelect, onDelete }: NodeCar
           <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tierStyle}`}>
             {t(`availability.${node.effectiveAvailabilityTier}`)}
           </span>
-          {onDelete && (
-            <span
-              role="button"
-              tabIndex={0}
-              aria-label={t('action.deleteNode')}
-              className="cursor-pointer rounded-full p-1 text-[#a39a8f] transition hover:bg-[#f2e3df] hover:text-[#7a4740]"
+            {onDelete && (
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label={t('action.deleteNode')}
+                title={t('action.deleteNode')}
+                className="cursor-pointer rounded-full p-1 text-[#a39a8f] transition hover:bg-[#f2e3df] hover:text-[#7a4740]"
               onClick={(event) => {
                 event.stopPropagation();
                 onDelete();

@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { EnrichedNode as _EnrichedNode } from '../lib/node-logic';
-import { collectDrawerGroups, matchesFilter, sortNodes, type SortMode } from '../lib/node-logic';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { EnrichedNode } from '../lib/node-logic';
+import {
+  applyFrozenOrder,
+  collectDrawerGroups,
+  matchesFilter,
+  sortNodes,
+  type SortMode,
+} from '../lib/node-logic';
 import { useNodes } from '../hooks/useNodes';
 import { useNodeConfigs, type AddNodeInput } from '../hooks/useNodeConfigs';
 import { localizedError } from '../lib/errors';
@@ -21,7 +27,7 @@ export default function DashboardPage() {
   const { t } = useLanguage();
   const { user } = useAuth();
   const { showToast } = useToastContext();
-  const { nodes, lastSyncedAt } = useNodes(true);
+  const { nodes, lastSyncedAt, error: pollError, loading } = useNodes(true);
   const { configs, addNode, removeNode } = useNodeConfigs(user?.role === 'admin');
 
   const [query, setQuery] = useState('');
@@ -34,13 +40,22 @@ export default function DashboardPage() {
   const [deleteNodeTarget, setDeleteNodeTarget] = useState<{ id: number; name: string } | null>(null);
   const [deletingNode, setDeletingNode] = useState(false);
   const [usersOpen, setUsersOpen] = useState(false);
+  // While the pointer rests on the node list, polling keeps updating card
+  // values in place but no longer re-orders rows (see applyFrozenOrder).
+  const [listHovered, setListHovered] = useState(false);
+  const frozenOrderRef = useRef<EnrichedNode[]>([]);
 
   const isAdmin = user?.role === 'admin';
 
-  const visibleNodes = useMemo(
-    () => sortNodes(nodes.filter((node) => matchesFilter(node, query)), sortMode),
-    [nodes, query, sortMode],
-  );
+  const visibleNodes = useMemo(() => {
+    const filtered = nodes.filter((node) => matchesFilter(node, query));
+    if (listHovered) {
+      return applyFrozenOrder(frozenOrderRef.current, filtered, sortMode);
+    }
+    const sorted = sortNodes(filtered, sortMode);
+    frozenOrderRef.current = sorted;
+    return sorted;
+  }, [nodes, query, sortMode, listHovered]);
 
   // Keep a valid selection: re-pick when it vanished (e.g. node deleted).
   useEffect(() => {
@@ -93,7 +108,7 @@ export default function DashboardPage() {
         showToast(t('notify.nodeDeleted', { name: deleteNodeTarget.name }), 'success');
         setDeleteNodeTarget(null);
       } else {
-        showToast(t('notify.saveConfigFailed'), 'error');
+        showToast(localizedError(result.error, t), 'error');
         setDeleteNodeTarget(null);
       }
     } finally {
@@ -103,6 +118,15 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {pollError && nodes.length > 0 && (
+        <div
+          className="rounded-2xl border border-[#dfd0c5] bg-[#f1e7df] px-4 py-2.5 text-xs font-medium text-[#5f4a42]"
+          role="status"
+        >
+          {t('desktop.connection.staleBanner')}
+        </div>
+      )}
+
       <SummaryTiles nodes={nodes} />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
@@ -138,6 +162,7 @@ export default function DashboardPage() {
         <NodeGrid
           nodes={nodes}
           filteredNodes={visibleNodes}
+          loading={loading}
           selectedId={selectedId}
           onSelect={setSelectedId}
           query={query}
@@ -145,6 +170,7 @@ export default function DashboardPage() {
           sortMode={sortMode}
           onSortModeChange={setSortMode}
           onClearFilter={() => setQuery('')}
+          onHoverChange={setListHovered}
           onDeleteNode={isAdmin ? (node) => setDeleteNodeTarget({ id: node.id, name: node.name }) : undefined}
           onAddNode={isAdmin ? () => setAddNodeOpen(true) : undefined}
         />
@@ -172,6 +198,7 @@ export default function DashboardPage() {
         title={t('dialog.deleteNodeTitle')}
         description={t('dialog.deleteNodeDescription', { name: deleteNodeTarget?.name ?? '' })}
         confirmTone="danger"
+        confirmLabel={t('action.deleteNode')}
         busy={deletingNode}
         onConfirm={() => void handleDeleteNode()}
         onCancel={() => setDeleteNodeTarget(null)}

@@ -279,6 +279,33 @@ export function matchesFilter(node: EnrichedNode, query: string): boolean {
   return haystack.includes(query.toLowerCase());
 }
 
+/**
+ * Reorders freshly filtered nodes to follow a previous layout, keeping cards
+ * stationary while the pointer hovers the list (2s polling otherwise shuffles
+ * rows under the cursor and the click lands on the wrong node). Nodes that
+ * appeared are appended with the current sort rules; vanished ones are dropped.
+ */
+export function applyFrozenOrder(
+  previousOrder: EnrichedNode[],
+  currentFiltered: EnrichedNode[],
+  mode: SortMode,
+): EnrichedNode[] {
+  if (previousOrder.length === 0) return sortNodes(currentFiltered, mode);
+  const remaining = new Map(currentFiltered.map((node) => [node.id, node]));
+  const ordered: EnrichedNode[] = [];
+  for (const previous of previousOrder) {
+    const current = remaining.get(previous.id);
+    if (current) {
+      ordered.push(current);
+      remaining.delete(previous.id);
+    }
+  }
+  if (remaining.size > 0) {
+    ordered.push(...sortNodes([...remaining.values()], mode));
+  }
+  return ordered;
+}
+
 export type GpuLoadTier = 'idle' | 'light' | 'busy' | 'full';
 
 export function getGpuLoadTier(gpu: GpuInfo): GpuLoadTier {

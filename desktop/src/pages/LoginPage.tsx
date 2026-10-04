@@ -177,6 +177,7 @@ export default function LoginPage() {
               className="input-field"
               value={username}
               autoComplete="username"
+              autoFocus
               placeholder={t('login.form.usernamePlaceholder')}
               onChange={(event) => setUsername(event.target.value)}
             />

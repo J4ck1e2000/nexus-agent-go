@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeOverview, SystemMetrics } from '../electron/types/ipc';
 import {
+  applyFrozenOrder,
   computeAvailabilityScore,
   computeGpuSummary,
   enrichNode,
@@ -181,6 +182,41 @@ describe('sorting and filtering', () => {
     expect(matchesFilter(node, '8005')).toBe(true);
     expect(matchesFilter(node, 'nope')).toBe(false);
     expect(matchesFilter(node, '')).toBe(true);
+  });
+});
+
+describe('applyFrozenOrder', () => {
+  const nodeById = (id: number, score: number) =>
+    enrichNode(overview({ id, name: `node-${id}`, availabilityScore: score }), 0);
+
+  it('keeps the previous order even when scores changed', () => {
+    // Fresh sort would be [2, 1] (score 90 before 50); frozen keeps [1, 2]
+    // but with the updated node objects from the latest poll.
+    const previous = [nodeById(1, 50), nodeById(2, 90)];
+    const current = [nodeById(1, 85), nodeById(2, 55)];
+    const frozen = applyFrozenOrder(previous, current, 'availability');
+    expect(frozen.map((node) => node.id)).toEqual([1, 2]);
+    expect(frozen[0].effectiveAvailabilityScore).toBe(85);
+  });
+
+  it('appends newly appeared nodes with the current sort rules', () => {
+    const previous = [nodeById(1, 50)];
+    const current = [nodeById(3, 99), nodeById(1, 50), nodeById(2, 70)];
+    const frozen = applyFrozenOrder(previous, current, 'availability');
+    expect(frozen.map((node) => node.id)).toEqual([1, 3, 2]);
+  });
+
+  it('drops nodes that no longer match the filter', () => {
+    const previous = [nodeById(1, 50), nodeById(2, 90)];
+    const current = [nodeById(2, 90)];
+    const frozen = applyFrozenOrder(previous, current, 'availability');
+    expect(frozen.map((node) => node.id)).toEqual([2]);
+  });
+
+  it('falls back to a fresh sort when there is no previous order', () => {
+    const current = [nodeById(1, 50), nodeById(2, 90)];
+    const frozen = applyFrozenOrder([], current, 'availability');
+    expect(frozen.map((node) => node.id)).toEqual([2, 1]);
   });
 });
 

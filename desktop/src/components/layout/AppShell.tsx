@@ -2,19 +2,16 @@ import { useLanguage } from '../../hooks/useLanguage';
 import { useAuth } from '../../hooks/useAuth';
 import LanguageToggle from '../common/LanguageToggle';
 
-export type AppView = 'dashboard' | 'settings';
-
 interface AppShellProps {
-  view: AppView;
-  onNavigate: (view: AppView) => void;
+  onOpenSettings: () => void;
   children: React.ReactNode;
 }
 
 /**
- * Logged-in chrome around the main content. The dashboard KPI tiles and
- * admin actions are rendered by the pages themselves in later phases.
+ * Logged-in chrome around the main content. Settings opens as an overlay; the
+ * dashboard beneath it stays mounted so its state survives.
  */
-export default function AppShell({ view, onNavigate, children }: AppShellProps) {
+export default function AppShell({ onOpenSettings, children }: AppShellProps) {
   const { t } = useLanguage();
   const { user, logout } = useAuth();
 
@@ -35,13 +32,9 @@ export default function AppShell({ view, onNavigate, children }: AppShellProps) 
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-line bg-panel-soft px-3 py-1.5 text-xs font-medium text-muted">
-              {user?.role ?? ''}
+              {user ? t(`desktop.role.${user.role}`) : ''}
             </span>
-            <button
-              type="button"
-              className={`muted-button ${view === 'settings' ? 'border-accent text-accent-strong' : ''}`}
-              onClick={() => onNavigate(view === 'settings' ? 'dashboard' : 'settings')}
-            >
+            <button type="button" className="muted-button" onClick={onOpenSettings}>
               {t('desktop.settings.title')}
             </button>
             <LanguageToggle />
