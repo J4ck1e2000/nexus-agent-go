@@ -50,6 +50,7 @@ type Handler struct {
 	sshTester        SSHTester
 	sshEnroller      SSHEnroller
 	aiQueryService   AIQueryService
+	aiChatStore      *AIChatStore
 	toolDispatcher   *ai.ToolDispatcher
 	runManager       *runtime.Manager
 	toolGatewayToken string
@@ -85,6 +86,7 @@ func (h *Handler) RegisterAPIRoutes(r *gin.Engine) {
 	authorized.GET("/nodes/overview", h.getNodesOverview)
 	authorized.GET("/proxy", h.proxyRequest)
 	h.registerAIRoutes(authorized)
+	h.registerConversationRoutes(authorized)
 
 	admin := authorized.Group("")
 	admin.Use(RequireAdmin())

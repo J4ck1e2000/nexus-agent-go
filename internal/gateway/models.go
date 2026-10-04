@@ -55,3 +55,39 @@ type AgentNode struct {
 func (AgentNode) TableName() string {
 	return "agent_nodes"
 }
+
+// AIConversation 为 AI 助手会话表，按用户隔离；Title 在首条提问落库时自动补全。
+type AIConversation struct {
+	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID    uint      `gorm:"index;not null" json:"user_id"`
+	Title     string    `gorm:"type:varchar(128);not null;default:''" json:"title"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// TableName 指定 AI 会话表名。
+func (AIConversation) TableName() string {
+	return "ai_conversations"
+}
+
+// AIMessageRoleUser/AIMessageRoleAssistant 为 AI 消息角色取值。
+const (
+	AIMessageRoleUser      = "user"
+	AIMessageRoleAssistant = "assistant"
+)
+
+// AIMessage 为 AI 助手消息表；MetaJSON 保存 meta 载荷 JSON（snake_case 原样），
+// 便于前端回放推理摘要/工具调用等详情。
+type AIMessage struct {
+	ID             uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	ConversationID uint      `gorm:"index;not null" json:"conversation_id"`
+	Role           string    `gorm:"type:varchar(16);not null" json:"role"`
+	Content        string    `gorm:"type:mediumtext" json:"content"`
+	MetaJSON       *string   `gorm:"column:meta_json;type:text" json:"-"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+// TableName 指定 AI 消息表名。
+func (AIMessage) TableName() string {
+	return "ai_messages"
+}

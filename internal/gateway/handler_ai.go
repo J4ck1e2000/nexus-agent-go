@@ -172,6 +172,8 @@ func mapAIServiceError(err error) (status int, code string) {
 		return http.StatusBadRequest, "invalid_payload"
 	case errors.Is(err, ai.ErrNodeNotFound), errors.Is(err, ai.ErrNodeNameRequired):
 		return http.StatusBadRequest, "invalid_query"
+	case errors.Is(err, ai.ErrInvalidConversation):
+		return http.StatusBadRequest, "invalid_conversation"
 	default:
 		return http.StatusInternalServerError, "server_error"
 	}

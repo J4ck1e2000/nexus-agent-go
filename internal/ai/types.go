@@ -50,6 +50,8 @@ type IntentType string
 type AIQueryRequest struct {
 	Query  string `json:"query"`
 	Stream bool   `json:"stream"`
+	// ConversationID 关联的 AI 会话；0 表示无会话（不落库，兼容旧客户端）。
+	ConversationID uint `json:"conversation_id,omitempty"`
 }
 
 // ToolCallRecord keeps simplified tool invocation metadata.
@@ -68,25 +70,29 @@ type KnowledgeHitSummary struct {
 
 // AIQueryResponse is the stable response schema of AI query APIs.
 type AIQueryResponse struct {
-	Answer           string                `json:"answer"`
-	ReasoningSummary string                `json:"reasoning_summary"`
-	Mode             string                `json:"mode"`
-	ToolCalls        []ToolCallRecord      `json:"tool_calls,omitempty"`
-	RelatedNodes     []string              `json:"related_nodes,omitempty"`
-	Warnings         []string              `json:"warnings,omitempty"`
-	KnowledgeHits    []KnowledgeHitSummary `json:"knowledge_hits,omitempty"`
-	Retrieval        *RetrievalMeta        `json:"retrieval,omitempty"`
+	Answer           string `json:"answer"`
+	ReasoningSummary string `json:"reasoning_summary"`
+	Mode             string `json:"mode"`
+	// ConversationID 本次查询归属的会话；0 表示未落库。
+	ConversationID uint                  `json:"conversation_id,omitempty"`
+	ToolCalls      []ToolCallRecord      `json:"tool_calls,omitempty"`
+	RelatedNodes   []string              `json:"related_nodes,omitempty"`
+	Warnings       []string              `json:"warnings,omitempty"`
+	KnowledgeHits  []KnowledgeHitSummary `json:"knowledge_hits,omitempty"`
+	Retrieval      *RetrievalMeta        `json:"retrieval,omitempty"`
 }
 
 // AIStreamMeta carries non-primary metadata for stream outputs.
 type AIStreamMeta struct {
-	ReasoningSummary string                `json:"reasoning_summary,omitempty"`
-	Mode             string                `json:"mode,omitempty"`
-	ToolCalls        []ToolCallRecord      `json:"tool_calls,omitempty"`
-	RelatedNodes     []string              `json:"related_nodes,omitempty"`
-	Warnings         []string              `json:"warnings,omitempty"`
-	KnowledgeHits    []KnowledgeHitSummary `json:"knowledge_hits,omitempty"`
-	Retrieval        *RetrievalMeta        `json:"retrieval,omitempty"`
+	ReasoningSummary string `json:"reasoning_summary,omitempty"`
+	Mode             string `json:"mode,omitempty"`
+	// ConversationID 本次查询归属的会话；0 表示未落库。
+	ConversationID uint                  `json:"conversation_id,omitempty"`
+	ToolCalls      []ToolCallRecord      `json:"tool_calls,omitempty"`
+	RelatedNodes   []string              `json:"related_nodes,omitempty"`
+	Warnings       []string              `json:"warnings,omitempty"`
+	KnowledgeHits  []KnowledgeHitSummary `json:"knowledge_hits,omitempty"`
+	Retrieval      *RetrievalMeta        `json:"retrieval,omitempty"`
 }
 
 // AIStreamEvent is one stream event produced by AI query streaming.

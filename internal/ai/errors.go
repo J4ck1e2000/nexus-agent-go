@@ -21,4 +21,6 @@ var (
 	ErrKnowledgeReloadDisabled = errors.New("knowledge reload disabled")
 	// ErrKnowledgeReloadUnavailable indicates runtime does not have a reloadable toolbox.
 	ErrKnowledgeReloadUnavailable = errors.New("knowledge reload unavailable")
+	// ErrInvalidConversation indicates the conversation does not exist or is not owned by the caller.
+	ErrInvalidConversation = errors.New("invalid ai conversation")
 )

@@ -134,6 +134,8 @@ func main() {
 	})
 
 	handler := gateway.NewHandler(store, gateway.NewAuthService(db, jwtSecret), version, nodeStateService)
+	aiChatStore := gateway.NewAIChatStore(db)
+	handler.SetAIChatStore(aiChatStore)
 	if sshCollector != nil {
 		handler.SetSSHTester(sshCollector)
 		handler.SetSSHEnroller(sshCollector)
@@ -155,7 +157,7 @@ func main() {
 		AllowedTools: toolDispatcher.ToolNames(),
 		ModelID:      aiConfig.Model,
 	})
-	handler.SetAIQueryService(ai.NewPiQueryService(aiService, piExecutor))
+	handler.SetAIQueryService(ai.NewPiQueryService(aiService, piExecutor, aiChatStore))
 	handler.SetToolGateway(gateway.ToolGatewayDeps{
 		Dispatcher:     toolDispatcher,
 		Manager:        runManager,

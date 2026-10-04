@@ -118,6 +118,8 @@ func (e *PiRuntimeExecutor) ExecuteStream(ctx context.Context, req AIQueryReques
 		Context: runtime.RunContext{
 			KnownNodes: knownNodes,
 			LocaleHint: string(lang),
+			// 多轮上下文：服务层经 ctx 注入的最近对话历史（可为 nil）。
+			RecentEntries: runtime.RecentHistoryFromCtx(ctx),
 		},
 		Policy: runtime.RunPolicy{
 			EnabledToolNames: allowedTools,
