@@ -3107,6 +3107,36 @@
             return { answer, reasoningSummary, mode, toolCalls, relatedNodes, warnings };
         };
 
+        // 提取 meta/done 载荷中的会话 ID（snake_case 或 camelCase 别名）。
+        const extractAIConversationId = (payload) => {
+            const obj = payload && typeof payload === 'object' ? payload : {};
+            const raw = obj.conversation_id !== undefined ? obj.conversation_id : obj.conversationId;
+            return typeof raw === 'number' && Number.isInteger(raw) && raw > 0 ? raw : null;
+        };
+
+        // 把服务端存储的消息还原为面板气泡结构（meta 为 SSE meta 载荷原样 JSON）。
+        const mapStoredAIMessages = (rows) => {
+            if (!Array.isArray(rows)) return [];
+            return rows.map((row, index) => {
+                const meta = row && typeof row.meta === 'object' && row.meta !== null ? row.meta : {};
+                const warnings = Array.isArray(meta.warnings)
+                    ? meta.warnings.filter((item) => typeof item === 'string' && item.trim())
+                    : [];
+                return {
+                    id: `conv-${row.id}-${index}`,
+                    role: row.role === 'assistant' ? 'assistant' : 'user',
+                    content: typeof row.content === 'string' ? row.content : '',
+                    status: 'done',
+                    reasoningSummary: typeof meta.reasoning_summary === 'string' ? meta.reasoning_summary : '',
+                    mode: typeof meta.mode === 'string' ? meta.mode : '',
+                    relatedNodes: Array.isArray(meta.related_nodes) ? meta.related_nodes : [],
+                    toolCalls: Array.isArray(meta.tool_calls) ? meta.tool_calls : [],
+                    warnings,
+                    createdAt: Date.parse(row.created_at || '') || Date.now(),
+                };
+            });
+        };
+
         const chunkTextForUI = (text, chunkSize = 42) => {
             const source = sanitizeAIText(text);
             if (!source) return [];
@@ -3231,6 +3261,15 @@
             onMessageListScroll,
             sessionId,
             thinkingLabel,
+            conversations,
+            activeConversationId,
+            historyOpen,
+            historyError,
+            deletingConversationId,
+            onToggleHistory,
+            onSelectConversation,
+            onDeleteConversation,
+            onNewChat,
         }) => {
             const copy = language === 'zh'
                 ? {
@@ -3252,6 +3291,11 @@
                     emptyTitle: '我可以帮你分析节点负载与调度建议。',
                     close: '关闭',
                     session: '会话',
+                    history: '历史对话',
+                    newChat: '新对话',
+                    historyEmpty: '暂无历史对话，发送第一条提问即可开始。',
+                    untitled: '新对话',
+                    deleteConversation: '删除对话',
                 }
                 : {
                     title: 'Nexus AI',
@@ -3272,7 +3316,23 @@
                     emptyTitle: 'Ask me about node health, load, and scheduling suggestions.',
                     close: 'Close',
                     session: 'Session',
+                    history: 'History',
+                    newChat: 'New chat',
+                    historyEmpty: 'No conversations yet. Send a message to start one.',
+                    untitled: 'New conversation',
+                    deleteConversation: 'Delete conversation',
                 };
+
+            const formatConversationTime = (value) => {
+                const timestamp = Date.parse(value || '');
+                if (Number.isNaN(timestamp)) return '';
+                return new Date(timestamp).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                });
+            };
 
             const quickPrompts = language === 'zh'
                 ? [
@@ -3301,15 +3361,35 @@
                                     {(isStreaming || isThinking) ? copy.subtitleStreaming : copy.subtitleIdle}
                                 </div>
                             </div>
-                            <button
-                                type="button"
-                                className="muted-button px-2.5 py-1 text-xs"
-                                onClick={onClose}
-                                title={copy.close}
-                                aria-label={copy.close}
-                            >
-                                <Icons.X className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    className={cx('muted-button px-2 py-1.5', historyOpen ? 'bg-[rgba(60,47,35,0.08)]' : '')}
+                                    onClick={onToggleHistory}
+                                    title={copy.history}
+                                    aria-label={copy.history}
+                                >
+                                    <Icons.Clock className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="muted-button px-2 py-1.5"
+                                    onClick={onNewChat}
+                                    title={copy.newChat}
+                                    aria-label={copy.newChat}
+                                >
+                                    <Icons.Plus className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="muted-button px-2.5 py-1 text-xs"
+                                    onClick={onClose}
+                                    title={copy.close}
+                                    aria-label={copy.close}
+                                >
+                                    <Icons.X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
                         </div>
                     </header>
 
@@ -3318,7 +3398,50 @@
                         onScroll={onMessageListScroll}
                         className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3.5 py-3 space-y-3"
                     >
-                        {messages.length === 0 ? (
+                        {historyOpen ? (
+                            <div className="space-y-2">
+                                {historyError ? (
+                                    <div className="text-[11px] text-[#8b4b42] soft-panel-subtle px-2.5 py-1.5 border border-[#e0b9b2]">{historyError}</div>
+                                ) : null}
+                                {!Array.isArray(conversations) || conversations.length === 0 ? (
+                                    <p className="py-6 text-center text-xs text-[#7f776e]">{copy.historyEmpty}</p>
+                                ) : (
+                                    conversations.map((conversation) => {
+                                        const conversationTime = formatConversationTime(conversation.updated_at || conversation.created_at);
+                                        const isActive = conversation.id === activeConversationId;
+                                        return (
+                                            <div
+                                                key={conversation.id}
+                                                className={cx('group flex items-center gap-2 rounded-xl px-3 py-2 transition-colors', isActive ? 'soft-panel-subtle' : 'hover:bg-[rgba(60,47,35,0.05)]')}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className="min-w-0 flex-1 text-left"
+                                                    onClick={() => onSelectConversation(conversation)}
+                                                >
+                                                    <div className="truncate text-xs font-medium text-[#24221f]">
+                                                        {String(conversation.title || '').trim() || copy.untitled}
+                                                    </div>
+                                                    {conversationTime ? (
+                                                        <div className="text-[10px] text-[#7f776e] mt-0.5">{conversationTime}</div>
+                                                    ) : null}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="shrink-0 muted-button px-1.5 py-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                                    onClick={() => onDeleteConversation(conversation)}
+                                                    disabled={deletingConversationId === conversation.id}
+                                                    title={copy.deleteConversation}
+                                                    aria-label={copy.deleteConversation}
+                                                >
+                                                    <Icons.Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        ) : messages.length === 0 ? (
                             <div className="space-y-3">
                                 <div className="soft-panel-subtle p-3 text-sm text-[#3f3a34]">{copy.emptyTitle}</div>
                                 <div>
@@ -3389,7 +3512,7 @@
                     </div>
 
                     <footer className="border-t border-[rgba(60,47,35,0.11)] bg-[#f7f4ee] px-3 py-3">
-                        {streamError ? (
+                        {streamError && !historyOpen ? (
                             <div className="mb-2 text-[11px] text-[#8b4b42] soft-panel-subtle px-2.5 py-1.5 border border-[#e0b9b2]">
                                 {streamError}
                             </div>
@@ -3457,6 +3580,11 @@
             const [aiStreamError, setAIStreamError] = useState('');
             const [aiSessionId] = useState(() => Math.random().toString(16).slice(2, 10));
             const [aiThinkingLabel, setAIThinkingLabel] = useState('');
+            const [aiConversationId, setAIConversationId] = useState(null);
+            const [aiConversations, setAIConversations] = useState([]);
+            const [aiHistoryOpen, setAIHistoryOpen] = useState(false);
+            const [aiListError, setAIListError] = useState('');
+            const [aiDeletingId, setAIDeletingId] = useState(null);
             const abortControllerRef = useRef(null);
             const activeAssistantIdRef = useRef('');
             const messageListRef = useRef(null);
@@ -4054,12 +4182,16 @@
                         invalid_query: '问题不能为空，请输入后重试。',
                         ai_query_failed: 'AI 查询失败，请稍后重试。',
                         unauthorized: '登录状态已失效，请重新登录。',
+                        invalid_conversation: '该会话已不存在或已失效，请开启新对话。',
+                        conversation_not_found: '会话不存在，可能已被删除。',
                     }
                     : {
                         ai_disabled: 'AI feature is disabled.',
                         invalid_query: 'Query is empty. Please enter your question and retry.',
                         ai_query_failed: 'AI query failed. Please retry shortly.',
                         unauthorized: 'Session expired. Please sign in again.',
+                        invalid_conversation: 'This conversation is no longer available. Start a new chat.',
+                        conversation_not_found: 'Conversation not found. It may have been deleted already.',
                     };
 
                 if (knownCodeMap[code]) {
@@ -4088,6 +4220,91 @@
                         content: item.content || stopText,
                     })));
                 }
+            };
+
+            const refreshAIConversations = async () => {
+                try {
+                    const res = await authFetch('/api/ai/conversations?limit=200&offset=0');
+                    if (!res.ok) {
+                        setAIListError(localizeAIError(await readResponseError(res, 'ai_query_failed')));
+                        return;
+                    }
+                    const payload = await res.json().catch(() => null);
+                    const rows = payload && Array.isArray(payload.conversations) ? payload.conversations : [];
+                    setAIConversations(rows.filter((row) => row && typeof row.id === 'number' && row.id > 0));
+                    setAIListError('');
+                } catch (loadError) {
+                    setAIListError(localizeAIError('ai_query_failed'));
+                }
+            };
+
+            useEffect(() => {
+                if (!isAIWidgetOpen || !aiHistoryOpen || isAIStreaming) return;
+                void refreshAIConversations();
+            }, [isAIWidgetOpen, aiHistoryOpen, isAIStreaming]);
+
+            const handleAISelectConversation = async (conversation) => {
+                if (!conversation || isAIStreaming) return;
+                try {
+                    const res = await authFetch(`/api/ai/conversations/${conversation.id}/messages`);
+                    if (!res.ok) {
+                        setAIStreamError(localizeAIError(await readResponseError(res, 'ai_query_failed')));
+                        return;
+                    }
+                    const payload = await res.json().catch(() => null);
+                    const rows = payload && Array.isArray(payload.messages) ? payload.messages : [];
+                    setAIMessages(mapStoredAIMessages(rows));
+                    setAIConversationId(conversation.id);
+                    setAIHistoryOpen(false);
+                    setAIStreamError('');
+                    setAIThinking(false);
+                    shouldAutoScrollRef.current = true;
+                } catch (loadError) {
+                    setAIStreamError(localizeAIError('ai_query_failed'));
+                }
+            };
+
+            const handleAIDeleteConversation = async (conversation) => {
+                if (!conversation || aiDeletingId !== null) return;
+                const conversationTitle = (conversation.title || '').trim() || (language === 'zh' ? '新对话' : 'New conversation');
+                const confirmed = await openConfirmDialog({
+                    title: language === 'zh' ? '删除对话' : 'Delete conversation',
+                    description: language === 'zh'
+                        ? `删除「${conversationTitle}」及其全部消息？此操作不可恢复。`
+                        : `Delete "${conversationTitle}" and all of its messages? This cannot be undone.`,
+                    confirmText: language === 'zh' ? '删除' : 'Delete',
+                    confirmTone: 'danger',
+                });
+                if (!confirmed) return;
+
+                setAIDeletingId(conversation.id);
+                try {
+                    const res = await authFetch(`/api/ai/conversations/${conversation.id}`, { method: 'DELETE' });
+                    if (!res.ok) {
+                        pushToast(localizeAIError(await readResponseError(res, 'conversation_not_found')), 'error');
+                        return;
+                    }
+                    if (aiConversationId === conversation.id) {
+                        setAIConversationId(null);
+                        setAIMessages([]);
+                    }
+                    await refreshAIConversations();
+                    pushToast(language === 'zh' ? '已删除对话。' : 'Conversation deleted.', 'success');
+                } catch (deleteError) {
+                    pushToast(localizeAIError('ai_query_failed'), 'error');
+                } finally {
+                    setAIDeletingId(null);
+                }
+            };
+
+            const handleAINewChat = () => {
+                if (isAIStreaming) return;
+                setAIConversationId(null);
+                setAIMessages([]);
+                setAIStreamError('');
+                setAIThinking(false);
+                setAIHistoryOpen(false);
+                shouldAutoScrollRef.current = true;
             };
 
             const submitAIStreamQuery = async (rawQuery = aiDraft) => {
@@ -4180,13 +4397,39 @@
                 };
 
                 try {
+                    // 新会话首条提问前先在服务端建档；失败则中止本次提交。
+                    let conversationId = aiConversationId;
+                    if (!conversationId) {
+                        const createdRes = await authFetch('/api/ai/conversations', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({}),
+                        });
+                        const createdPayload = createdRes.ok ? await createdRes.json().catch(() => null) : null;
+                        const createdId = createdPayload && typeof createdPayload.id === 'number' ? createdPayload.id : null;
+                        if (!createdRes.ok || !createdId) {
+                            const errorCode = createdRes.ok ? 'ai_query_failed' : await readResponseError(createdRes, 'ai_query_failed');
+                            const message = localizeAIError(errorCode);
+                            setAIStreamError(message);
+                            setAssistant((item) => ({
+                                ...item,
+                                status: 'error',
+                                content: item.content || message,
+                            }));
+                            pushToast(message, 'error');
+                            return;
+                        }
+                        conversationId = createdId;
+                        setAIConversationId(createdId);
+                    }
+
                     const res = await authFetch('/api/ai/query', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'Accept': 'text/event-stream, application/json',
                         },
-                        body: JSON.stringify({ query, stream: true }),
+                        body: JSON.stringify({ query, stream: true, conversation_id: conversationId }),
                         signal: controller.signal,
                     });
                     if (!res.ok) {
@@ -4205,6 +4448,8 @@
                     const contentType = String(res.headers.get('content-type') || '').toLowerCase();
                     if (!contentType.includes('text/event-stream') || !res.body) {
                         const payload = await res.json();
+                        const fallbackConversationId = extractAIConversationId(payload);
+                        if (fallbackConversationId) setAIConversationId(fallbackConversationId);
                         const normalized = normalizeAIResponse(payload, language);
                         await streamFallbackResponse(normalized);
                         return;
@@ -4250,12 +4495,16 @@
                             return;
                         }
                         if (eventType === 'meta') {
+                            const metaConversationId = extractAIConversationId(data);
+                            if (metaConversationId) setAIConversationId(metaConversationId);
                             applyAssistantMeta(data);
                             return;
                         }
                         if (eventType === 'done') {
                             hasDone = true;
                             donePayload = data;
+                            const doneConversationId = extractAIConversationId(data);
+                            if (doneConversationId) setAIConversationId(doneConversationId);
                             setAIThinking(false);
                             return;
                         }
@@ -4714,6 +4963,15 @@
                         onMessageListScroll={handleAIMessageListScroll}
                         sessionId={aiSessionId}
                         thinkingLabel={aiThinkingLabel}
+                        conversations={aiConversations}
+                        activeConversationId={aiConversationId}
+                        historyOpen={aiHistoryOpen}
+                        historyError={aiListError}
+                        deletingConversationId={aiDeletingId}
+                        onToggleHistory={() => setAIHistoryOpen((prev) => !prev)}
+                        onSelectConversation={handleAISelectConversation}
+                        onDeleteConversation={handleAIDeleteConversation}
+                        onNewChat={handleAINewChat}
                     />
                     <FloatingAIChatButton
                         isOpen={isAIWidgetOpen}
