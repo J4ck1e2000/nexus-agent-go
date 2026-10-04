@@ -32,9 +32,16 @@ const api: NexusAPI = {
     resetPassword: (id, password) => ipcRenderer.invoke('users:resetPassword', { id, password }),
   },
   ai: {
-    start: (requestId, query) => ipcRenderer.invoke('ai:start', { requestId, query }),
+    start: (requestId, query, conversationId) =>
+      ipcRenderer.invoke('ai:start', { requestId, query, conversationId: conversationId ?? null }),
     cancel: (requestId) => ipcRenderer.invoke('ai:cancel', { requestId }),
     onEvent: (cb) => subscribe<AIStreamEvent>('ai:event', cb),
+  },
+  conversations: {
+    list: () => ipcRenderer.invoke('conversations:list'),
+    create: () => ipcRenderer.invoke('conversations:create'),
+    messages: (id) => ipcRenderer.invoke('conversations:messages', { id }),
+    remove: (id) => ipcRenderer.invoke('conversations:remove', { id }),
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

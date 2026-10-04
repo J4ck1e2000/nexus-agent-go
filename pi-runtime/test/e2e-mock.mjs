@@ -29,6 +29,7 @@ const FINAL_JSON = JSON.stringify({
 });
 
 let chatRequests = 0;
+let firstTurnUserPrompt = "";
 
 function sseChunk(res, delta, finishReason = null) {
 	res.write(
@@ -55,6 +56,15 @@ const mockLLMServer = http.createServer((req, res) => {
 		const wantsStream = parsed.stream === true;
 
 		if (chatRequests === 1) {
+			// Capture the first-turn user prompt so the recent_entries
+			// conversation-context preamble can be asserted below.
+			const lastUser = [...(parsed.messages ?? [])].reverse().find((m) => m?.role === "user");
+			const content = lastUser?.content;
+			firstTurnUserPrompt = typeof content === "string"
+				? content
+				: Array.isArray(content)
+					? content.map((part) => part?.text ?? "").join("\n")
+					: "";
 			// First turn: the model asks for a tool.
 			const toolCall = {
 				index: 0,
@@ -183,7 +193,14 @@ const runResponse = await fetch(`http://127.0.0.1:${runtimePort}/v1/runs`, {
 		run_id: "run-e2e-1",
 		session_id: "run-e2e-1",
 		input: { message: "node-03 现在空闲吗？" },
-		context: { known_nodes: ["node-03"], locale_hint: "zh", recent_entries: [] },
+		context: {
+			known_nodes: ["node-03"],
+			locale_hint: "zh",
+			recent_entries: [
+				{ role: "user", content: "上一轮的问题" },
+				{ role: "assistant", content: "上一轮的回答" },
+			],
+		},
 		policy: {
 			enabled_tool_names: [
 				"get_node_metrics",
@@ -255,6 +272,12 @@ assert.equal(toolCalls[0].body.arguments.node_name, "node-03");
 
 // Exactly two model turns: tool request + final answer.
 assert.equal(chatRequests, 2, `expected 2 model turns, got ${chatRequests}`);
+
+// Gateway-supplied recent_entries must reach the model as a recovered
+// conversation context preamble ahead of the live question.
+assert.match(firstTurnUserPrompt, /\[Conversation context recovered from the gateway/);
+assert.ok(firstTurnUserPrompt.includes("user: 上一轮的问题"), "preamble must carry prior turns");
+assert.ok(firstTurnUserPrompt.includes("node-03 现在空闲吗？"), "live question must stay last");
 
 // ---------------------------------------------------------------------------
 // 6. Auth enforcement

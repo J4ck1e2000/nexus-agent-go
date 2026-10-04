@@ -117,6 +117,8 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
       invalid_query: 'The AI query was invalid.',
       ai_query_failed: 'The AI query failed. Please try again.',
       ai_unavailable: 'AI runtime is unavailable. Check the Pi Runtime service.',
+      invalid_conversation: 'This conversation is no longer available. Start a new chat.',
+      conversation_not_found: 'Conversation not found. It may have been deleted already.',
     },
     ai: {
       launcherTitle: 'Ask Nexus AI',
@@ -149,6 +151,14 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
       quick4: 'Explain GPU usage on {node}.',
       quickAll1: 'How is the fleet doing overall right now?',
       quickAll2: 'Which nodes are the busiest right now?',
+      historyTitle: 'History',
+      newChat: 'New chat',
+      historyEmpty: 'No conversations yet. Send a message to start one.',
+      untitledConversation: 'New conversation',
+      deleteConversation: 'Delete conversation',
+      deleteConversationTitle: 'Delete conversation',
+      deleteConversationDescription:
+        'Delete "{title}" and all of its messages? This cannot be undone.',
     },
   },
   zh: {
@@ -259,6 +269,8 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
       invalid_query: 'AI 查询内容不合法。',
       ai_query_failed: 'AI 查询失败,请重试。',
       ai_unavailable: 'AI 运行时不可用,请检查 Pi Runtime 服务。',
+      invalid_conversation: '该会话已不存在或已失效,请开启新对话。',
+      conversation_not_found: '会话不存在,可能已被删除。',
     },
     ai: {
       launcherTitle: '向 Nexus AI 提问',
@@ -291,6 +303,13 @@ export const desktopCatalog: { en: Dictionary; zh: Dictionary } = {
       quick4: '解读 {node} 的 GPU 占用情况。',
       quickAll1: '现在整个集群的整体资源情况怎么样?',
       quickAll2: '目前哪些节点最繁忙?',
+      historyTitle: '历史对话',
+      newChat: '新对话',
+      historyEmpty: '暂无历史对话,发送第一条提问即可开始。',
+      untitledConversation: '新对话',
+      deleteConversation: '删除对话',
+      deleteConversationTitle: '删除对话',
+      deleteConversationDescription: '删除「{title}」及其全部消息?此操作不可恢复。',
     },
   },
 };

@@ -219,6 +219,27 @@ export interface CreateUserPayload {
 }
 
 // ---------------------------------------------------------------------------
+// AI conversations (server-side chat history)
+// ---------------------------------------------------------------------------
+
+/** One saved conversation, as returned by GET /api/ai/conversations. */
+export interface ConversationSummary {
+  id: number;
+  title: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** One saved message of a conversation; meta mirrors the SSE meta payload. */
+export interface ConversationMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  meta: Record<string, unknown> | null;
+  created_at?: string;
+}
+
+// ---------------------------------------------------------------------------
 // AI assistant
 // ---------------------------------------------------------------------------
 
@@ -246,6 +267,8 @@ export interface KnowledgeHitSummary {
 export interface AIStreamMeta {
   reasoning_summary?: string;
   mode?: string;
+  /** Conversation the query was persisted to; absent when not tracking history. */
+  conversation_id?: number;
   tool_calls?: ToolCallRecord[];
   related_nodes?: string[];
   warnings?: string[];
@@ -257,6 +280,7 @@ export interface AIQueryResult {
   answer: string;
   reasoning_summary: string;
   mode: string;
+  conversation_id?: number;
   tool_calls?: ToolCallRecord[];
   related_nodes?: string[];
   warnings?: string[];
@@ -292,9 +316,15 @@ export interface NexusAPI {
     resetPassword(id: number, password: string): Promise<NexusResult<null>>;
   };
   ai: {
-    start(requestId: string, query: string): Promise<NexusResult<null>>;
+    start(requestId: string, query: string, conversationId?: number | null): Promise<NexusResult<null>>;
     cancel(requestId: string): Promise<NexusResult<null>>;
     onEvent(cb: (event: AIStreamEvent) => void): Unsubscribe;
+  };
+  conversations: {
+    list(): Promise<NexusResult<ConversationSummary[]>>;
+    create(): Promise<NexusResult<ConversationSummary>>;
+    messages(id: number): Promise<NexusResult<ConversationMessage[]>>;
+    remove(id: number): Promise<NexusResult<null>>;
   };
   settings: {
     get(): Promise<NexusResult<DesktopSettings>>;

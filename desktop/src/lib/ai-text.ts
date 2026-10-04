@@ -46,6 +46,7 @@ const KNOWN_AI_ERROR_CODES = new Set([
   'invalid_query',
   'ai_query_failed',
   'ai_unavailable',
+  'invalid_conversation',
   'unauthorized',
 ]);
 
