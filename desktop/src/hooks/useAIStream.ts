@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ToolCallRecord } from '../../electron/types/ipc';
 import { localizeAIError, normalizeAIPayload, type AIMetaPatch } from '../lib/ai-text';
+import { extractConversationId, mapConversationMessages } from '../lib/ai-conversation';
 import type { Translator } from '../i18n';
 
 export type AIMessageStatus = 'thinking' | 'streaming' | 'done' | 'error';
@@ -69,23 +70,33 @@ export function useAIStream(t: Translator): {
   streamError: string | null;
   thinkingLabel: string | null;
   sessionId: string;
+  conversationId: number | null;
   submit: (query: string) => Promise<void>;
   stop: () => void;
   clearError: () => void;
+  openConversation: (id: number) => Promise<boolean>;
+  newConversation: () => void;
 } {
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [liveStatusLabel, setLiveStatusLabel] = useState<string | null>(null);
   const [rotationIndex, setRotationIndex] = useState(0);
+  const [conversationId, setConversationId] = useState<number | null>(null);
 
   const activeRequestIdRef = useRef<string | null>(null);
   const assistantIdRef = useRef<string | null>(null);
   const abortRequestedRef = useRef(false);
+  const conversationIdRef = useRef<number | null>(null);
   const tRef = useRef(t);
   tRef.current = t;
 
   const sessionIdRef = useRef(Math.random().toString(16).slice(2, 10));
+
+  const adoptConversationId = useCallback((id: number | null): void => {
+    conversationIdRef.current = id;
+    setConversationId(id);
+  }, []);
 
   const finalizeAssistant = useCallback((status: AIMessageStatus, stoppedText?: string): void => {
     const assistantId = assistantIdRef.current;
@@ -132,6 +143,8 @@ export function useAIStream(t: Translator): {
           break;
         }
         case 'meta': {
+          const metaId = extractConversationId(event.data);
+          if (metaId) adoptConversationId(metaId);
           setMessages((current) =>
             current.map((message) =>
               message.id === assistantId ? mergeMeta(message, normalizeAIPayload(event.data)) : message,
@@ -141,6 +154,8 @@ export function useAIStream(t: Translator): {
         }
         case 'done': {
           setLiveStatusLabel(null);
+          const doneId = extractConversationId(event.data);
+          if (doneId) adoptConversationId(doneId);
           const patch = normalizeAIPayload(event.data);
           const answer =
             event.data !== null &&
@@ -183,7 +198,7 @@ export function useAIStream(t: Translator): {
       }
     });
     return unsubscribe;
-  }, [finalizeAssistant]);
+  }, [finalizeAssistant, adoptConversationId]);
 
   // Rotate thinking phrases while waiting for the first status/delta.
   useEffect(() => {
@@ -205,6 +220,18 @@ export function useAIStream(t: Translator): {
       setStreamError(null);
       setLiveStatusLabel(null);
       abortRequestedRef.current = false;
+
+      // First message of a new chat: create the server-side conversation lazily.
+      let activeConversationId = conversationIdRef.current;
+      if (!activeConversationId) {
+        const created = await window.nexus.conversations.create();
+        if (!created.ok) {
+          setStreamError(localizeAIError(created.error.detail ?? created.error.code, tRef.current));
+          return;
+        }
+        activeConversationId = created.data.id;
+        adoptConversationId(activeConversationId);
+      }
 
       const userMessage: AIMessage = {
         id: createMessageId(),
@@ -231,7 +258,7 @@ export function useAIStream(t: Translator): {
       const requestId = createRequestId();
       activeRequestIdRef.current = requestId;
 
-      const result = await window.nexus.ai.start(requestId, trimmed);
+      const result = await window.nexus.ai.start(requestId, trimmed, activeConversationId);
       if (!result.ok) {
         setIsStreaming(false);
         activeRequestIdRef.current = null;
@@ -244,7 +271,7 @@ export function useAIStream(t: Translator): {
         );
       }
     },
-    [isStreaming],
+    [isStreaming, adoptConversationId],
   );
 
   const stop = useCallback((): void => {
@@ -272,14 +299,44 @@ export function useAIStream(t: Translator): {
 
   const clearError = useCallback(() => setStreamError(null), []);
 
+  /** Load a stored conversation from the gateway; returns false on failure. */
+  const openConversation = useCallback(
+    async (id: number): Promise<boolean> => {
+      if (isStreaming) return false;
+      const result = await window.nexus.conversations.messages(id);
+      if (!result.ok) {
+        setStreamError(localizeAIError(result.error.detail ?? result.error.code, tRef.current));
+        return false;
+      }
+      adoptConversationId(id);
+      setMessages(mapConversationMessages(result.data));
+      setStreamError(null);
+      setLiveStatusLabel(null);
+      return true;
+    },
+    [isStreaming, adoptConversationId],
+  );
+
+  /** Start a fresh chat: the next submit creates a new server-side conversation. */
+  const newConversation = useCallback((): void => {
+    if (isStreaming) return;
+    adoptConversationId(null);
+    setMessages([]);
+    setStreamError(null);
+    setLiveStatusLabel(null);
+  }, [isStreaming, adoptConversationId]);
+
   return {
     messages,
     isStreaming,
     streamError,
     thinkingLabel,
     sessionId: sessionIdRef.current,
+    conversationId,
     submit,
     stop,
     clearError,
+    openConversation,
+    newConversation,
   };
 }

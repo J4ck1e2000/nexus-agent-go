@@ -22,10 +22,11 @@ export function registerAIIpc(deps: IpcDeps): () => void {
     if (activeRequests.has(requestId)) {
       throw gatewayError({ code: 'invalid_input', message: 'requestId is already streaming' });
     }
+    const conversationId = sanitizeConversationId(obj.conversationId);
 
     const controller = new AbortController();
     activeRequests.set(requestId, controller);
-    void runAIStream(deps, requestId, query, controller).finally(() => {
+    void runAIStream(deps, requestId, query, conversationId, controller).finally(() => {
       activeRequests.delete(requestId);
     });
     return null;
@@ -49,10 +50,23 @@ export function registerAIIpc(deps: IpcDeps): () => void {
   };
 }
 
+/**
+ * Validates the renderer-supplied conversation id: a positive integer or
+ * absent/null (no conversation tracking).
+ */
+function sanitizeConversationId(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw gatewayError({ code: 'invalid_input', message: 'conversationId must be a positive integer' });
+  }
+  return value;
+}
+
 async function runAIStream(
   deps: IpcDeps,
   requestId: string,
   query: string,
+  conversationId: number | undefined,
   controller: AbortController,
 ): Promise<void> {
   const send = (type: AIStreamEventType, data: unknown): void => {
@@ -62,7 +76,7 @@ async function runAIStream(
   try {
     await deps.gateway.streamEvents(
       '/api/ai/query',
-      { query, stream: true },
+      conversationId ? { query, stream: true, conversation_id: conversationId } : { query, stream: true },
       controller.signal,
       (eventName, data) => {
         if (
