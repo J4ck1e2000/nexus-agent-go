@@ -267,6 +267,21 @@ func (s *ConfigStore) Load() ([]model.AgentConfig, error) {
 	return configs, nil
 }
 
+// FindByID loads a single configured node without exposing its storage model to handlers.
+func (s *ConfigStore) FindByID(id int64) (model.AgentConfig, error) {
+	if s == nil || s.db == nil {
+		return model.AgentConfig{}, errors.New("config store db is nil")
+	}
+	if id <= 0 {
+		return model.AgentConfig{}, gorm.ErrRecordNotFound
+	}
+	var node AgentNode
+	if err := s.db.Where("id = ?", id).First(&node).Error; err != nil {
+		return model.AgentConfig{}, err
+	}
+	return agentNodeToConfig(node), nil
+}
+
 // FindSSHEndpoint locates an existing SSH node so a failed/offline node can be re-enrolled in place.
 func (s *ConfigStore) FindSSHEndpoint(config model.AgentConfig) (model.AgentConfig, bool, error) {
 	if s == nil || s.db == nil {

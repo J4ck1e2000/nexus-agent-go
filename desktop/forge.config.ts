@@ -10,9 +10,19 @@ const config: ForgeConfig = {
   packagerConfig: {
     name: 'Nexus Desktop',
     executableName: 'nexus-desktop',
-    asar: true,
+    asar: { unpack: '**/node_modules/node-pty/**' },
+    // Forge's Vite plugin normally ships only .vite. Include the one external
+    // runtime package whose native binaries and worker scripts cannot bundle.
+    ignore: (file) => Boolean(file) && !(
+      file === '/package.json' || file.startsWith('/.vite')
+      || file === '/node_modules' || file === '/node_modules/node-pty'
+      || file.startsWith('/node_modules/node-pty/')
+    ),
   },
-  rebuildConfig: {},
+  // node-pty 1.1 ships Node-API prebuilds; the loopback smoke test verifies them
+  // against our Electron version. Preserve those binaries instead of invoking
+  // node-gyp inside the pruned package (where build-only headers are absent).
+  rebuildConfig: { ignoreModules: ['node-pty'] },
   makers: [
     new MakerZIP({}, ['darwin', 'linux', 'win32']),
     new MakerDMG({}, ['darwin']),

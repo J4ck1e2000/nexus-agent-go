@@ -84,7 +84,9 @@ func (h *Handler) RegisterAPIRoutes(r *gin.Engine) {
 	authorized.Use(h.authMiddleware())
 	authorized.GET("/me", h.getMe)
 	authorized.GET("/nodes/overview", h.getNodesOverview)
+	authorized.GET("/nodes/:id/history", h.getNodeHistory)
 	authorized.GET("/proxy", h.proxyRequest)
+	h.registerIdleReservationRoutes(authorized)
 	h.registerAIRoutes(authorized)
 	h.registerConversationRoutes(authorized)
 

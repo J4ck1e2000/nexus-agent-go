@@ -5,6 +5,7 @@ import { gatewayError } from '../services/errors';
 import type { GatewayClient } from '../services/gateway';
 import type { SettingsStore } from '../services/settings-store';
 import type { TokenStore } from '../services/token-store';
+import type { LocalSshTerminalManager } from '../services/local-ssh-terminal';
 import type { NexusResult, UserRecord, UserRole } from '../types/ipc';
 
 /** Shared dependencies handed to every IPC registrar. */
@@ -13,6 +14,7 @@ export interface IpcDeps {
   tokens: TokenStore;
   settings: SettingsStore;
   notify: (channel: string, payload: unknown) => void;
+  terminals: LocalSshTerminalManager;
 }
 
 type Handler<T> = (payload: unknown) => Promise<T> | T;

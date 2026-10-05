@@ -139,6 +139,9 @@ func (h *Handler) deleteAdminUser(c *gin.Context) {
 		if target.ID == currentUser.ID {
 			return errCannotDeleteSelf
 		}
+		if err := tx.Where("user_id = ?", target.ID).Delete(&GPUReservation{}).Error; err != nil {
+			return err
+		}
 
 		if err := tx.Delete(&User{}, target.ID).Error; err != nil {
 			return err

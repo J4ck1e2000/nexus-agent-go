@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,8 @@ type NodeStateServiceOptions struct {
 	Collectors *collector.CollectorRouter
 	// MaxConcurrency 限制单轮轮询的并发节点数；<=0 时使用默认值 16。
 	MaxConcurrency int
+	// MetricHistoryStore 保存按小时采样的长周期资源历史；可为 nil。
+	MetricHistoryStore *NodeMetricHistoryStore
 }
 
 // NodeStateService 聚合节点轮询、状态缓存和聚合读取能力。
@@ -38,6 +41,7 @@ type NodeStateService struct {
 	collectors     *collector.CollectorRouter
 	maxConcurrency int
 	nowFunc        func() time.Time
+	historyStore   *NodeMetricHistoryStore
 }
 
 // NewNodeStateService 创建节点状态服务。
@@ -64,6 +68,7 @@ func NewNodeStateService(loader nodeConfigLoader, stateStore *NodeStateStore, op
 		collectors:     router,
 		maxConcurrency: maxConcurrency,
 		nowFunc:        nowFunc,
+		historyStore:   opts.MetricHistoryStore,
 	}
 }
 
@@ -81,6 +86,11 @@ func (s *NodeStateService) PollOnce(ctx context.Context) error {
 	nodeIDs := make([]int64, 0, len(nodes))
 	for _, node := range nodes {
 		nodeIDs = append(nodeIDs, node.ID)
+	}
+	if s.historyStore != nil {
+		if err := s.historyStore.PruneIfDue(ctx, nodeIDs, s.nowFunc()); err != nil {
+			log.Printf("node history retention cleanup failed: %v", err)
+		}
 	}
 
 	if err := s.stateStore.CleanupRemovedNodes(ctx, nodeIDs); err != nil {
@@ -122,8 +132,60 @@ func (s *NodeStateService) PollOnce(ctx context.Context) error {
 		if err := s.stateStore.SaveNodeState(ctx, state); err != nil {
 			return err
 		}
+		if s.historyStore != nil {
+			if err := s.historyStore.RecordNodeState(ctx, state); err != nil {
+				log.Printf("node history sample save failed: node=%d err=%v", state.ID, err)
+			}
+		}
 	}
 	return nil
+}
+
+// LoadNodeHistory 返回 Redis 的高频近期样本与 MySQL 的小时样本，并按时间去重。
+func (s *NodeStateService) LoadNodeHistory(ctx context.Context, nodeID int64, fromUnix int64) ([]NodeHistorySnapshot, error) {
+	if s == nil || s.stateStore == nil {
+		return nil, fmt.Errorf("node state service not initialized")
+	}
+	now := s.nowFunc()
+	retentionCutoff := now.Add(-defaultMetricHistoryRetentionDays * 24 * time.Hour).Unix()
+	if fromUnix < retentionCutoff {
+		fromUnix = retentionCutoff
+	}
+	if fromUnix <= 0 {
+		fromUnix = retentionCutoff
+	}
+	byTimestamp := make(map[int64]NodeHistorySnapshot)
+
+	recentCutoff := now.Add(-defaultNodeHistoryRetention).Unix()
+	databaseEnd := recentCutoff
+	if s.historyStore != nil && fromUnix < databaseEnd {
+		older, err := s.historyStore.LoadNodeHistorySince(ctx, nodeID, fromUnix, databaseEnd)
+		if err != nil {
+			return nil, err
+		}
+		for _, snapshot := range older {
+			byTimestamp[snapshot.TimestampUnix] = snapshot
+		}
+	}
+
+	recentFrom := fromUnix
+	if recentFrom < recentCutoff {
+		recentFrom = recentCutoff
+	}
+	recent, err := s.stateStore.LoadNodeHistorySince(ctx, nodeID, recentFrom)
+	if err != nil {
+		return nil, err
+	}
+	for _, snapshot := range recent {
+		byTimestamp[snapshot.TimestampUnix] = snapshot
+	}
+
+	result := make([]NodeHistorySnapshot, 0, len(byTimestamp))
+	for _, snapshot := range byTimestamp {
+		result = append(result, snapshot)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].TimestampUnix < result[j].TimestampUnix })
+	return result, nil
 }
 
 // GetNodesOverview 读取聚合后的节点概览（优先 Redis 热状态）。
@@ -159,6 +221,8 @@ func (s *NodeStateService) GetNodesOverview(ctx context.Context) ([]NodeOverview
 		state.ID = node.ID
 		state.Name = node.Name
 		state.URL = nodeDisplayEndpoint(node)
+		state.SSHHost = node.SSHHost
+		state.SSHPort = node.SSHPort
 		if strings.TrimSpace(state.Status) == "" {
 			state.Status = NodeStatusOffline
 		}

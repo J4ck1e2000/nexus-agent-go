@@ -19,18 +19,31 @@ const (
 
 // NodeHistorySnapshot is a compact, query-friendly timeline record for one node.
 type NodeHistorySnapshot struct {
-	TimestampUnix     int64          `json:"timestampUnix"`
-	NodeID            int64          `json:"nodeId"`
-	NodeName          string         `json:"nodeName"`
-	Status            string         `json:"status"`
-	AvailabilityScore int            `json:"availabilityScore"`
-	AvailabilityTier  string         `json:"availabilityTier"`
-	CPUUsage          *float64       `json:"cpuUsage,omitempty"`
-	RAMPercent        *float64       `json:"ramPercent,omitempty"`
-	GPUSummary        NodeGPUSummary `json:"gpuSummary"`
-	ActiveUserCount   int            `json:"activeUserCount"`
-	DataAgeSec        *float64       `json:"dataAgeSec,omitempty"`
-	RiskFlags         []string       `json:"riskFlags,omitempty"`
+	TimestampUnix     int64            `json:"timestampUnix"`
+	NodeID            int64            `json:"nodeId"`
+	NodeName          string           `json:"nodeName"`
+	Status            string           `json:"status"`
+	AvailabilityScore int              `json:"availabilityScore"`
+	AvailabilityTier  string           `json:"availabilityTier"`
+	CPUUsage          *float64         `json:"cpuUsage,omitempty"`
+	RAMPercent        *float64         `json:"ramPercent,omitempty"`
+	GPUSummary        NodeGPUSummary   `json:"gpuSummary"`
+	ActiveUserCount   int              `json:"activeUserCount"`
+	DataAgeSec        *float64         `json:"dataAgeSec,omitempty"`
+	RiskFlags         []string         `json:"riskFlags,omitempty"`
+	GPUs              []NodeGPUHistory `json:"gpus,omitempty"`
+}
+
+// NodeGPUHistory 保留单卡趋势所需的紧凑指标，不包含进程命令或用户信息。
+type NodeGPUHistory struct {
+	ID           int     `json:"id"`
+	Name         string  `json:"name"`
+	Utilization  int     `json:"utilization"`
+	MemoryUsed   float64 `json:"memoryUsed"`
+	MemoryTotal  float64 `json:"memoryTotal"`
+	Temperature  int     `json:"temperature"`
+	PowerDraw    int     `json:"powerDraw"`
+	ProcessCount int     `json:"processCount"`
 }
 
 func marshalNodeHistorySnapshot(state NodeState) (string, int64, error) {
@@ -55,6 +68,29 @@ func buildNodeHistorySnapshot(state NodeState) NodeHistorySnapshot {
 		ramPercent = cloneFloat64Ptr(&state.Data.RAMPercent)
 	}
 
+	gpus := make([]NodeGPUHistory, 0)
+	if state.Data != nil {
+		gpus = make([]NodeGPUHistory, 0, len(state.Data.Gpus))
+		for _, gpu := range state.Data.Gpus {
+			processCount := 0
+			for _, process := range state.Data.Processes {
+				if process.GPUIndex != nil && *process.GPUIndex == gpu.ID && process.VRAMUsedMB != nil && *process.VRAMUsedMB >= 100 {
+					processCount++
+				}
+			}
+			gpus = append(gpus, NodeGPUHistory{
+				ID:           gpu.ID,
+				Name:         gpu.Name,
+				Utilization:  gpu.Utilization,
+				MemoryUsed:   gpu.MemoryUsed,
+				MemoryTotal:  gpu.MemoryTotal,
+				Temperature:  gpu.Temperature,
+				PowerDraw:    gpu.PowerDraw,
+				ProcessCount: processCount,
+			})
+		}
+	}
+
 	return NodeHistorySnapshot{
 		TimestampUnix:     timestamp,
 		NodeID:            state.ID,
@@ -68,6 +104,7 @@ func buildNodeHistorySnapshot(state NodeState) NodeHistorySnapshot {
 		ActiveUserCount:   state.ActiveUserCount,
 		DataAgeSec:        cloneFloat64Ptr(state.DataAgeSec),
 		RiskFlags:         computeHistoryRiskFlags(state),
+		GPUs:              gpus,
 	}
 }
 

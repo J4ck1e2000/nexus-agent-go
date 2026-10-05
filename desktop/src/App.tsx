@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AuthProvider, useAuthContext } from './context/AuthContext';
 import { LanguageProvider, useLanguageContext } from './context/LanguageContext';
 import { ToastProvider } from './context/ToastContext';
+import { NotificationPreferencesProvider } from './context/NotificationPreferencesContext';
 import AppShell from './components/layout/AppShell';
 import ToastStack from './components/common/Toast';
 import Spinner from './components/common/Spinner';
@@ -44,9 +45,11 @@ export default function App() {
   return (
     <LanguageProvider>
       <ToastProvider>
-        <AuthProvider>
-          <Root />
-        </AuthProvider>
+        <NotificationPreferencesProvider>
+          <AuthProvider>
+            <Root />
+          </AuthProvider>
+        </NotificationPreferencesProvider>
       </ToastProvider>
     </LanguageProvider>
   );

@@ -2,9 +2,10 @@ import type { EnrichedNode } from '../../lib/node-logic';
 import { TIER_PILL_STYLES } from '../../lib/node-logic';
 import { formatPercent, formatSpeed } from '../../lib/format';
 import { useLanguage } from '../../hooks/useLanguage';
+import { TerminalSquare } from 'lucide-react';
 
 /** Hero card at the top of the node detail column. */
-export default function NodeHeroCard({ node }: { node: EnrichedNode }) {
+export default function NodeHeroCard({ node, onOpenTerminal }: { node: EnrichedNode; onOpenTerminal: () => void }) {
   const { t } = useLanguage();
   const tierStyle = TIER_PILL_STYLES[node.effectiveAvailabilityTier] ?? TIER_PILL_STYLES.offline;
 
@@ -17,6 +18,9 @@ export default function NodeHeroCard({ node }: { node: EnrichedNode }) {
           <p className="mt-0.5 truncate font-mono text-xs text-muted">{node.hostDisplay}</p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
+          <button type="button" className="muted-button !px-2.5 !py-1.5" onClick={onOpenTerminal} disabled={!node.sshHost} title={t('terminal.open')}>
+            <TerminalSquare size={14} /> {t('terminal.open')}
+          </button>
           <span
             className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
               node.online

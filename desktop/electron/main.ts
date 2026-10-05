@@ -6,6 +6,7 @@ import { normalizeGatewayUrl } from './lib/validate';
 import { DEFAULT_GATEWAY_URL, SettingsStore } from './services/settings-store';
 import { GatewayClient } from './services/gateway';
 import { TokenStore, type TokenCipher } from './services/token-store';
+import { LocalSshTerminalManager } from './services/local-ssh-terminal';
 
 function createSafeStorageCipher(): TokenCipher {
   return {
@@ -15,7 +16,7 @@ function createSafeStorageCipher(): TokenCipher {
   };
 }
 
-function createMainWindow(): BrowserWindow {
+function createMainWindow(terminals: LocalSshTerminalManager): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -35,6 +36,7 @@ function createMainWindow(): BrowserWindow {
   win.once('ready-to-show', () => {
     win.show();
   });
+  win.on('closed', () => terminals.closeAll());
 
   // The Forge Vite plugin injects MAIN_WINDOW_VITE_DEV_SERVER_URL in dev mode.
   const devServerURL =
@@ -67,18 +69,21 @@ app.whenReady().then(() => {
     { onUnauthorized: () => notify('auth:expired', null) },
   );
 
-  const disposeIpc = registerIpcHandlers({ gateway, tokens, settings, notify });
+  const terminals = new LocalSshTerminalManager(notify);
 
-  createMainWindow();
+  const disposeIpc = registerIpcHandlers({ gateway, tokens, settings, notify, terminals });
+
+  createMainWindow(terminals);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+      createMainWindow(terminals);
     }
   });
 
   app.on('before-quit', () => {
     disposeIpc();
+    terminals.closeAll();
   });
 });
 

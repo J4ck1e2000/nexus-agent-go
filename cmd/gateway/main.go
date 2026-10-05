@@ -54,6 +54,7 @@ func main() {
 	}()
 
 	nodeStateStore := gateway.NewNodeStateStore(redisClient, runtimeCfg.Redis.KeyPrefix, runtimeCfg.NodeStateTTL)
+	metricHistoryStore := gateway.NewNodeMetricHistoryStore(db)
 
 	// SSH agentless 采集器：默认使用自动生成并持久保存的 Gateway 密钥。
 	sshCollector := buildSSHCollector()
@@ -64,7 +65,8 @@ func main() {
 			agenthttp.New(nil, runtimeCfg.PollTimeout),
 			sshCollector,
 		),
-		MaxConcurrency: runtimeCfg.MaxConcurrency,
+		MaxConcurrency:     runtimeCfg.MaxConcurrency,
+		MetricHistoryStore: metricHistoryStore,
 	})
 	// Gateway 关停时释放全部 SSH 连接。
 	defer func() {

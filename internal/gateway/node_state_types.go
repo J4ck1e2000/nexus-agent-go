@@ -54,6 +54,8 @@ type NodeState struct {
 	ID                int64                `json:"id"`
 	Name              string               `json:"name"`
 	URL               string               `json:"url"`
+	SSHHost           string               `json:"sshHost,omitempty"`
+	SSHPort           int                  `json:"sshPort,omitempty"`
 	Status            string               `json:"status"`
 	LastPolledAtUnix  int64                `json:"lastPolledAtUnix"`
 	LastSeenAtUnix    int64                `json:"lastSeenAtUnix"`
@@ -74,6 +76,8 @@ type NodeOverview struct {
 	ID                int64                `json:"id"`
 	Name              string               `json:"name"`
 	URL               string               `json:"url"`
+	SSHHost           string               `json:"sshHost,omitempty"`
+	SSHPort           int                  `json:"sshPort,omitempty"`
 	Status            string               `json:"status"`
 	Data              *model.SystemMetrics `json:"data"`
 	Metrics           *NodeNetworkMetrics  `json:"metrics"`
@@ -118,6 +122,8 @@ func pendingNodeState(node model.AgentConfig) NodeState {
 		ID:                node.ID,
 		Name:              node.Name,
 		URL:               nodeDisplayEndpoint(node),
+		SSHHost:           node.SSHHost,
+		SSHPort:           node.SSHPort,
 		Status:            NodeStatusPending,
 		ActiveUsers:       []string{},
 		ActiveUserCount:   0,
@@ -138,6 +144,8 @@ func nodeStateToOverview(state NodeState) NodeOverview {
 		ID:                state.ID,
 		Name:              state.Name,
 		URL:               state.URL,
+		SSHHost:           state.SSHHost,
+		SSHPort:           state.SSHPort,
 		Status:            state.Status,
 		Data:              cloneSystemMetrics(state.Data),
 		Metrics:           cloneNetworkMetrics(state.Metrics),

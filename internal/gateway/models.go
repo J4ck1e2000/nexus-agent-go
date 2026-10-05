@@ -91,3 +91,36 @@ type AIMessage struct {
 func (AIMessage) TableName() string {
 	return "ai_messages"
 }
+
+// GPUReservation 为单个用户保存一条空闲 GPU 条件提醒；它不会锁定远端 GPU。
+type GPUReservation struct {
+	ID                   uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID               uint       `gorm:"index;not null" json:"user_id"`
+	Name                 string     `gorm:"type:varchar(64);not null" json:"name"`
+	FiltersJSON          string     `gorm:"type:mediumtext;not null" json:"-"`
+	Status               string     `gorm:"type:varchar(16);index;not null;default:'active'" json:"status"`
+	NotifyMode           string     `gorm:"type:varchar(16);not null;default:'once'" json:"notify_mode"`
+	ExpiresAt            *time.Time `gorm:"index" json:"expires_at,omitempty"`
+	CurrentMatchKeysJSON string     `gorm:"type:mediumtext;not null" json:"-"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+}
+
+// TableName 指定 GPU 预约提醒表名。
+func (GPUReservation) TableName() string {
+	return "gpu_reservations"
+}
+
+// NodeMetricHistory 保存按小时覆盖的紧凑节点快照，用于 90 天资源趋势查询。
+type NodeMetricHistory struct {
+	NodeID       int64     `gorm:"primaryKey;autoIncrement:false;uniqueIndex:idx_node_metric_history_bucket,priority:1;index:idx_node_metric_history_time,priority:1" json:"node_id"`
+	BucketUnix   int64     `gorm:"primaryKey;autoIncrement:false;uniqueIndex:idx_node_metric_history_bucket,priority:2;index:idx_node_metric_history_time,priority:2" json:"bucket_unix"`
+	SnapshotJSON string    `gorm:"type:mediumtext;not null" json:"-"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// TableName 指定节点历史采样表名。
+func (NodeMetricHistory) TableName() string {
+	return "node_metric_history"
+}

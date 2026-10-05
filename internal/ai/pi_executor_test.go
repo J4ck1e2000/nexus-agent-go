@@ -244,6 +244,44 @@ func TestPiExecutorPropagatesRuntimeUnavailable(t *testing.T) {
 	}
 }
 
+func TestPiExecutorRejectsEmptyCompletedRun(t *testing.T) {
+	events := []runtime.Event{
+		mustEvent(t, "", runtime.EventRunStarted, 1, runtime.RunStartedPayload{}),
+		mustEvent(t, "", runtime.EventRunCompleted, 2, runtime.RunCompletedPayload{}),
+	}
+	stub := newStubRuntime(t, events)
+	manager := runtime.NewManager()
+	defer manager.Close()
+	executor := newTestExecutor(t, stub, manager)
+	_, err := executor.ExecuteStream(context.Background(), AIQueryRequest{Query: "hi"}, nil)
+	if !errors.Is(err, ErrAgentUnavailable) {
+		t.Fatalf("empty completed run should fail, got %v", err)
+	}
+}
+
+func TestPiExecutorPreservesFailedAndCancelledEvents(t *testing.T) {
+	for _, eventType := range []string{runtime.EventRunFailed, runtime.EventRunCancelled} {
+		t.Run(eventType, func(t *testing.T) {
+			events := []runtime.Event{
+				mustEvent(t, "", runtime.EventRunStarted, 1, runtime.RunStartedPayload{}),
+				mustEvent(t, "", eventType, 2, runtime.RunFailedPayload{Error: "model quota exceeded"}),
+			}
+			stub := newStubRuntime(t, events)
+			manager := runtime.NewManager()
+			defer manager.Close()
+			executor := newTestExecutor(t, stub, manager)
+			_, err := executor.ExecuteStream(context.Background(), AIQueryRequest{Query: "hi"}, nil)
+			if eventType == runtime.EventRunCancelled {
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("cancelled event should return context.Canceled, got %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "model quota exceeded") {
+				t.Fatalf("failed event should preserve runtime diagnostics, got %v", err)
+			}
+		})
+	}
+}
+
 func TestPiExecutorRunCanceledOnContextCancel(t *testing.T) {
 	// Stream that opens, emits run.started, then stays open until the client
 	// disconnects — like a real in-flight run.
