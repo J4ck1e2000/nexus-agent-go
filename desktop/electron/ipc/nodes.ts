@@ -1,4 +1,4 @@
-import type { NodeOverview, TestSSHResult } from '../types/ipc';
+import type { NodeHistoryResponse, NodeOverview, TestSSHResult } from '../types/ipc';
 import { execFile } from 'node:child_process';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -79,6 +79,23 @@ async function readLocalTrustedHostKeys(host: string, port: number): Promise<SSH
 }
 export function registerNodesIpc(deps: IpcDeps): void {
   handleEnvelope('nodes:overview', () => deps.gateway.request<NodeOverview[]>('GET', '/api/nodes/overview'));
+
+  handleEnvelope('nodes:history', (payload) => {
+    const obj = asIdObject(payload);
+    const rawFrom = (payload as { fromUnix?: unknown }).fromUnix;
+    if (typeof rawFrom !== 'number' || !Number.isSafeInteger(rawFrom) || rawFrom < 0) {
+      throw gatewayError({ code: 'invalid_input', message: 'fromUnix must be a non-negative integer' });
+    }
+    const stepSeconds = (payload as { stepSeconds?: unknown }).stepSeconds;
+    if (typeof stepSeconds !== 'number' || !Number.isInteger(stepSeconds) || stepSeconds < 5 || stepSeconds > 86_400) {
+      throw gatewayError({ code: 'invalid_input', message: 'stepSeconds is invalid' });
+    }
+    const aggregation = (payload as { aggregation?: unknown }).aggregation;
+    if (aggregation !== 'average' && aggregation !== 'peak') {
+      throw gatewayError({ code: 'invalid_input', message: 'aggregation is invalid' });
+    }
+    return deps.gateway.request<NodeHistoryResponse>('GET', `/api/nodes/${obj.id}/history?from=${rawFrom}&step_seconds=${stepSeconds}&aggregation=${aggregation}`);
+  });
 
   handleEnvelope('nodes:list', () =>
     deps.gateway

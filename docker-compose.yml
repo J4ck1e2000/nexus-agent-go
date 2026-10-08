@@ -129,6 +129,8 @@ services:
     build:
       context: ./pi-runtime
       dockerfile: ../deploy/Dockerfile.pi-runtime
+      args:
+        NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-docker.m.daocloud.io/library/node:24-alpine}
     container_name: nexus-pi-runtime
     restart: unless-stopped
     depends_on:
@@ -150,6 +152,8 @@ services:
       PI_SESSION_CACHE_SIZE: "128"
 
   agent:
+    profiles:
+      - legacy-agent
     build:
       context: .
       dockerfile: deploy/Dockerfile.agent

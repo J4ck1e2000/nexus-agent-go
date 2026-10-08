@@ -7,6 +7,7 @@ import EventFeed from './EventFeed';
 import UserSummaryList from './UserSummaryList';
 import NodeHeroCard from './NodeHeroCard';
 import { ResourceOverviewTiles } from './NodeKpiTile';
+import NodeHistoryPanel from './NodeHistoryPanel';
 
 export interface SelectedGpu {
   serverId: number;
@@ -19,10 +20,11 @@ interface NodeDetailProps {
   node: EnrichedNode | null;
   selectedGpu: SelectedGpu | null;
   onSelectGpu: (selection: SelectedGpu | null) => void;
+  onOpenTerminal: () => void;
 }
 
 /** Right column: hero, resource overview, GPU matrix + inline detail, feeds. */
-export default function NodeDetail({ node, selectedGpu, onSelectGpu }: NodeDetailProps) {
+export default function NodeDetail({ node, selectedGpu, onSelectGpu, onOpenTerminal }: NodeDetailProps) {
   const { t } = useLanguage();
   const gpuMatrix = useMemo(() => node?.data?.gpus ?? [], [node]);
 
@@ -40,7 +42,7 @@ export default function NodeDetail({ node, selectedGpu, onSelectGpu }: NodeDetai
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <NodeHeroCard node={node} />
+      <NodeHeroCard node={node} onOpenTerminal={onOpenTerminal} />
 
       <section>
         <h3 className="eyebrow mb-2">{t('detail.resourceOverview')}</h3>
@@ -96,6 +98,8 @@ export default function NodeDetail({ node, selectedGpu, onSelectGpu }: NodeDetai
           <UserSummaryList node={node} />
         </div>
       </div>
+
+      <NodeHistoryPanel node={node} />
     </div>
   );
 }

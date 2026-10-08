@@ -2,6 +2,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import GatewaySettings from '../components/settings/GatewaySettings';
 import LanguageToggle from '../components/common/LanguageToggle';
 import AppModal from '../components/common/AppModal';
+import NotificationPreferencesPanel from '../components/settings/NotificationPreferencesPanel';
 
 /**
  * Settings rendered as an overlay above the dashboard so the dashboard (node
@@ -20,6 +21,8 @@ export default function SettingsPage({
     <AppModal open={open} onClose={onClose} title={t('desktop.settings.title')} subtitle={t('desktop.settings.subtitle')} maxWidth="max-w-2xl">
       <div className="flex flex-col gap-5">
         <GatewaySettings />
+
+        <NotificationPreferencesPanel />
 
         <div className="soft-panel-subtle p-5">
           <h3 className="text-sm font-semibold text-ink">{t('desktop.settings.languageSection')}</h3>

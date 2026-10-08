@@ -234,8 +234,12 @@ func (e *PiRuntimeExecutor) handleEvent(
 		if err := decodePayload(event.Payload, &payload); err != nil {
 			return true, AIQueryResponse{}, fmt.Errorf("decode run.completed payload failed: %w", err)
 		}
-		_ = e.manager.MarkTerminal(event.RunID, runtime.RunStateCompleted)
 		resp := collector.buildResponse(payload.Text)
+		if strings.TrimSpace(resp.Answer) == "" {
+			_ = e.manager.MarkTerminal(event.RunID, runtime.RunStateFailed)
+			return true, AIQueryResponse{}, fmt.Errorf("%w: runtime completed without a final answer", ErrAgentUnavailable)
+		}
+		_ = e.manager.MarkTerminal(event.RunID, runtime.RunStateCompleted)
 		return true, resp, nil
 
 	case runtime.EventRunFailed:

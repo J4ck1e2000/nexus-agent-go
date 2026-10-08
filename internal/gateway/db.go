@@ -42,7 +42,7 @@ func AutoMigrate(db *gorm.DB) error {
 	if db == nil {
 		return errors.New("db is nil")
 	}
-	if err := db.AutoMigrate(&User{}, &AgentNode{}, &AIConversation{}, &AIMessage{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &AgentNode{}, &AIConversation{}, &AIMessage{}, &GPUReservation{}, &NodeMetricHistory{}); err != nil {
 		return fmt.Errorf("auto migrate failed: %w", err)
 	}
 	return nil

@@ -163,6 +163,8 @@ export interface NodeOverview {
   id: number;
   name: string;
   url: string;
+  sshHost?: string;
+  sshPort?: number;
   status: NodeStatus;
   data?: SystemMetrics | null;
   metrics?: NodeNetworkMetrics | null;
@@ -177,6 +179,107 @@ export interface NodeOverview {
   availabilityTier: AvailabilityTier;
   dataAgeSec?: number | null;
   error?: string;
+}
+
+export interface NodeHistoryGPU {
+  id: number;
+  name: string;
+  utilization: number;
+  memoryUsed: number;
+  memoryTotal: number;
+  temperature: number;
+  powerDraw: number;
+  processCount: number;
+}
+
+export interface NodeHistorySample {
+  timestampUnix: number;
+  nodeId: number;
+  nodeName: string;
+  status: NodeStatus;
+  availabilityScore: number;
+  availabilityTier: AvailabilityTier;
+  cpuUsage?: number;
+  ramPercent?: number;
+  gpuSummary: NodeGPUSummary;
+  activeUserCount: number;
+  dataAgeSec?: number;
+  riskFlags?: string[];
+  gpus?: NodeHistoryGPU[];
+}
+
+export interface NodeHistoryResponse {
+  nodeId: number;
+  fromUnix: number;
+  retentionDays: number;
+  stepSeconds: number;
+  samples: NodeHistorySample[];
+}
+
+export type NodeHistoryAggregation = 'average' | 'peak';
+
+export interface IdleReservationFilters {
+  minFreeVramGb: number;
+  minFreeSystemMemoryGb: number;
+  gpuModel: string;
+  cpuModel: string;
+  maxGpuUtilization: number;
+  /** "emptyOnly" means no active GPU process; ownership is not inferred. */
+  processPolicy: 'any' | 'emptyOnly';
+  nodeIds: number[];
+  idleDurationMinutes: 0 | 5 | 10 | 30 | 60;
+}
+
+export type IdleReservationStatus = 'active' | 'paused' | 'completed' | 'expired';
+export type IdleReservationNotifyMode = 'once' | 'continuous';
+
+export interface IdleReservation {
+  id: number;
+  name: string;
+  filters: IdleReservationFilters;
+  status: IdleReservationStatus;
+  notifyMode: IdleReservationNotifyMode;
+  expiresAtUnix: number | null;
+  currentMatchKeys: string[];
+  createdAtUnix: number;
+}
+
+export interface CreateIdleReservationPayload {
+  name: string;
+  filters: IdleReservationFilters;
+  notifyMode: IdleReservationNotifyMode;
+  expiresInHours: 0 | 1 | 4 | 8 | 24 | 72;
+}
+
+export interface IdleReservationEvaluation {
+  reservation: IdleReservation;
+  newMatchKeys: string[];
+}
+
+export interface TerminalStartPayload {
+  nodeId: number;
+  targetHost: string;
+  sshUser: string;
+  useSshConfig: boolean;
+  cols: number;
+  rows: number;
+}
+
+export interface TerminalSessionInfo {
+  sessionId: string;
+  targetHost: string;
+  sshUser: string;
+}
+
+export interface TerminalOutputEvent {
+  sessionId: string;
+  data: string;
+}
+
+export interface TerminalExitEvent {
+  sessionId: string;
+  exitCode: number | null;
+  signal?: number;
 }
 
 export interface AddNodePayload {
@@ -303,6 +406,7 @@ export interface NexusAPI {
   };
   nodes: {
     overview(): Promise<NexusResult<NodeOverview[]>>;
+    history(id: number, fromUnix: number, stepSeconds: number, aggregation: NodeHistoryAggregation): Promise<NexusResult<NodeHistoryResponse>>;
     list(): Promise<NexusResult<AgentConfig[]>>;
     add(payload: AddNodePayload): Promise<NexusResult<AgentConfig>>;
     remove(id: number): Promise<NexusResult<null>>;
@@ -330,5 +434,24 @@ export interface NexusAPI {
     get(): Promise<NexusResult<DesktopSettings>>;
     update(settings: DesktopSettings): Promise<NexusResult<DesktopSettings>>;
     testConnection(url: string): Promise<NexusResult<TestConnectionResult>>;
+  };
+  idleReservations: {
+    list(): Promise<NexusResult<IdleReservation[]>>;
+    create(payload: CreateIdleReservationPayload): Promise<NexusResult<IdleReservation>>;
+    setStatus(id: number, status: 'active' | 'paused'): Promise<NexusResult<IdleReservation>>;
+    evaluate(id: number, matchingKeys: string[]): Promise<NexusResult<IdleReservationEvaluation>>;
+    remove(id: number): Promise<NexusResult<null>>;
+  };
+  notifications: {
+    show(title: string, body: string): Promise<NexusResult<null>>;
+  };
+  terminal: {
+    start(payload: TerminalStartPayload): Promise<NexusResult<TerminalSessionInfo>>;
+    attach(sessionId: string): Promise<NexusResult<null>>;
+    write(sessionId: string, data: string): Promise<NexusResult<null>>;
+    resize(sessionId: string, cols: number, rows: number): Promise<NexusResult<null>>;
+    close(sessionId: string): Promise<NexusResult<null>>;
+    onOutput(cb: (event: TerminalOutputEvent) => void): Unsubscribe;
+    onExit(cb: (event: TerminalExitEvent) => void): Unsubscribe;
   };
 }

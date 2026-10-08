@@ -7,11 +7,14 @@ AI 问答固定由 Pi Runtime 执行；Docker Compose 会启动 Gateway、Pi Run
 Nexus 是一套分布式 GPU 集群监控与调度辅助平台:
 
 - **Agentless SSH 采集(推荐)**:Gateway 通过 SSH 直接登录 Linux 服务器执行 `/proc` / `ps` / `nvidia-smi` 采集,目标服务器无需安装任何 Nexus 程序(详见下文 [Agentless SSH Monitoring](#agentless-ssh-monitoring));
-- **Go Agent(旧版,保留兼容)** 部署在每台 GPU 节点上,采集 CPU / 内存 / GPU(利用率、显存、温度、功耗、进程)指标并上报;
+- **旧版 Go Agent(可选兼容)**:仅供已有 `collector_type=agent` 节点使用;Docker Compose 默认不启动,如确需兼容可运行 `docker compose --profile legacy-agent up -d agent`;新节点建议使用 SSH 采集。
 - **Go Gateway** 是控制面:认证(JWT)、节点配置与聚合状态(Redis 热状态 + MySQL 持久化)、管理 API、AI 问答入口(SSE 流式),并对外提供 Web Dashboard;
+- **空闲 GPU 工作台**:Electron 按显存、系统内存、型号、GPU 进程和持续空闲时间筛选资源;预约是按用户隔离的提醒,不会锁定硬件;
+- **资源历史与通知**:Gateway 通过 Redis 提供 25 小时高频状态,并在 MySQL 保留最多 90 天小时样本;Electron 显示 GPU 热力图并发送本机系统告警;
+- **本地 SSH 终端**:Electron 使用用户电脑上的 OpenSSH 直连登记节点,沿用个人密钥、Agent、`~/.ssh/config`、ProxyJump 和 `known_hosts`;凭据不会经过 Gateway;
 - **Pi Runtime**(TypeScript)是唯一的 AI 执行器,经工具网关回调 Gateway 读取集群快照,流式生成回答;
 - **Qdrant** 提供知识库向量检索(可回退本地 markdown 检索);
-- **Web Dashboard**(`web/`,CDN React 单文件)与 **Desktop Client**(`desktop/`,Electron + React + TS)是两个并存的客户端,功能对齐。
+- **Web Dashboard**(`web/`,CDN React 单文件)保留为现有行为基准;**Desktop Client**(`desktop/`,Electron + React + TS)使用相同 Gateway 数据,并承载本机 OpenSSH 终端和桌面通知。
 
 ## 整体架构
 
@@ -20,18 +23,20 @@ Browser (web/)            Electron (desktop/)
        │ REST / SSE / JWT        │ preload IPC → Main
        └──────────┬──────────────┘
                   ▼
-            Go Gateway  ──── Redis(节点热状态)
-                  │         MySQL(用户/节点配置)
+            Go Gateway  ──── Redis(节点热状态/25h历史)
+                  │         MySQL(用户/节点/预约/90d小时历史)
                   │         Qdrant(知识向量)
                   ▼
             Pi Runtime(AI 执行器,SSE 透传)
                   ▲
         CollectorRouter
         ┌────────┴─────────┐
-  SSH Collector        Go Agent(旧版,保留)
+  SSH Collector        Go Agent(legacy-agent profile)
   (agentless,每台         (每台 GPU 节点,
    Linux 服务器)           指标上报)
 ```
+
+Electron 的交互式 SSH 终端在用户电脑上启动 OpenSSH,直接连接已登记节点;Gateway 的 SSH 私钥只用于指标采集,不用于桌面用户的终端会话。
 
 ## 仓库结构
 
@@ -59,7 +64,7 @@ Browser (web/)            Electron (desktop/)
 | 组件 | 目录 | 本地启动 | 说明 |
 | --- | --- | --- | --- |
 | Gateway | `cmd/gateway` | `go run ./cmd/gateway`(需先起 Pi Runtime 并设 `PI_RUNTIME_URL`) | 默认 `:3000`,同时服务 `web/` 静态页 |
-| Agent | `cmd/agent` | `go run ./cmd/agent` | 需要 GPU 节点环境 |
+| Agent | `cmd/agent` | `go run ./cmd/agent` | 旧版节点兼容；Compose 需显式启用 `legacy-agent` profile |
 | Pi Runtime | `pi-runtime/` | `npm install && npm start` | 需要 `AI_API_KEY` 等,见下文 |
 | 知识同步 | `cmd/knowledge-sync` | `go run ./cmd/knowledge-sync` 或 `scripts/knowledge-run.cmd` | markdown → Qdrant |
 | Web 前端 | `web/` | 由 Gateway 静态托管,无需单独构建 | 保留不删 |
@@ -84,7 +89,7 @@ Gateway → CollectorRouter → SSH Collector → SSH(长连接复用)
         → /proc + ps + nvidia-smi → SystemMetrics → NodeState → Redis
 ```
 
-旧版 **Go Agent remains supported**:节点的 `collector_type` 为 `agent`(或空)时仍走原来的 HTTP 轮询,存量数据库节点无需迁移。
+旧版 Go Agent HTTP 采集仍为存量节点提供兼容。Compose 自带的 Agent 容器默认不启动；只有要把运行 Compose 的这台 GPU 主机本身作为 Agent 节点时，才需用 `docker compose --profile legacy-agent up -d agent` 启动。其他服务器上已部署的 Agent 不受此 profile 影响。
 
 ### 添加 SSH 节点
 
@@ -287,7 +292,7 @@ Gateway 启动时必须设置 PI_RUNTIME_URL，例如 http://127.0.0.1:8010。Do
 
 ## Desktop Client(Electron)
 
-除了浏览器访问 `http://127.0.0.1:3000`,仓库还提供正式的桌面客户端,位于 [`desktop/`](desktop/README.md):
+除了浏览器访问 `http://127.0.0.1:3000`,仓库还提供正式的桌面客户端,位于 [`desktop/`](desktop/README.md)。空闲 GPU 预约、系统通知、长周期历史热力图和本机 OpenSSH 终端目前由桌面端提供;旧 Web Dashboard 保留既有功能作为行为基准:
 
 - 技术栈:Electron + React + TypeScript + Vite + Tailwind CSS,使用 Electron Forge 打包
 - 与 Web 前端功能对齐:节点监控(2s 轮询)、GPU 详情、Availability、用户/节点管理、中英文、AI 流式问答(SSE 经主进程转发,支持 Stop)

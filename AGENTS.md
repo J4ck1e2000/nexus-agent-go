@@ -7,12 +7,12 @@
 分布式 GPU 集群监控与调度辅助平台:
 
 - **Go Gateway**(`cmd/gateway`,`internal/gateway`):JWT 认证、节点配置与聚合状态(Redis + MySQL)、管理 API、AI 问答 SSE 入口,并托管 `web/` 静态页;
-- **Go Agent**(`cmd/agent`):跑在 GPU 节点上采集 CPU/RAM/GPU/进程指标;
+- **旧版 Go Agent**(`cmd/agent`):保留旧节点 HTTP 指标采集兼容;Compose 自带 Agent 容器默认不启动,仅在需要采集运行 Compose 的 GPU 主机时用 `--profile legacy-agent` 启用;新节点默认使用 Gateway SSH 采集;
 - **Pi Runtime**(`pi-runtime/`,TypeScript):**唯一** AI 执行器,经工具网关回调 Gateway,`/api/ai/query` 的 SSE 由它透传;
 - **web/**(CDN React 单文件):旧 Web 前端,**保留**,是一切前端迁移的行为基准;
-- **desktop/**(Electron + React + TS + Vite + Tailwind + Forge):新桌面客户端,与 web/ 功能对齐。
+- **desktop/**(Electron + React + TS + Vite + Tailwind + Forge):新桌面客户端;复用 Gateway 数据契约,并承载本机 OpenSSH 终端、GPU 预约提醒、桌面通知和历史热力图。
 
-架构:Browser/Electron → Gateway → {Redis, MySQL, Qdrant, Pi Runtime} ← GPU Agents。
+架构:Browser/Electron → Gateway → {Redis, MySQL, Qdrant, Pi Runtime} ← SSH Targets / optional legacy GPU Agents;Electron 终端由用户电脑本地 OpenSSH 直连服务器。
 
 ## 常用命令
 
@@ -56,7 +56,7 @@ npm start          # 需要 PI_RUNTIME_TOKEN / AI_API_KEY 等(见 readme)
 ```bash
 docker compose up -d gateway pi-runtime   # 附带 mysql/redis/qdrant
 curl http://127.0.0.1:3000/api/version
-# 注意:agent 服务声明了 GPU capability,在 macOS 上起不来,属预期
+# Compose 自带的旧 Agent 默认不启动;若要采集运行 Compose 的 GPU 主机: docker compose --profile legacy-agent up -d agent
 ```
 
 `.env` 必改项:`MYSQL_ROOT_PASSWORD`、`JWT_SECRET`、`AI_API_KEY`。测试账号:`admin/admin123`。
@@ -69,6 +69,8 @@ curl http://127.0.0.1:3000/api/version
 4. **web/ 保留不删**:它是行为基准;删除属于未来的破坏性迁移。
 5. **desktop 安全模型**:`nodeIntegration=false`、`contextIsolation=true`、`sandbox=true`;preload 只经 contextBridge 暴露 `window.nexus.*`;JWT 只存主进程(safeStorage),Renderer 不持有;所有 IPC 参数在主进程校验;错误文案本地化,日志不打 token/密码。
 6. **desktop 新增功能须中英双语**:en/zh 字典同步,键在 `desktop/src/i18n/desktop.ts`(AI 面板/设置/错误码)或提取字典。
+7. **用户 SSH 终端**:只在 Electron Main 使用本机 OpenSSH/`node-pty`;不读取、不上传、不保存用户私钥或 SSH 密码;OpenSSH 配置解析出的主机和端口必须匹配当前节点;Host Key 校验沿用本地 `known_hosts`。
+8. **历史与预约**:预约按平台用户隔离,不代表硬件锁;MySQL 小时历史保留 90 天,Redis 仍保留 25 小时热历史;不要把远端常驻采集 Agent 引入长周期历史实现。
 
 ## 代码风格
 

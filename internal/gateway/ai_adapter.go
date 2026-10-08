@@ -43,7 +43,7 @@ func (a *AIDataAdapter) ListNodeSnapshots(ctx context.Context) ([]ai.NodeSnapsho
 
 // QueryNodeHistory returns compact snapshots in the selected time window.
 func (a *AIDataAdapter) QueryNodeHistory(ctx context.Context, nodeName *string, window time.Duration) ([]ai.NodeHistorySnapshot, error) {
-	if a == nil || a.nodeStateStore == nil {
+	if a == nil || (a.nodeStateService == nil && a.nodeStateStore == nil) {
 		return []ai.NodeHistorySnapshot{}, nil
 	}
 	if window <= 0 {
@@ -56,10 +56,11 @@ func (a *AIDataAdapter) QueryNodeHistory(ctx context.Context, nodeName *string, 
 		if err != nil {
 			return nil, err
 		}
-		series, err := a.nodeStateStore.LoadNodeHistorySince(ctx, nodeID, sinceUnix)
+		series, err := a.loadNodeHistory(ctx, nodeID, sinceUnix)
 		if err != nil {
 			return nil, err
 		}
+		series = DownsampleNodeHistory(series, 60, HistoryAggregationAverage)
 		result := make([]ai.NodeHistorySnapshot, 0, len(series))
 		for _, item := range series {
 			result = append(result, convertHistorySnapshot(item, resolvedName))
@@ -67,17 +68,44 @@ func (a *AIDataAdapter) QueryNodeHistory(ctx context.Context, nodeName *string, 
 		return result, nil
 	}
 
+	result := make([]ai.NodeHistorySnapshot, 0)
+	if a.nodeStateService != nil {
+		overview, err := a.nodeStateService.GetNodesOverview(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, node := range overview {
+			series, err := a.loadNodeHistory(ctx, node.ID, sinceUnix)
+			if err != nil {
+				return nil, err
+			}
+			series = DownsampleNodeHistory(series, 60, HistoryAggregationAverage)
+			for _, item := range series {
+				result = append(result, convertHistorySnapshot(item, node.Name))
+			}
+		}
+		return result, nil
+	}
 	allSeries, err := a.nodeStateStore.LoadAllNodeHistorySince(ctx, sinceUnix)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]ai.NodeHistorySnapshot, 0)
 	for _, nodeSeries := range allSeries {
 		for _, item := range nodeSeries {
 			result = append(result, convertHistorySnapshot(item, item.NodeName))
 		}
 	}
 	return result, nil
+}
+
+func (a *AIDataAdapter) loadNodeHistory(ctx context.Context, nodeID int64, sinceUnix int64) ([]NodeHistorySnapshot, error) {
+	if a.nodeStateService != nil {
+		return a.nodeStateService.LoadNodeHistory(ctx, nodeID, sinceUnix)
+	}
+	if a.nodeStateStore != nil {
+		return a.nodeStateStore.LoadNodeHistorySince(ctx, nodeID, sinceUnix)
+	}
+	return []NodeHistorySnapshot{}, nil
 }
 
 func (a *AIDataAdapter) resolveNodeIDByName(ctx context.Context, nodeName string) (int64, string, error) {
